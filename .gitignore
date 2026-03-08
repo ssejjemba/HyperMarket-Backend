@@ -38,6 +38,7 @@ coverage/
 *.db
 *.dump
 *.sql
+!docker/pg/init.sql
 
 # Temporary files
 .tmp/
