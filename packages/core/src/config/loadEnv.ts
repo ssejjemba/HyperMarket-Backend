@@ -4,6 +4,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().min(1, { message: 'Required' }).url({ message: 'Must be a valid URL' }),
   REDIS_URL: z.string().min(1, { message: 'Required' }).url({ message: 'Must be a valid URL' }),
+  LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).optional(),
   PORT: z
     .string()
     .optional()
@@ -40,6 +41,7 @@ export type AppConfig = {
   databaseUrl: EnvSchema['DATABASE_URL'];
   redisUrl: EnvSchema['REDIS_URL'];
   port: number;
+  logLevel: NonNullable<EnvSchema['LOG_LEVEL']>;
 };
 
 export const loadEnv = (): AppConfig => {
@@ -48,10 +50,14 @@ export const loadEnv = (): AppConfig => {
     throw new Error(formatEnvErrors(result.error));
   }
 
+  const logLevel =
+    result.data.LOG_LEVEL ?? (result.data.NODE_ENV === 'production' ? 'info' : 'debug');
+
   return Object.freeze({
     nodeEnv: result.data.NODE_ENV,
     databaseUrl: result.data.DATABASE_URL,
     redisUrl: result.data.REDIS_URL,
-    port: result.data.PORT
+    port: result.data.PORT,
+    logLevel
   });
 };
