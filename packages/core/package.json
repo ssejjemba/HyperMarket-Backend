@@ -5,6 +5,13 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./config/loadEnv": "./src/config/loadEnv.ts",
+    "./observability/logger": "./src/observability/logger.ts",
+    "./observability/requestContext": "./src/observability/requestContext.ts",
+    "./db": "./src/db/index.ts"
+  },
   "files": [
     "dist"
   ],

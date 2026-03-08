@@ -1,0 +1,21 @@
+{
+  "name": "@hypermarket/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "start": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "@hypermarket/contracts": "workspace:*",
+    "@hypermarket/core": "workspace:*",
+    "dotenv": "^16.4.5",
+    "fastify": "^4.28.1"
+  }
+}
