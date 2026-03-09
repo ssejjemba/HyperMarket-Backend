@@ -15,6 +15,7 @@
   "dependencies": {
     "@hypermarket/contracts": "workspace:*",
     "@hypermarket/core": "workspace:*",
+    "@hypermarket/modules": "workspace:*",
     "dotenv": "^16.4.5",
     "fastify": "^4.28.1"
   }

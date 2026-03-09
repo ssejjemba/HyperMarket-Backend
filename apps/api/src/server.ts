@@ -6,9 +6,11 @@ import { config as loadDotenv } from 'dotenv';
 import Fastify from 'fastify';
 
 import { loadEnv, type AppConfig } from '@hypermarket/core/config/loadEnv';
+import { createDbClient } from '@hypermarket/core/db';
 import { createLogger, withRequestContext } from '@hypermarket/core/observability/logger';
 import type { RequestContext } from '@hypermarket/core/observability/requestContext';
 import { AppError, ErrorCode, errorToHttp } from '@hypermarket/contracts';
+import { registerModules } from '@hypermarket/modules';
 
 type ServerOptions = {
   config: AppConfig;
@@ -52,6 +54,13 @@ export const buildServer = ({ config }: ServerOptions) => {
       status: 'ok',
       request_id: request.id
     };
+  });
+
+  const db = createDbClient(config.databaseUrl);
+  void registerModules(app as unknown as Parameters<typeof registerModules>[0], {
+    db,
+    logger,
+    config
   });
 
   app.setErrorHandler(async (error, request, reply) => {
