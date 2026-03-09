@@ -17,9 +17,10 @@
     "db:up": "docker compose -f docker/docker-compose.yml up -d",
     "db:down": "docker compose -f docker/docker-compose.yml down",
     "test:integration": "corepack pnpm exec tsx tests/integration/tenancy.test.ts",
-    "db:migrate": "node --loader ts-node/esm ./node_modules/.bin/knex --knexfile knexfile.ts migrate:latest",
-    "db:rollback": "node --loader ts-node/esm ./node_modules/.bin/knex --knexfile knexfile.ts migrate:rollback",
-    "db:reset": "node --loader ts-node/esm ./node_modules/.bin/knex --knexfile knexfile.ts migrate:rollback --all && node --loader ts-node/esm ./node_modules/.bin/knex --knexfile knexfile.ts migrate:latest"
+    "test": "vitest run",
+    "db:migrate": "node ./node_modules/knex/bin/cli.js --knexfile knexfile.cjs migrate:latest",
+    "db:rollback": "node ./node_modules/knex/bin/cli.js --knexfile knexfile.cjs migrate:rollback",
+    "db:reset": "node ./node_modules/knex/bin/cli.js --knexfile knexfile.cjs migrate:rollback --all && node ./node_modules/knex/bin/cli.js --knexfile knexfile.cjs migrate:latest"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
@@ -35,6 +36,7 @@
     "@types/pg": "^8.18.0",
     "@typescript-eslint/eslint-plugin": "^8.39.0",
     "@typescript-eslint/parser": "^8.39.0",
+    "dotenv": "^16.4.5",
     "eslint": "^9.7.0",
     "globals": "^15.15.0",
     "husky": "^9.1.7",
@@ -44,6 +46,7 @@
     "prettier": "^3.3.3",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^4.0.18"
   }
 }

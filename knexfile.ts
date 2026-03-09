@@ -1,4 +1,16 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { config as loadDotenv } from 'dotenv';
 import type { Knex } from 'knex';
+
+const currentFile = fileURLToPath(import.meta.url);
+const rootDir = path.resolve(path.dirname(currentFile));
+const envPath = path.join(rootDir, '.env');
+const examplePath = path.join(rootDir, '.env.example');
+
+loadDotenv({ path: envPath });
+loadDotenv({ path: examplePath });
 
 const databaseUrl = process.env.DATABASE_URL;
 if (databaseUrl === undefined || databaseUrl.length === 0) {
