@@ -8,5 +8,7 @@ export { createDbClient, runInTransaction, withTx } from './db';
 export type { DatabaseSchema } from './db';
 export { authMiddleware, tenantMiddleware } from './http';
 export type { AuthContext, TenantContext, RouteAccess, RequestAuthState } from './http';
+export { createOutboxWriter, createOutboxDispatcher } from './outbox';
+export type { OutboxEvent, OutboxRecord } from './outbox';
 
 export const AppConfig = loadEnv();

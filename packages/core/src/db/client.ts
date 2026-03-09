@@ -5,7 +5,22 @@ import { Pool } from 'pg';
  * Database access is restricted to repositories.
  * Application/services must depend on repository interfaces only.
  */
-export type DatabaseSchema = Record<string, never>;
+export type DatabaseSchema = {
+  outbox_events: {
+    id: string;
+    event_type: string;
+    tenant_id: string | null;
+    correlation_id: string | null;
+    actor_user_id: string | null;
+    payload: Record<string, unknown>;
+    occurred_at: Date;
+    available_at: Date;
+    dispatched_at: Date | null;
+    attempts: number;
+    last_error: string | null;
+    created_at: Date;
+  };
+};
 
 export const createDbClient = (databaseUrl: string): Kysely<DatabaseSchema> => {
   const pool = new Pool({ connectionString: databaseUrl });

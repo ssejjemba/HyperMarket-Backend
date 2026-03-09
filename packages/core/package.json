@@ -11,7 +11,8 @@
     "./observability/logger": "./src/observability/logger.ts",
     "./observability/requestContext": "./src/observability/requestContext.ts",
     "./db": "./src/db/index.ts",
-    "./http": "./src/http/index.ts"
+    "./http": "./src/http/index.ts",
+    "./outbox": "./src/outbox/index.ts"
   },
   "files": [
     "dist"
