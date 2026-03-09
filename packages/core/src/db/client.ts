@@ -65,6 +65,31 @@ export type DatabaseSchema = {
     is_primary: boolean;
     created_at: Date;
   };
+  auth_otps: {
+    id: string;
+    phone_e164: string;
+    code_hash: string;
+    expires_at: Date;
+    consumed_at: Date | null;
+    attempts: number;
+    created_at: Date;
+  };
+  sessions: {
+    id: string;
+    user_id: string;
+    token_id: string;
+    expires_at: Date;
+    created_at: Date;
+    revoked_at: Date | null;
+  };
+  users: {
+    id: string;
+    phone_e164: string;
+    email: string | null;
+    is_active: boolean;
+    created_at: Date;
+    updated_at: Date;
+  };
 };
 
 export const createDbClient = (databaseUrl: string): Kysely<DatabaseSchema> => {

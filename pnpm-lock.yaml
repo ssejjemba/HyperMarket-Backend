@@ -114,6 +114,9 @@ importers:
       fastify:
         specifier: ^4.28.1
         version: 4.29.1
+      jose:
+        specifier: ^5.6.0
+        version: 5.10.0
       kysely:
         specifier: ^0.28.11
         version: 0.28.11
@@ -1411,6 +1414,12 @@ packages:
     resolution:
       {
         integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==
+      }
+
+  jose@5.10.0:
+    resolution:
+      {
+        integrity: sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg==
       }
 
   js-yaml@4.1.1:
@@ -3012,6 +3021,8 @@ snapshots:
   is-stream@3.0.0: {}
 
   isexe@2.0.0: {}
+
+  jose@5.10.0: {}
 
   js-yaml@4.1.1:
     dependencies:
