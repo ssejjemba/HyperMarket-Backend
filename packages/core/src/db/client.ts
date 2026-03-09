@@ -20,6 +20,16 @@ export type DatabaseSchema = {
     last_error: string | null;
     created_at: Date;
   };
+  idempotency_keys: {
+    id: string;
+    tenant_id: string;
+    operation: string;
+    idempotency_key: string;
+    request_hash: string;
+    response_ref: string | null;
+    created_at: Date;
+    updated_at: Date;
+  };
 };
 
 export const createDbClient = (databaseUrl: string): Kysely<DatabaseSchema> => {

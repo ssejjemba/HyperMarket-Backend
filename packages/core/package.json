@@ -12,7 +12,8 @@
     "./observability/requestContext": "./src/observability/requestContext.ts",
     "./db": "./src/db/index.ts",
     "./http": "./src/http/index.ts",
-    "./outbox": "./src/outbox/index.ts"
+    "./outbox": "./src/outbox/index.ts",
+    "./idempotency": "./src/idempotency/index.ts"
   },
   "files": [
     "dist"
