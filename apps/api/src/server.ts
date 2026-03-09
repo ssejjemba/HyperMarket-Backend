@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { config as loadDotenv } from 'dotenv';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify from 'fastify';
 
 import { loadEnv, type AppConfig } from '@hypermarket/core/config/loadEnv';
 import { createLogger, withRequestContext } from '@hypermarket/core/observability/logger';
@@ -21,7 +21,7 @@ const createRequestContext = (requestId: string, traceId: string): RequestContex
   };
 };
 
-export const buildServer = ({ config }: ServerOptions): FastifyInstance => {
+export const buildServer = ({ config }: ServerOptions) => {
   const logger = createLogger({ config, base: { service: 'api' } });
 
   const app = Fastify({

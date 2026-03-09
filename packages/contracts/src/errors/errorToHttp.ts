@@ -30,14 +30,15 @@ const codeToStatus: Record<ErrorCode, number> = {
 
 export const errorToHttp = (error: AppError, requestId: string): ErrorHttpResult => {
   const status = codeToStatus[error.code] ?? 500;
-
-  return {
-    status,
-    body: {
-      request_id: requestId,
-      error_code: error.code,
-      message: error.message,
-      details: error.details
-    }
+  const body: ErrorResponse = {
+    request_id: requestId,
+    error_code: error.code,
+    message: error.message
   };
+
+  if (error.details !== undefined) {
+    body.details = error.details;
+  }
+
+  return { status, body };
 };

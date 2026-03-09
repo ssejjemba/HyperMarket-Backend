@@ -15,7 +15,9 @@ export class AppError extends Error {
     super(params.message);
     this.name = 'AppError';
     this.code = params.code;
-    this.details = params.details;
+    if (params.details !== undefined) {
+      this.details = params.details;
+    }
 
     if (params.cause !== undefined) {
       this.cause = params.cause;
