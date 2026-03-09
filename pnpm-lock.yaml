@@ -72,6 +72,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@hypermarket/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       kysely:
         specifier: ^0.28.11
         version: 0.28.11

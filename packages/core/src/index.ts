@@ -6,5 +6,7 @@ export { createLogger, withRequestContext } from './observability/logger';
 export type { RequestContext } from './observability/requestContext';
 export { createDbClient, runInTransaction, withTx } from './db';
 export type { DatabaseSchema } from './db';
+export { authMiddleware, tenantMiddleware } from './http';
+export type { AuthContext, TenantContext, RouteAccess, RequestAuthState } from './http';
 
 export const AppConfig = loadEnv();
