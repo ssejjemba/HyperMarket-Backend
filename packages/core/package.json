@@ -13,7 +13,8 @@
     "./db": "./src/db/index.ts",
     "./http": "./src/http/index.ts",
     "./outbox": "./src/outbox/index.ts",
-    "./idempotency": "./src/idempotency/index.ts"
+    "./idempotency": "./src/idempotency/index.ts",
+    "./audit": "./src/audit/index.ts"
   },
   "files": [
     "dist"

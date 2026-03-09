@@ -30,6 +30,19 @@ export type DatabaseSchema = {
     created_at: Date;
     updated_at: Date;
   };
+  audit_events: {
+    id: string;
+    tenant_id: string;
+    actor_user_id: string | null;
+    action: string;
+    target_type: string;
+    target_id: string;
+    before: Record<string, unknown> | null;
+    after: Record<string, unknown> | null;
+    request_id: string | null;
+    occurred_at: Date;
+    created_at: Date;
+  };
 };
 
 export const createDbClient = (databaseUrl: string): Kysely<DatabaseSchema> => {
