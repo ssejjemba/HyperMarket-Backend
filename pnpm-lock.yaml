@@ -105,6 +105,9 @@ importers:
 
   packages/modules:
     dependencies:
+      '@hypermarket/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@hypermarket/core':
         specifier: workspace:*
         version: link:../core

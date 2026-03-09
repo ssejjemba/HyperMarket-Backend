@@ -43,6 +43,28 @@ export type DatabaseSchema = {
     occurred_at: Date;
     created_at: Date;
   };
+  tenants: {
+    id: string;
+    name: string;
+    slug: string;
+    is_active: boolean;
+    created_at: Date;
+    updated_at: Date;
+  };
+  tenant_memberships: {
+    id: string;
+    tenant_id: string;
+    user_id: string;
+    role: string;
+    created_at: Date;
+  };
+  tenant_domains: {
+    id: string;
+    tenant_id: string;
+    hostname: string;
+    is_primary: boolean;
+    created_at: Date;
+  };
 };
 
 export const createDbClient = (databaseUrl: string): Kysely<DatabaseSchema> => {

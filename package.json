@@ -16,6 +16,7 @@
     "dev:worker": "corepack pnpm exec tsx apps/worker/src/worker.ts",
     "db:up": "docker compose -f docker/docker-compose.yml up -d",
     "db:down": "docker compose -f docker/docker-compose.yml down",
+    "test:integration": "corepack pnpm exec tsx tests/integration/tenancy.test.ts",
     "db:migrate": "node --loader ts-node/esm ./node_modules/.bin/knex --knexfile knexfile.ts migrate:latest",
     "db:rollback": "node --loader ts-node/esm ./node_modules/.bin/knex --knexfile knexfile.ts migrate:rollback",
     "db:reset": "node --loader ts-node/esm ./node_modules/.bin/knex --knexfile knexfile.ts migrate:rollback --all && node --loader ts-node/esm ./node_modules/.bin/knex --knexfile knexfile.ts migrate:latest"

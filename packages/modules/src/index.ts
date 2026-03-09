@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 
 import type { ModuleDeps, ModuleLogger } from './types';
 import { registerRoutes as registerIdentityAccess } from '../modules/identity-access/src/index';
+import { registerRoutes as registerTenancy } from '../modules/tenancy/src/index';
 
 export type { ModuleDeps } from './types';
 
@@ -9,6 +10,11 @@ export const registerModules = async (server: FastifyInstance, deps: ModuleDeps)
   const moduleLogger = (deps.logger as ModuleLogger).child({ scope: 'modules' });
 
   await registerIdentityAccess(server, {
+    ...deps,
+    logger: moduleLogger
+  });
+
+  await registerTenancy(server, {
     ...deps,
     logger: moduleLogger
   });

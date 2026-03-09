@@ -4,18 +4,20 @@
   "private": true,
   "type": "module",
   "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "types": "src/index.ts",
   "files": [
     "dist"
   ],
   "dependencies": {
     "@hypermarket/core": "workspace:*",
+    "@hypermarket/contracts": "workspace:*",
     "fastify": "^4.28.1",
     "kysely": "^0.28.11",
     "pino": "^10.3.1"
   },
   "exports": {
     ".": "./src/index.ts",
-    "./identity-access": "./modules/identity-access/src/index.ts"
+    "./identity-access": "./modules/identity-access/src/index.ts",
+    "./tenancy": "./modules/tenancy/src/index.ts"
   }
 }
