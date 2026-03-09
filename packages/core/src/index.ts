@@ -1,5 +1,3 @@
-import { loadEnv } from './config/loadEnv';
-
 export { loadEnv } from './config/loadEnv';
 export type { AppConfig as AppConfigShape } from './config/loadEnv';
 export { createLogger, withRequestContext } from './observability/logger';
@@ -14,5 +12,3 @@ export { createIdempotencyService } from './idempotency';
 export type { IdempotencyBeginResult, IdempotencyRecord, IdempotencyState } from './idempotency';
 export { createAuditWriter } from './audit';
 export type { AuditEvent, AuditRecord } from './audit';
-
-export const AppConfig = loadEnv();
