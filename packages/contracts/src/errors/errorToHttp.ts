@@ -26,7 +26,28 @@ const codeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.PaymentProviderError]: 502,
   [ErrorCode.NotificationFailed]: 502,
   [ErrorCode.InternalError]: 500,
-  [ErrorCode.NotImplemented]: 501
+  [ErrorCode.NotImplemented]: 501,
+
+  // IAA codes
+  [ErrorCode.AuthInvalidPhoneFormat]: 400,
+  [ErrorCode.AuthOtpRateLimitedPhone]: 429,
+  [ErrorCode.AuthOtpRateLimitedIp]: 429,
+  [ErrorCode.AuthChallengeNotFound]: 404,
+  [ErrorCode.AuthChallengeExpired]: 422,
+  [ErrorCode.AuthChallengeLocked]: 429,
+  [ErrorCode.AuthChallengeConsumed]: 409,
+  [ErrorCode.AuthChallengePhoneMismatch]: 422,
+  [ErrorCode.AuthOtpInvalid]: 422,
+  [ErrorCode.AuthUserSuspended]: 403,
+  [ErrorCode.AuthSessionIssueFailed]: 500,
+  [ErrorCode.AuthMissingToken]: 401,
+  [ErrorCode.AuthInvalidToken]: 401,
+  [ErrorCode.AuthSessionExpired]: 401,
+  [ErrorCode.AuthSessionRevoked]: 401,
+  [ErrorCode.AuthTenantMembershipMissing]: 403,
+  [ErrorCode.AuthTenantMembershipRevoked]: 403,
+  [ErrorCode.AuthProviderUnavailable]: 503,
+  [ErrorCode.AuthDbFailure]: 500
 };
 
 export const errorToHttp = (error: AppError, requestId: string): ErrorHttpResult => {

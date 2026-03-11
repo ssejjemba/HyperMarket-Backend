@@ -11,3 +11,5 @@ export const registerIaaRoutes = async (
 };
 
 export type { ModuleDeps };
+export { IaaError } from './errors/IaaError';
+export type { IaaErrorCode } from './errors/IaaError';

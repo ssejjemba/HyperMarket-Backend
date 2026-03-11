@@ -11,5 +11,26 @@ export enum ErrorCode {
   PaymentProviderError = 'payment_provider_error',
   NotificationFailed = 'notification_failed',
   InternalError = 'internal_error',
-  NotImplemented = 'not_implemented'
+  NotImplemented = 'not_implemented',
+
+  // IAA (Identity and Access) module codes
+  AuthInvalidPhoneFormat = 'auth_invalid_phone_format',
+  AuthOtpRateLimitedPhone = 'auth_otp_rate_limited_phone',
+  AuthOtpRateLimitedIp = 'auth_otp_rate_limited_ip',
+  AuthChallengeNotFound = 'auth_challenge_not_found',
+  AuthChallengeExpired = 'auth_challenge_expired',
+  AuthChallengeLocked = 'auth_challenge_locked',
+  AuthChallengeConsumed = 'auth_challenge_consumed',
+  AuthChallengePhoneMismatch = 'auth_challenge_phone_mismatch',
+  AuthOtpInvalid = 'auth_otp_invalid',
+  AuthUserSuspended = 'auth_user_suspended',
+  AuthSessionIssueFailed = 'auth_session_issue_failed',
+  AuthMissingToken = 'auth_missing_token',
+  AuthInvalidToken = 'auth_invalid_token',
+  AuthSessionExpired = 'auth_session_expired',
+  AuthSessionRevoked = 'auth_session_revoked',
+  AuthTenantMembershipMissing = 'auth_tenant_membership_missing',
+  AuthTenantMembershipRevoked = 'auth_tenant_membership_revoked',
+  AuthProviderUnavailable = 'auth_provider_unavailable',
+  AuthDbFailure = 'auth_db_failure'
 }
