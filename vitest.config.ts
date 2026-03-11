@@ -31,11 +31,11 @@ export default defineConfig({
       },
       {
         find: /^@hypermarket\/modules\/iaa\/testkit$/,
-        replacement: path.resolve(__dirname, 'packages/modules/iaa/src/testkit.ts')
+        replacement: path.resolve(__dirname, 'packages/modules/src/iaa/testkit.ts')
       },
       {
         find: /^@hypermarket\/modules\/iaa$/,
-        replacement: path.resolve(__dirname, 'packages/modules/iaa/src/index.ts')
+        replacement: path.resolve(__dirname, 'packages/modules/src/iaa/index.ts')
       },
       {
         find: /^@hypermarket\/modules\/(.*)$/,

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"zod\" /Users/danielssejjemba/Desktop/work/HyperMarket-Backend/package.json /Users/danielssejjemba/Desktop/work/HyperMarket-Backend/packages/*/package.json)",
+      "Bash(pnpm ls:*)",
+      "Bash(pnpm typecheck:*)",
+      "Bash(npm run:*)",
+      "Bash(npm test:*)",
+      "Bash(npx pnpm:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}

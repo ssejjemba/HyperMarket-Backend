@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 
 import { AppError, ErrorCode } from '@hypermarket/contracts';
 
-import type { ModuleDeps } from '../../../src/types';
+import type { ModuleDeps } from '../../types';
 import { requestOtpSchema } from './schemas/requestOtp';
 import { verifyOtpSchema } from './schemas/verifyOtp';
 

@@ -3,7 +3,7 @@ import pino from 'pino';
 
 import { AppError, ErrorCode, errorToHttp } from '@hypermarket/contracts';
 
-import type { ModuleDeps } from '../../src/types';
+import type { ModuleDeps } from '../types';
 import { registerIaaRoutes } from './index';
 
 export const buildIaaTestServer = async () => {

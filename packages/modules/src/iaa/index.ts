@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 
-import type { ModuleDeps } from '../../src/types';
+import type { ModuleDeps } from '../types';
 import { registerIaaApiRoutes } from './api/routes';
 
 export const registerIaaRoutes = async (

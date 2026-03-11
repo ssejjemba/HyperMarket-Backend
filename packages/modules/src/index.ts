@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 
 import type { ModuleDeps, ModuleLogger } from './types';
-import { registerIaaRoutes } from '../iaa/src/index';
+import { registerIaaRoutes } from './iaa/index';
 import { registerRoutes as registerTenancy } from '../modules/tenancy/src/index';
 
 export type { ModuleDeps } from './types';
