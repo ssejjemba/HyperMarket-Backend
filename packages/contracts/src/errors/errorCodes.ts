@@ -10,5 +10,6 @@ export enum ErrorCode {
   PublishValidationFailed = 'publish_validation_failed',
   PaymentProviderError = 'payment_provider_error',
   NotificationFailed = 'notification_failed',
-  InternalError = 'internal_error'
+  InternalError = 'internal_error',
+  NotImplemented = 'not_implemented'
 }

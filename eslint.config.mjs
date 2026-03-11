@@ -7,6 +7,14 @@ export default [
   {
     ignores: ['dist/**', 'build/**', 'coverage/**', '.next/**', '.out/**']
   },
+  {
+    files: ['**/*.cjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'commonjs',
+      globals: globals.node
+    }
+  },
   js.configs.recommended,
   {
     files: ['**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx'],

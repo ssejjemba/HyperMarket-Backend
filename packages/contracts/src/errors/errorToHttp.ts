@@ -25,7 +25,8 @@ const codeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.PublishValidationFailed]: 400,
   [ErrorCode.PaymentProviderError]: 502,
   [ErrorCode.NotificationFailed]: 502,
-  [ErrorCode.InternalError]: 500
+  [ErrorCode.InternalError]: 500,
+  [ErrorCode.NotImplemented]: 501
 };
 
 export const errorToHttp = (error: AppError, requestId: string): ErrorHttpResult => {
