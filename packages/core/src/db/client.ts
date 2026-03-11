@@ -70,8 +70,10 @@ export type DatabaseSchema = {
     phone_e164: string;
     code_hash: string;
     expires_at: Date;
-    consumed_at: Date | null;
-    attempts: number;
+    attempt_count: number;
+    max_attempts: number;
+    status: string;
+    last_sent_at: Date;
     created_at: Date;
   };
   sessions: {

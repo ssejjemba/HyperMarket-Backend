@@ -10,7 +10,7 @@ type OtpRecord = {
   phone: string;
   codeHash: string;
   expiresAt: Date;
-  consumedAt?: Date | undefined;
+  status: string;
 };
 
 type OtpServiceConfig = {
@@ -53,8 +53,10 @@ export const createOtpService = (config: OtpServiceConfig): OtpService => {
           phone_e164: phone,
           code_hash: hashCode(code, config.otpSecret),
           expires_at: expiresAt,
-          consumed_at: null,
-          attempts: 0,
+          attempt_count: 0,
+          max_attempts: 5,
+          status: 'ACTIVE',
+          last_sent_at: now,
           created_at: now
         })
         .returning(['id'])
@@ -70,10 +72,10 @@ export const createOtpService = (config: OtpServiceConfig): OtpService => {
       const now = new Date();
       const row = await trx
         .selectFrom('auth_otps')
-        .select(['id', 'phone_e164', 'code_hash', 'expires_at', 'consumed_at'])
+        .select(['id', 'phone_e164', 'code_hash', 'expires_at', 'status'])
         .where('phone_e164', '=', phone)
         .where('expires_at', '>', now)
-        .where('consumed_at', 'is', null)
+        .where('status', '=', 'ACTIVE')
         .orderBy('created_at', 'desc')
         .limit(1)
         .executeTakeFirst();
@@ -95,7 +97,7 @@ export const createOtpService = (config: OtpServiceConfig): OtpService => {
 
       await trx
         .updateTable('auth_otps')
-        .set({ consumed_at: now })
+        .set({ status: 'CONSUMED' })
         .where('id', '=', row.id)
         .execute();
 
@@ -104,7 +106,7 @@ export const createOtpService = (config: OtpServiceConfig): OtpService => {
         phone: row.phone_e164,
         codeHash: row.code_hash,
         expiresAt: row.expires_at,
-        consumedAt: now
+        status: 'CONSUMED'
       };
     }
   };
