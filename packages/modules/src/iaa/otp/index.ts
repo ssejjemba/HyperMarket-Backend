@@ -1,2 +1,3 @@
-// Future: OTP service (generate, hash, verify, TTL)
-export {};
+export { OtpChallenge } from './domain/OtpChallenge';
+export type { OtpChallengeProps, OtpChallengeStatus } from './domain/OtpChallenge';
+export { OtpChallengePolicy } from './domain/OtpChallengePolicy';

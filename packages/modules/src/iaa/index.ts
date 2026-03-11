@@ -14,3 +14,6 @@ export type { ModuleDeps };
 export { IaaError } from './errors/IaaError';
 export type { IaaErrorCode } from './errors/IaaError';
 export { PhoneNumber } from './phone/PhoneNumber';
+export { OtpChallenge } from './otp/domain/OtpChallenge';
+export type { OtpChallengeProps, OtpChallengeStatus } from './otp/domain/OtpChallenge';
+export { OtpChallengePolicy } from './otp/domain/OtpChallengePolicy';
