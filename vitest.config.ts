@@ -38,6 +38,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, 'packages/modules/src/iaa/otp/persistence/index.ts')
       },
       {
+        find: /^@hypermarket\/modules\/iaa\/otp-sender$/,
+        replacement: path.resolve(__dirname, 'packages/modules/src/iaa/otp/integrations/index.ts')
+      },
+      {
         find: /^@hypermarket\/modules\/iaa$/,
         replacement: path.resolve(__dirname, 'packages/modules/src/iaa/index.ts')
       },
