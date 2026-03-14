@@ -23,3 +23,11 @@ export type { UserRepository } from './user/persistence/UserRepository';
 export { createUserRepoPg } from './user/persistence/UserRepoPg';
 export { createUserService } from './user/UserService';
 export type { UserService } from './user/UserService';
+export { createTokenSigner } from './session/TokenSigner';
+export type { TokenSigner, TokenClaims } from './session/TokenSigner';
+export { createSessionService } from './session/SessionService';
+export type {
+  SessionService,
+  IssueSessionResult,
+  ValidateSessionResult
+} from './session/SessionService';
