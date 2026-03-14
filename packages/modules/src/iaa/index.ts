@@ -23,6 +23,18 @@ export type { UserRepository } from './user/persistence/UserRepository';
 export { createUserRepoPg } from './user/persistence/UserRepoPg';
 export { createUserService } from './user/UserService';
 export type { UserService } from './user/UserService';
+export { createRequestOtpUseCase } from './otp/application/RequestOtpUseCase';
+export type {
+  RequestOtpUseCase,
+  RequestOtpInput,
+  RequestOtpOutput
+} from './otp/application/RequestOtpUseCase';
+export { createVerifyOtpUseCase } from './otp/application/VerifyOtpUseCase';
+export type {
+  VerifyOtpUseCase,
+  VerifyOtpInput,
+  VerifyOtpOutput
+} from './otp/application/VerifyOtpUseCase';
 export { MembershipClaim } from './membership/MembershipClaim';
 export type { MembershipStatus } from './membership/MembershipClaim';
 export type { MembershipReader } from './membership/MembershipReader';
