@@ -104,4 +104,4 @@ export const registerRoutes = async (server: FastifyInstance, deps: ModuleDeps):
 };
 
 export { createTenancyRepository } from './repository';
-export type { TenantRecord, CreateTenantInput } from './repository';
+export type { TenantRecord, CreateTenantInput, MembershipRow } from './repository';

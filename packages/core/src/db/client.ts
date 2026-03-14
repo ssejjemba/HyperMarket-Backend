@@ -56,6 +56,7 @@ export type DatabaseSchema = {
     tenant_id: string;
     user_id: string;
     role: string;
+    is_active: boolean;
     created_at: Date;
   };
   tenant_domains: {

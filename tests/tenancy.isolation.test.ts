@@ -36,6 +36,7 @@ suite('tenant isolation', () => {
         tenant_id: otherTenantId,
         user_id: otherUserId,
         role: 'owner',
+        is_active: true,
         created_at: new Date()
       })
       .execute();

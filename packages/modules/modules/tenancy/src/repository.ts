@@ -11,6 +11,12 @@ export type TenantRecord = {
   updatedAt: Date;
 };
 
+export type MembershipRow = {
+  tenantId: string;
+  role: string;
+  isActive: boolean;
+};
+
 export type CreateTenantInput = {
   name: string;
   slug: string;
@@ -43,6 +49,7 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>) => {
         tenant_id: tenantRow.id,
         user_id: input.ownerUserId,
         role: 'owner',
+        is_active: true,
         created_at: sql`now()`
       })
       .execute();
@@ -103,9 +110,34 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>) => {
     return row?.tenant_id ?? null;
   };
 
+  const getMembershipsForUser = async (userId: string): Promise<MembershipRow[]> => {
+    const rows = await db
+      .selectFrom('tenant_memberships')
+      .select(['tenant_id', 'role', 'is_active'])
+      .where('user_id', '=', userId)
+      .execute();
+
+    return rows.map((r) => ({ tenantId: r.tenant_id, role: r.role, isActive: r.is_active }));
+  };
+
+  const getMembership = async (userId: string, tenantId: string): Promise<MembershipRow | null> => {
+    const row = await db
+      .selectFrom('tenant_memberships')
+      .select(['tenant_id', 'role', 'is_active'])
+      .where('user_id', '=', userId)
+      .where('tenant_id', '=', tenantId)
+      .executeTakeFirst();
+
+    return row !== undefined
+      ? { tenantId: row.tenant_id, role: row.role, isActive: row.is_active }
+      : null;
+  };
+
   return {
     createTenant,
     listTenantsForUser,
-    resolveTenantByDomain
+    resolveTenantByDomain,
+    getMembershipsForUser,
+    getMembership
   };
 };

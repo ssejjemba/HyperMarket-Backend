@@ -90,6 +90,7 @@ export const createTestContext = async () => {
       tenant_id: seed.tenantId,
       user_id: seed.userId,
       role: 'owner',
+      is_active: true,
       created_at: sql`now()`
     })
     .execute();
