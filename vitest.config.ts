@@ -42,6 +42,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, 'packages/modules/src/iaa/otp/integrations/index.ts')
       },
       {
+        find: /^@hypermarket\/modules\/iaa\/otp-service$/,
+        replacement: path.resolve(__dirname, 'packages/modules/src/iaa/otp/OtpChallengeService.ts')
+      },
+      {
         find: /^@hypermarket\/modules\/iaa$/,
         replacement: path.resolve(__dirname, 'packages/modules/src/iaa/index.ts')
       },
@@ -56,6 +60,9 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     exclude: ['tests/integration/**'],
     setupFiles: ['tests/setup.ts'],
-    testTimeout: 20000
+    testTimeout: 20000,
+    // Integration tests share a single Postgres instance; running test files
+    // in parallel causes concurrent DELETE-all + INSERT races on shared tables.
+    fileParallelism: false
   }
 });

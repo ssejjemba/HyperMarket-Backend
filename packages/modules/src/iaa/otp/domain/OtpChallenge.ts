@@ -162,4 +162,12 @@ export class OtpChallenge {
   recordSent(now: Date): void {
     this._lastSentAt = now;
   }
+
+  /**
+   * Mark the challenge as SEND_FAILED when the provider could not deliver.
+   * The challenge may not be retried — the caller should create a new one.
+   */
+  markSendFailed(): void {
+    this._status = 'SEND_FAILED';
+  }
 }
