@@ -23,6 +23,14 @@ type ErrorEnvelope = {
   details?: Record<string, unknown>;
 };
 
+const expectErrorEnvelope = (body: ErrorEnvelope, errorCode: string): void => {
+  expect(typeof body.request_id).toBe('string');
+  expect(body.request_id.length).toBeGreaterThan(0);
+  expect(body.error_code).toBe(errorCode);
+  expect(typeof body.message).toBe('string');
+  expect(body.message.length).toBeGreaterThan(0);
+};
+
 /**
  * Brute-force recover the 6-digit OTP from a stored HMAC-SHA256 digest.
  * Only feasible in tests where we control the secret.
@@ -61,7 +69,7 @@ describe('IAA routes — schema validation (no DB)', () => {
   it('POST /auth/otp/request with missing phone returns 400 validation_failed', async () => {
     const res = await server.inject({ method: 'POST', url: '/auth/otp/request', payload: {} });
     expect(res.statusCode).toBe(400);
-    expect(res.json<ErrorEnvelope>().error_code).toBe('validation_failed');
+    expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.ValidationFailed);
   });
 
   it('POST /auth/otp/request with phone too short returns 400', async () => {
@@ -71,7 +79,7 @@ describe('IAA routes — schema validation (no DB)', () => {
       payload: { phone: '+1' }
     });
     expect(res.statusCode).toBe(400);
-    expect(res.json<ErrorEnvelope>().error_code).toBe('validation_failed');
+    expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.ValidationFailed);
   });
 
   // -------------------------------------------------------------------------
@@ -85,7 +93,7 @@ describe('IAA routes — schema validation (no DB)', () => {
       payload: { phone: '+256712345678', code: '123456' }
     });
     expect(res.statusCode).toBe(400);
-    expect(res.json<ErrorEnvelope>().error_code).toBe('validation_failed');
+    expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.ValidationFailed);
   });
 
   it('POST /auth/otp/verify with non-UUID challenge_id returns 400', async () => {
@@ -95,7 +103,7 @@ describe('IAA routes — schema validation (no DB)', () => {
       payload: { challenge_id: 'not-a-uuid', phone: '+256712345678', code: '123456' }
     });
     expect(res.statusCode).toBe(400);
-    expect(res.json<ErrorEnvelope>().error_code).toBe('validation_failed');
+    expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.ValidationFailed);
   });
 
   it('POST /auth/otp/verify with code wrong length returns 400', async () => {
@@ -109,7 +117,7 @@ describe('IAA routes — schema validation (no DB)', () => {
       }
     });
     expect(res.statusCode).toBe(400);
-    expect(res.json<ErrorEnvelope>().error_code).toBe('validation_failed');
+    expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.ValidationFailed);
   });
 
   // -------------------------------------------------------------------------
@@ -119,7 +127,7 @@ describe('IAA routes — schema validation (no DB)', () => {
   it('GET /auth/session without Authorization header returns 401 auth_missing_token', async () => {
     const res = await server.inject({ method: 'GET', url: '/auth/session' });
     expect(res.statusCode).toBe(401);
-    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthMissingToken);
+    expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.AuthMissingToken);
   });
 
   it('GET /auth/session with malformed bearer returns 401 auth_invalid_token', async () => {
@@ -129,7 +137,7 @@ describe('IAA routes — schema validation (no DB)', () => {
       headers: { authorization: 'Bearer not.a.jwt' }
     });
     expect(res.statusCode).toBe(401);
-    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthInvalidToken);
+    expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.AuthInvalidToken);
   });
 
   it('GET /auth/session with expired token returns 401 auth_session_expired', async () => {
@@ -142,7 +150,7 @@ describe('IAA routes — schema validation (no DB)', () => {
       headers: { authorization: `Bearer ${token}` }
     });
     expect(res.statusCode).toBe(401);
-    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthSessionExpired);
+    expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.AuthSessionExpired);
   });
 
   it('GET /auth/session with valid token returns 200 with user_id', async () => {
@@ -170,7 +178,7 @@ describe('IAA routes — schema validation (no DB)', () => {
       headers: { authorization: `Bearer ${token}` }
     });
     expect(res.statusCode).toBe(401);
-    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthInvalidToken);
+    expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.AuthInvalidToken);
   });
 });
 
@@ -189,7 +197,7 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
   beforeEach(async () => {
     ctx = await createTestContext();
     await ctx.db.deleteFrom('auth_otps').execute();
-    await ctx.db.deleteFrom('users').where('phone_e164', 'like', '+25471299%').execute();
+    await ctx.db.deleteFrom('users').where('phone_e164', 'like', '+25671299%').execute();
 
     const built = await buildIaaApiTestServer({ db: ctx.db });
     server = built.server;
@@ -232,7 +240,7 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
       payload: { phone: '0712345678' } // missing + prefix
     });
     expect(res.statusCode).toBe(400);
-    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthInvalidPhoneFormat);
+    expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.AuthInvalidPhoneFormat);
   });
 
   // -------------------------------------------------------------------------
@@ -250,7 +258,21 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
       }
     });
     expect(res.statusCode).toBe(404);
-    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthChallengeNotFound);
+    expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.AuthChallengeNotFound);
+  });
+
+  it('POST /auth/otp/verify with invalid phone returns 400 auth_invalid_phone_format', async () => {
+    const res = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/verify',
+      payload: {
+        challenge_id: '00000000-0000-0000-0000-000000000000',
+        phone: '0712990001',
+        code: '123456'
+      }
+    });
+    expect(res.statusCode).toBe(400);
+    expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.AuthInvalidPhoneFormat);
   });
 
   it('POST /auth/otp/verify with expired challenge returns 422 auth_challenge_expired', async () => {
@@ -272,7 +294,7 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
       }
     });
     expect(res.statusCode).toBe(422);
-    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthChallengeExpired);
+    expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.AuthChallengeExpired);
   });
 
   it('POST /auth/otp/verify with wrong code returns 422 auth_otp_invalid with remainingAttempts', async () => {
@@ -291,7 +313,7 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
     });
     expect(res.statusCode).toBe(422);
     const body = res.json<ErrorEnvelope>();
-    expect(body.error_code).toBe(ErrorCode.AuthOtpInvalid);
+    expectErrorEnvelope(body, ErrorCode.AuthOtpInvalid);
     expect(typeof body.details?.['remainingAttempts']).toBe('number');
   });
 
@@ -309,7 +331,36 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
       payload: { challenge_id, phone: '+256712990004', code: '123456' }
     });
     expect(res.statusCode).toBe(422);
-    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthChallengePhoneMismatch);
+    expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.AuthChallengePhoneMismatch);
+  });
+
+  it('POST /auth/otp/verify with a locked challenge returns 429 auth_challenge_locked', async () => {
+    const phone = '+256712990004';
+
+    const reqRes = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/request',
+      payload: { phone }
+    });
+    const { challenge_id } = reqRes.json<{ challenge_id: string }>();
+
+    for (let i = 0; i < 3; i++) {
+      const invalidRes = await server.inject({
+        method: 'POST',
+        url: '/auth/otp/verify',
+        payload: { challenge_id, phone, code: '000000' }
+      });
+      expect(invalidRes.statusCode).toBe(422);
+      expectErrorEnvelope(invalidRes.json<ErrorEnvelope>(), ErrorCode.AuthOtpInvalid);
+    }
+
+    const lockedRes = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/verify',
+      payload: { challenge_id, phone, code: '000000' }
+    });
+    expect(lockedRes.statusCode).toBe(429);
+    expectErrorEnvelope(lockedRes.json<ErrorEnvelope>(), ErrorCode.AuthChallengeLocked);
   });
 
   // -------------------------------------------------------------------------
@@ -361,6 +412,77 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
     expect(sessRes.json<{ user_id: string }>().user_id).toBe(verBody.user_id);
   });
 
+  it('POST /auth/otp/verify with invalid OTP does not create a user', async () => {
+    const phone = '+256712990007';
+
+    const before = await ctx.db
+      .selectFrom('users')
+      .select((eb) => eb.fn.countAll<number>().as('n'))
+      .where('phone_e164', '=', phone)
+      .executeTakeFirstOrThrow();
+
+    const reqRes = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/request',
+      payload: { phone }
+    });
+    const { challenge_id } = reqRes.json<{ challenge_id: string }>();
+
+    const res = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/verify',
+      payload: { challenge_id, phone, code: '000000' }
+    });
+
+    expect(res.statusCode).toBe(422);
+    expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.AuthOtpInvalid);
+
+    const after = await ctx.db
+      .selectFrom('users')
+      .select((eb) => eb.fn.countAll<number>().as('n'))
+      .where('phone_e164', '=', phone)
+      .executeTakeFirstOrThrow();
+
+    expect(Number(after.n)).toBe(Number(before.n));
+  });
+
+  it('POST /auth/otp/verify creates a user only on successful OTP', async () => {
+    const phone = '+256712990008';
+
+    const before = await ctx.db
+      .selectFrom('users')
+      .select((eb) => eb.fn.countAll<number>().as('n'))
+      .where('phone_e164', '=', phone)
+      .executeTakeFirstOrThrow();
+    expect(Number(before.n)).toBe(0);
+
+    const reqRes = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/request',
+      payload: { phone }
+    });
+    const { challenge_id } = reqRes.json<{ challenge_id: string }>();
+    const challenge = await otpRepo.getChallengeById(challenge_id);
+    const code = recoverCode(challenge!.codeHash, TEST_OTP_SECRET);
+
+    const res = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/verify',
+      payload: { challenge_id, phone, code }
+    });
+
+    expect(res.statusCode).toBe(200);
+
+    const createdUsers = await ctx.db
+      .selectFrom('users')
+      .select(['id', 'phone_e164'])
+      .where('phone_e164', '=', phone)
+      .execute();
+
+    expect(createdUsers).toHaveLength(1);
+    expect(createdUsers[0]?.phone_e164).toBe(phone);
+  });
+
   it('second verify on same challenge returns 409 auth_challenge_consumed', async () => {
     const phone = '+256712990006';
 
@@ -387,6 +509,6 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
       payload: { challenge_id, phone, code }
     });
     expect(res.statusCode).toBe(409);
-    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthChallengeConsumed);
+    expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.AuthChallengeConsumed);
   });
 });
