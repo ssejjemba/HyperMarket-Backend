@@ -12,6 +12,9 @@ export enum ErrorCode {
   NotificationFailed = 'notification_failed',
   InternalError = 'internal_error',
   NotImplemented = 'not_implemented',
+  DevFeatureDisabled = 'dev_feature_disabled',
+  DevOtpNotFound = 'dev_otp_not_found',
+  DevForbidden = 'dev_forbidden',
 
   // IAA (Identity and Access) module codes
   AuthInvalidPhoneFormat = 'auth_invalid_phone_format',

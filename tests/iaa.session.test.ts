@@ -30,6 +30,18 @@ const makeSigner = (overrides: { ttlSeconds?: number } = {}) =>
 
 const makeService = (signer: TokenSigner) => createSessionService({ signer });
 
+const tamperTokenPayload = (token: string): string => {
+  const [header, payload, signature] = token.split('.');
+  const decoded = JSON.parse(Buffer.from(payload!, 'base64url').toString('utf8')) as {
+    sub: string;
+  };
+  const tamperedPayload = Buffer.from(
+    JSON.stringify({ ...decoded, sub: `${decoded.sub}-tampered` })
+  ).toString('base64url');
+
+  return [header, tamperedPayload, signature].join('.');
+};
+
 // ---------------------------------------------------------------------------
 // TokenSigner
 // ---------------------------------------------------------------------------
@@ -77,12 +89,7 @@ describe('TokenSigner', () => {
   it('tampered signature throws AUTH_INVALID_TOKEN', async () => {
     const signer = makeSigner();
     const { token } = await signer.sign('user-abc');
-
-    // Flip the last character of the signature segment
-    const parts = token.split('.');
-    const sig = parts[2]!;
-    parts[2] = sig.slice(0, -1) + (sig.endsWith('a') ? 'b' : 'a');
-    const tampered = parts.join('.');
+    const tampered = tamperTokenPayload(token);
 
     let thrown: unknown;
     try {
@@ -234,13 +241,9 @@ describe('SessionService.validateSession', () => {
     const service = makeService(signer);
     const { token } = await signer.sign('user-abc');
 
-    const parts = token.split('.');
-    const sig = parts[2]!;
-    parts[2] = sig.slice(0, -1) + (sig.endsWith('a') ? 'b' : 'a');
-
     let thrown: unknown;
     try {
-      await service.validateSession(parts.join('.'));
+      await service.validateSession(tamperTokenPayload(token));
     } catch (e) {
       thrown = e;
     }

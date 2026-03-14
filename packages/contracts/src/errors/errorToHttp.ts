@@ -27,6 +27,9 @@ const codeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.NotificationFailed]: 502,
   [ErrorCode.InternalError]: 500,
   [ErrorCode.NotImplemented]: 501,
+  [ErrorCode.DevFeatureDisabled]: 404,
+  [ErrorCode.DevOtpNotFound]: 404,
+  [ErrorCode.DevForbidden]: 403,
 
   // IAA codes
   [ErrorCode.AuthInvalidPhoneFormat]: 400,

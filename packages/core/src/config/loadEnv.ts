@@ -21,6 +21,10 @@ const envSchema = z.object({
     .refine((value) => Number.isFinite(value) && value > 0, {
       message: 'SESSION_TTL_SECONDS must be a positive number'
     }),
+  ENABLE_DEV_ROUTES: z
+    .string()
+    .optional()
+    .transform((value) => value === 'true'),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).optional(),
   PORT: z
     .string()
@@ -64,6 +68,7 @@ export type AppConfig = {
   otpSecret: string;
   otpTtlSeconds: number;
   sessionTtlSeconds: number;
+  enableDevRoutes: boolean;
 };
 
 export const loadEnv = (): AppConfig => {
@@ -86,6 +91,7 @@ export const loadEnv = (): AppConfig => {
     jwtIssuer: result.data.JWT_ISSUER,
     otpSecret,
     otpTtlSeconds: result.data.OTP_TTL_SECONDS,
-    sessionTtlSeconds: result.data.SESSION_TTL_SECONDS
+    sessionTtlSeconds: result.data.SESSION_TTL_SECONDS,
+    enableDevRoutes: result.data.ENABLE_DEV_ROUTES
   });
 };

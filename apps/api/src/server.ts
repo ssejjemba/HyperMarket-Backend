@@ -11,9 +11,11 @@ import { createLogger, withRequestContext } from '@hypermarket/core/observabilit
 import type { RequestContext } from '@hypermarket/core/observability/requestContext';
 import { AppError, ErrorCode, errorToHttp } from '@hypermarket/contracts';
 import { registerModules } from '@hypermarket/modules';
+import { registerDevRoutes } from './devRoutes';
 
 type ServerOptions = {
   config: AppConfig;
+  devRoutesMode?: 'auto' | 'enabled' | 'disabled';
 };
 
 const createRequestContext = (requestId: string, traceId: string): RequestContext => {
@@ -23,8 +25,14 @@ const createRequestContext = (requestId: string, traceId: string): RequestContex
   };
 };
 
-export const buildServer = ({ config }: ServerOptions) => {
+export const buildServer = ({ config, devRoutesMode = 'auto' }: ServerOptions) => {
   const logger = createLogger({ config, base: { service: 'api' } });
+  const devRoutesEnabled =
+    devRoutesMode === 'enabled'
+      ? true
+      : devRoutesMode === 'disabled'
+        ? false
+        : config.nodeEnv === 'development' || config.enableDevRoutes;
 
   const app = Fastify({
     logger,
@@ -62,6 +70,12 @@ export const buildServer = ({ config }: ServerOptions) => {
     logger,
     config
   });
+
+  if (devRoutesMode === 'disabled') {
+    registerDevRoutes(app, { enabled: false });
+  } else if (devRoutesEnabled) {
+    registerDevRoutes(app, { enabled: true });
+  }
 
   app.setErrorHandler(async (error, request, reply) => {
     const requestId = request.id;
