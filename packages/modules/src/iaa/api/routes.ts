@@ -1,48 +1,39 @@
 import type { FastifyInstance } from 'fastify';
+import type { BaseLogger } from 'pino';
 
-import { AppError, ErrorCode } from '@hypermarket/contracts';
+import type { MembershipReader } from '../membership/MembershipReader';
+import type { RequestOtpUseCase } from '../otp/application/RequestOtpUseCase';
+import type { VerifyOtpUseCase } from '../otp/application/VerifyOtpUseCase';
+import type { SessionService } from '../session/SessionService';
+import { makeGetSessionHandler } from './controllers/getSessionController';
+import { makeRequestOtpHandler } from './controllers/requestOtpController';
+import { makeVerifyOtpHandler } from './controllers/verifyOtpController';
 
-import type { ModuleDeps } from '../../types';
-import { requestOtpSchema } from './schemas/requestOtp';
-import { verifyOtpSchema } from './schemas/verifyOtp';
+// ---------------------------------------------------------------------------
+// Deps — pre-built use cases and services injected at composition time
+// ---------------------------------------------------------------------------
+
+export type IaaApiDeps = {
+  logger: BaseLogger;
+  requestOtpUseCase: RequestOtpUseCase;
+  verifyOtpUseCase: VerifyOtpUseCase;
+  sessionService: SessionService;
+  membershipReader: MembershipReader;
+};
+
+// ---------------------------------------------------------------------------
+// Route registration
+// ---------------------------------------------------------------------------
 
 export const registerIaaApiRoutes = async (
   server: FastifyInstance,
-  deps: ModuleDeps
+  deps: IaaApiDeps
 ): Promise<void> => {
   deps.logger.info({ module: 'iaa' }, 'registering IAA routes');
 
-  server.post('/auth/otp/request', async (request) => {
-    request.log.info({ endpoint: 'iaa.otp.request' }, 'iaa: otp request received');
+  server.post('/auth/otp/request', makeRequestOtpHandler(deps.requestOtpUseCase));
 
-    const result = requestOtpSchema.safeParse(request.body);
-    if (!result.success) {
-      throw new AppError({
-        code: ErrorCode.ValidationFailed,
-        message: result.error.errors[0]?.message ?? 'Invalid request body'
-      });
-    }
+  server.post('/auth/otp/verify', makeVerifyOtpHandler(deps.verifyOtpUseCase));
 
-    throw new AppError({ code: ErrorCode.NotImplemented, message: 'Not implemented' });
-  });
-
-  server.post('/auth/otp/verify', async (request) => {
-    request.log.info({ endpoint: 'iaa.otp.verify' }, 'iaa: otp verify received');
-
-    const result = verifyOtpSchema.safeParse(request.body);
-    if (!result.success) {
-      throw new AppError({
-        code: ErrorCode.ValidationFailed,
-        message: result.error.errors[0]?.message ?? 'Invalid request body'
-      });
-    }
-
-    throw new AppError({ code: ErrorCode.NotImplemented, message: 'Not implemented' });
-  });
-
-  server.get('/auth/session', async (request) => {
-    request.log.info({ endpoint: 'iaa.session.get' }, 'iaa: session get received');
-
-    throw new AppError({ code: ErrorCode.NotImplemented, message: 'Not implemented' });
-  });
+  server.get('/auth/session', makeGetSessionHandler(deps.sessionService, deps.membershipReader));
 };

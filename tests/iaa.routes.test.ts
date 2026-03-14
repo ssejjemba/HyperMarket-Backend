@@ -1,18 +1,52 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import crypto from 'node:crypto';
 
-import { buildIaaTestServer } from '@hypermarket/modules/iaa/testkit';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+
+import { ErrorCode } from '@hypermarket/contracts';
+import { canConnectDatabase, createTestContext } from '@hypermarket/core/testkit';
+import {
+  buildIaaApiTestServer,
+  buildIaaStubTestServer,
+  TEST_JWT_SECRET,
+  TEST_OTP_SECRET
+} from '@hypermarket/modules/iaa/testkit';
+import { createTokenSigner } from '@hypermarket/modules/iaa';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 type ErrorEnvelope = {
   request_id: string;
   error_code: string;
   message: string;
+  details?: Record<string, unknown>;
 };
 
-describe('IAA routes', () => {
-  let server: Awaited<ReturnType<typeof buildIaaTestServer>>;
+/**
+ * Brute-force recover the 6-digit OTP from a stored HMAC-SHA256 digest.
+ * Only feasible in tests where we control the secret.
+ */
+const recoverCode = (codeHash: string, secret: string): string => {
+  for (let i = 100_000; i < 1_000_000; i++) {
+    const h = crypto.createHmac('sha256', secret).update(String(i)).digest('hex');
+    if (h === codeHash) return String(i);
+  }
+  throw new Error('Could not recover OTP code');
+};
+
+// ---------------------------------------------------------------------------
+// Schema validation tests — no DB required
+// ---------------------------------------------------------------------------
+
+describe('IAA routes — schema validation (no DB)', () => {
+  let server: Awaited<ReturnType<typeof buildIaaStubTestServer>>['server'];
+  let tokenSigner: Awaited<ReturnType<typeof buildIaaStubTestServer>>['tokenSigner'];
 
   beforeAll(async () => {
-    server = await buildIaaTestServer();
+    const result = await buildIaaStubTestServer();
+    server = result.server;
+    tokenSigner = result.tokenSigner;
     await server.ready();
   });
 
@@ -20,60 +54,339 @@ describe('IAA routes', () => {
     await server.close();
   });
 
-  describe('POST /auth/otp/request', () => {
-    it('returns 501 with not_implemented error envelope for a valid payload', async () => {
-      const response = await server.inject({
-        method: 'POST',
-        url: '/auth/otp/request',
-        payload: { phone: '+256712345678' }
-      });
+  // -------------------------------------------------------------------------
+  // POST /auth/otp/request — validation
+  // -------------------------------------------------------------------------
 
-      expect(response.statusCode).toBe(501);
-      const body = response.json<ErrorEnvelope>();
-      expect(typeof body.request_id).toBe('string');
-      expect(body.error_code).toBe('not_implemented');
-    });
-
-    it('returns 400 with validation_failed for a missing phone', async () => {
-      const response = await server.inject({
-        method: 'POST',
-        url: '/auth/otp/request',
-        payload: {}
-      });
-
-      expect(response.statusCode).toBe(400);
-      const body = response.json<ErrorEnvelope>();
-      expect(typeof body.request_id).toBe('string');
-      expect(body.error_code).toBe('validation_failed');
-    });
+  it('POST /auth/otp/request with missing phone returns 400 validation_failed', async () => {
+    const res = await server.inject({ method: 'POST', url: '/auth/otp/request', payload: {} });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<ErrorEnvelope>().error_code).toBe('validation_failed');
   });
 
-  describe('POST /auth/otp/verify', () => {
-    it('returns 501 with not_implemented error envelope for a valid payload', async () => {
-      const response = await server.inject({
-        method: 'POST',
-        url: '/auth/otp/verify',
-        payload: { phone: '+256712345678', code: '123456' }
-      });
-
-      expect(response.statusCode).toBe(501);
-      const body = response.json<ErrorEnvelope>();
-      expect(typeof body.request_id).toBe('string');
-      expect(body.error_code).toBe('not_implemented');
+  it('POST /auth/otp/request with phone too short returns 400', async () => {
+    const res = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/request',
+      payload: { phone: '+1' }
     });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<ErrorEnvelope>().error_code).toBe('validation_failed');
   });
 
-  describe('GET /auth/session', () => {
-    it('returns 501 with not_implemented error envelope', async () => {
-      const response = await server.inject({
-        method: 'GET',
-        url: '/auth/session'
-      });
+  // -------------------------------------------------------------------------
+  // POST /auth/otp/verify — validation
+  // -------------------------------------------------------------------------
 
-      expect(response.statusCode).toBe(501);
-      const body = response.json<ErrorEnvelope>();
-      expect(typeof body.request_id).toBe('string');
-      expect(body.error_code).toBe('not_implemented');
+  it('POST /auth/otp/verify with missing challenge_id returns 400', async () => {
+    const res = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/verify',
+      payload: { phone: '+256712345678', code: '123456' }
     });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<ErrorEnvelope>().error_code).toBe('validation_failed');
+  });
+
+  it('POST /auth/otp/verify with non-UUID challenge_id returns 400', async () => {
+    const res = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/verify',
+      payload: { challenge_id: 'not-a-uuid', phone: '+256712345678', code: '123456' }
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<ErrorEnvelope>().error_code).toBe('validation_failed');
+  });
+
+  it('POST /auth/otp/verify with code wrong length returns 400', async () => {
+    const res = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/verify',
+      payload: {
+        challenge_id: '00000000-0000-0000-0000-000000000000',
+        phone: '+256712345678',
+        code: '12345' // 5 digits — must be 6
+      }
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<ErrorEnvelope>().error_code).toBe('validation_failed');
+  });
+
+  // -------------------------------------------------------------------------
+  // GET /auth/session — token validation (pure JWT, no DB)
+  // -------------------------------------------------------------------------
+
+  it('GET /auth/session without Authorization header returns 401 auth_missing_token', async () => {
+    const res = await server.inject({ method: 'GET', url: '/auth/session' });
+    expect(res.statusCode).toBe(401);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthMissingToken);
+  });
+
+  it('GET /auth/session with malformed bearer returns 401 auth_invalid_token', async () => {
+    const res = await server.inject({
+      method: 'GET',
+      url: '/auth/session',
+      headers: { authorization: 'Bearer not.a.jwt' }
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthInvalidToken);
+  });
+
+  it('GET /auth/session with expired token returns 401 auth_session_expired', async () => {
+    // Sign a token with a -1s TTL (already expired)
+    const expiredSigner = createTokenSigner({ secret: TEST_JWT_SECRET, ttlSeconds: -1 });
+    const { token } = await expiredSigner.sign('user-expired');
+    const res = await server.inject({
+      method: 'GET',
+      url: '/auth/session',
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthSessionExpired);
+  });
+
+  it('GET /auth/session with valid token returns 200 with user_id', async () => {
+    const { token } = await tokenSigner.sign('user-session-ok');
+    const res = await server.inject({
+      method: 'GET',
+      url: '/auth/session',
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ user_id: string; memberships: unknown[] }>();
+    expect(body.user_id).toBe('user-session-ok');
+    expect(Array.isArray(body.memberships)).toBe(true);
+  });
+
+  it('GET /auth/session with wrong secret returns 401 auth_invalid_token', async () => {
+    const wrongSigner = createTokenSigner({
+      secret: 'completely-different-secret-1234567',
+      ttlSeconds: 3600
+    });
+    const { token } = await wrongSigner.sign('user-abc');
+    const res = await server.inject({
+      method: 'GET',
+      url: '/auth/session',
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthInvalidToken);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OTP flow tests — require a real DB
+// ---------------------------------------------------------------------------
+
+const dbAvailable = await canConnectDatabase();
+const flowSuite = dbAvailable ? describe : describe.skip;
+
+flowSuite('IAA routes — OTP flows (real DB)', () => {
+  let server: Awaited<ReturnType<typeof buildIaaApiTestServer>>['server'];
+  let otpRepo: Awaited<ReturnType<typeof buildIaaApiTestServer>>['otpRepo'];
+  let ctx: Awaited<ReturnType<typeof createTestContext>>;
+
+  beforeEach(async () => {
+    ctx = await createTestContext();
+    await ctx.db.deleteFrom('auth_otps').execute();
+    await ctx.db.deleteFrom('users').where('phone_e164', 'like', '+25471299%').execute();
+
+    const built = await buildIaaApiTestServer({ db: ctx.db });
+    server = built.server;
+    otpRepo = built.otpRepo;
+    await server.ready();
+  });
+
+  afterEach(async () => {
+    await server.close();
+    await ctx.destroy();
+  });
+
+  // -------------------------------------------------------------------------
+  // POST /auth/otp/request — success
+  // -------------------------------------------------------------------------
+
+  it('POST /auth/otp/request with valid E.164 phone returns 200 with challenge_id', async () => {
+    const res = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/request',
+      payload: { phone: '+256712990001' }
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{
+      challenge_id: string;
+      expires_at: string;
+      resend_after_seconds: number;
+    }>();
+    expect(typeof body.challenge_id).toBe('string');
+    expect(body.challenge_id.length).toBeGreaterThan(0);
+    expect(new Date(body.expires_at).getTime()).toBeGreaterThan(Date.now());
+    expect(body.resend_after_seconds).toBeGreaterThan(0);
+  });
+
+  it('POST /auth/otp/request with invalid E.164 returns 400 auth_invalid_phone_format', async () => {
+    const res = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/request',
+      payload: { phone: '0712345678' } // missing + prefix
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthInvalidPhoneFormat);
+  });
+
+  // -------------------------------------------------------------------------
+  // POST /auth/otp/verify — error paths
+  // -------------------------------------------------------------------------
+
+  it('POST /auth/otp/verify with unknown challenge_id returns 404 auth_challenge_not_found', async () => {
+    const res = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/verify',
+      payload: {
+        challenge_id: '00000000-0000-0000-0000-000000000000',
+        phone: '+256712990001',
+        code: '123456'
+      }
+    });
+    expect(res.statusCode).toBe(404);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthChallengeNotFound);
+  });
+
+  it('POST /auth/otp/verify with expired challenge returns 422 auth_challenge_expired', async () => {
+    const expired = await otpRepo.createChallenge({
+      phoneE164: '+256712990001',
+      codeHash: 'any',
+      expiresAt: new Date(Date.now() - 1000),
+      maxAttempts: 3,
+      lastSentAt: new Date()
+    });
+
+    const res = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/verify',
+      payload: {
+        challenge_id: expired.id,
+        phone: '+256712990001',
+        code: '123456'
+      }
+    });
+    expect(res.statusCode).toBe(422);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthChallengeExpired);
+  });
+
+  it('POST /auth/otp/verify with wrong code returns 422 auth_otp_invalid with remainingAttempts', async () => {
+    // First request an OTP so a valid challenge exists
+    const reqRes = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/request',
+      payload: { phone: '+256712990002' }
+    });
+    const { challenge_id } = reqRes.json<{ challenge_id: string }>();
+
+    const res = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/verify',
+      payload: { challenge_id, phone: '+256712990002', code: '000000' }
+    });
+    expect(res.statusCode).toBe(422);
+    const body = res.json<ErrorEnvelope>();
+    expect(body.error_code).toBe(ErrorCode.AuthOtpInvalid);
+    expect(typeof body.details?.['remainingAttempts']).toBe('number');
+  });
+
+  it('POST /auth/otp/verify with phone mismatch returns 422 auth_challenge_phone_mismatch', async () => {
+    const reqRes = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/request',
+      payload: { phone: '+256712990003' }
+    });
+    const { challenge_id } = reqRes.json<{ challenge_id: string }>();
+
+    const res = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/verify',
+      payload: { challenge_id, phone: '+256712990004', code: '123456' }
+    });
+    expect(res.statusCode).toBe(422);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthChallengePhoneMismatch);
+  });
+
+  // -------------------------------------------------------------------------
+  // Full happy path: request → recover code → verify → session
+  // -------------------------------------------------------------------------
+
+  it('full OTP flow: request → verify → returns access_token and user_id', async () => {
+    const phone = '+256712990005';
+
+    // 1. Request OTP
+    const reqRes = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/request',
+      payload: { phone }
+    });
+    expect(reqRes.statusCode).toBe(200);
+    const { challenge_id } = reqRes.json<{ challenge_id: string }>();
+
+    // 2. Recover the OTP from the DB challenge hash
+    const challenge = await otpRepo.getChallengeById(challenge_id);
+    const code = recoverCode(challenge!.codeHash, TEST_OTP_SECRET);
+
+    // 3. Verify OTP
+    const verRes = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/verify',
+      payload: { challenge_id, phone, code }
+    });
+    expect(verRes.statusCode).toBe(200);
+    const verBody = verRes.json<{
+      access_token: string;
+      expires_at: string;
+      user_id: string;
+      memberships: unknown[];
+    }>();
+
+    expect(typeof verBody.access_token).toBe('string');
+    expect(verBody.access_token.split('.').length).toBe(3); // valid JWT
+    expect(typeof verBody.user_id).toBe('string');
+    expect(Array.isArray(verBody.memberships)).toBe(true);
+
+    // 4. Use the token on /auth/session
+    const sessRes = await server.inject({
+      method: 'GET',
+      url: '/auth/session',
+      headers: { authorization: `Bearer ${verBody.access_token}` }
+    });
+    expect(sessRes.statusCode).toBe(200);
+    expect(sessRes.json<{ user_id: string }>().user_id).toBe(verBody.user_id);
+  });
+
+  it('second verify on same challenge returns 409 auth_challenge_consumed', async () => {
+    const phone = '+256712990006';
+
+    const reqRes = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/request',
+      payload: { phone }
+    });
+    const { challenge_id } = reqRes.json<{ challenge_id: string }>();
+    const challenge = await otpRepo.getChallengeById(challenge_id);
+    const code = recoverCode(challenge!.codeHash, TEST_OTP_SECRET);
+
+    // First verify — success
+    await server.inject({
+      method: 'POST',
+      url: '/auth/otp/verify',
+      payload: { challenge_id, phone, code }
+    });
+
+    // Second verify — should fail with consumed
+    const res = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/verify',
+      payload: { challenge_id, phone, code }
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthChallengeConsumed);
   });
 });

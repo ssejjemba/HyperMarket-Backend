@@ -2,12 +2,70 @@ import type { FastifyInstance } from 'fastify';
 
 import type { ModuleDeps } from '../types';
 import { registerIaaApiRoutes } from './api/routes';
+import { createTenancyMembershipAdapter } from './membership/TenancyMembershipAdapter';
+import { OtpChallengePolicy } from './otp/domain/OtpChallengePolicy';
+import { createOtpSenderDevAdapter } from './otp/integrations/OtpSenderDevAdapter';
+import { createOtpChallengeRepoPg } from './otp/persistence/OtpChallengeRepoPg';
+import { createOtpChallengeService } from './otp/OtpChallengeService';
+import { createRequestOtpUseCase } from './otp/application/RequestOtpUseCase';
+import { createVerifyOtpUseCase } from './otp/application/VerifyOtpUseCase';
+import { createSessionService } from './session/SessionService';
+import { createTokenSigner } from './session/TokenSigner';
+import { createUserRepoPg } from './user/persistence/UserRepoPg';
+import { createUserService } from './user/UserService';
 
 export const registerIaaRoutes = async (
   server: FastifyInstance,
   deps: ModuleDeps
 ): Promise<void> => {
-  await registerIaaApiRoutes(server, deps);
+  const policy = new OtpChallengePolicy({
+    challengeTtlSeconds: deps.config.otpTtlSeconds,
+    resendCooldownSeconds: 60,
+    maxAttempts: 5
+  });
+
+  const otpRepo = createOtpChallengeRepoPg(deps.db);
+  const userRepo = createUserRepoPg(deps.db);
+  const membershipReader = createTenancyMembershipAdapter(deps.db);
+
+  const otpSender = createOtpSenderDevAdapter({ mode: 'dev', logger: deps.logger });
+
+  const otpService = createOtpChallengeService({
+    repo: otpRepo,
+    sender: otpSender,
+    policy,
+    otpSecret: deps.config.otpSecret,
+    logger: deps.logger
+  });
+
+  const userService = createUserService({ repo: userRepo });
+
+  const tokenSigner = createTokenSigner({
+    secret: deps.config.jwtSecret,
+    ttlSeconds: deps.config.sessionTtlSeconds,
+    issuer: deps.config.jwtIssuer
+  });
+  const sessionService = createSessionService({ signer: tokenSigner });
+
+  const requestOtpUseCase = createRequestOtpUseCase({
+    otpService,
+    logger: deps.logger
+  });
+  const verifyOtpUseCase = createVerifyOtpUseCase({
+    otpService,
+    userService,
+    sessionService,
+    membershipReader,
+    logger: deps.logger
+  });
+
+  await registerIaaApiRoutes(server, {
+    logger: deps.logger,
+    requestOtpUseCase,
+    verifyOtpUseCase,
+    sessionService,
+    membershipReader
+  });
 };
 
 export type { ModuleDeps };
