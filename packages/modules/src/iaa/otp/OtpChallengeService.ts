@@ -34,13 +34,6 @@ export type VerifyChallengeResult = {
   phoneE164: string;
 };
 
-// ---------------------------------------------------------------------------
-// Internals
-// ---------------------------------------------------------------------------
-
-const RATE_LIMIT_WINDOW_SECONDS = 3600; // 1 hour — MVP per-phone limit window
-const RATE_LIMIT_MAX_CHALLENGES = 5; // max challenges allowed in that window
-
 /**
  * Hash an OTP code with the application secret using HMAC-SHA256.
  * The raw code is never stored or logged — only this digest.
@@ -88,17 +81,23 @@ export const createOtpChallengeService = (deps: OtpChallengeServiceDeps): OtpCha
     const maskedPhone = phone.toMasked();
     const now = new Date();
 
-    // --- Rate-limit guard (per phone, rolling 1-hour window) ----------------
-    const windowStart = new Date(now.getTime() - RATE_LIMIT_WINDOW_SECONDS * 1000);
+    // --- Rate-limit guard (per phone, rolling window) -----------------------
+    const windowStart = new Date(now.getTime() - policy.rateLimitWindowSeconds * 1000);
     const recentCount = await repo.countRecentChallengesForPhone(phoneE164, windowStart);
-    if (recentCount >= RATE_LIMIT_MAX_CHALLENGES) {
+    if (recentCount >= policy.rateLimitMaxChallengesPerPhone) {
       logger.warn(
-        { event: 'otp.request.rate_limited', maskedPhone, requestId: ctx.requestId },
+        {
+          event: 'otp.request.rate_limited',
+          maskedPhone,
+          requestId: ctx.requestId,
+          retryAfterSeconds: policy.rateLimitWindowSeconds
+        },
         'otp: request rate limited for phone'
       );
       throw new IaaError({
         code: ErrorCode.AuthOtpRateLimitedPhone,
-        message: 'Too many OTP requests for this number. Please try again later.'
+        message: 'Too many OTP requests for this number. Please try again later.',
+        details: { retry_after_seconds: policy.rateLimitWindowSeconds }
       });
     }
 

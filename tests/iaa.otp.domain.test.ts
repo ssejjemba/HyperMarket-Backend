@@ -219,7 +219,9 @@ describe('OtpChallengePolicy — canResend', () => {
   const policy = new OtpChallengePolicy({
     challengeTtlSeconds: 300,
     resendCooldownSeconds: 60,
-    maxAttempts: 5
+    maxAttempts: 5,
+    rateLimitWindowSeconds: 3600,
+    rateLimitMaxChallengesPerPhone: 5
   });
 
   it('returns true when cooldown has elapsed', () => {
@@ -245,5 +247,7 @@ describe('OtpChallengePolicy — canResend', () => {
     expect(policy.challengeTtlSeconds).toBe(300);
     expect(policy.resendCooldownSeconds).toBe(60);
     expect(policy.maxAttempts).toBe(5);
+    expect(policy.rateLimitWindowSeconds).toBe(3600);
+    expect(policy.rateLimitMaxChallengesPerPhone).toBe(5);
   });
 });

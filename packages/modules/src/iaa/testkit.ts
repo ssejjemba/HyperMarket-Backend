@@ -48,6 +48,8 @@ export type IaaApiTestServerParams = {
   otpTtlSeconds?: number | undefined;
   resendCooldownSeconds?: number | undefined;
   maxAttempts?: number | undefined;
+  rateLimitWindowSeconds?: number | undefined;
+  rateLimitMaxChallengesPerPhone?: number | undefined;
 };
 
 /**
@@ -62,11 +64,15 @@ export const buildIaaApiTestServer = async (params: IaaApiTestServerParams) => {
   const otpTtlSeconds = params.otpTtlSeconds ?? 300;
   const resendCooldownSeconds = params.resendCooldownSeconds ?? 60;
   const maxAttempts = params.maxAttempts ?? 3;
+  const rateLimitWindowSeconds = params.rateLimitWindowSeconds ?? 3600;
+  const rateLimitMaxChallengesPerPhone = params.rateLimitMaxChallengesPerPhone ?? 5;
 
   const policy = new OtpChallengePolicy({
     challengeTtlSeconds: otpTtlSeconds,
     resendCooldownSeconds,
-    maxAttempts
+    maxAttempts,
+    rateLimitWindowSeconds,
+    rateLimitMaxChallengesPerPhone
   });
 
   const sender =

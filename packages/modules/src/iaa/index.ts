@@ -21,7 +21,9 @@ export const registerIaaRoutes = async (
   const policy = new OtpChallengePolicy({
     challengeTtlSeconds: deps.config.otpTtlSeconds,
     resendCooldownSeconds: 60,
-    maxAttempts: 5
+    maxAttempts: 5,
+    rateLimitWindowSeconds: 3600,
+    rateLimitMaxChallengesPerPhone: 5
   });
 
   const otpRepo = createOtpChallengeRepoPg(deps.db);

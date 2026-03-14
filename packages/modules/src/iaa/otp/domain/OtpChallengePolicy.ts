@@ -8,15 +8,21 @@ export class OtpChallengePolicy {
   readonly challengeTtlSeconds: number;
   readonly resendCooldownSeconds: number;
   readonly maxAttempts: number;
+  readonly rateLimitWindowSeconds: number;
+  readonly rateLimitMaxChallengesPerPhone: number;
 
   constructor(params: {
     challengeTtlSeconds: number;
     resendCooldownSeconds: number;
     maxAttempts: number;
+    rateLimitWindowSeconds: number;
+    rateLimitMaxChallengesPerPhone: number;
   }) {
     this.challengeTtlSeconds = params.challengeTtlSeconds;
     this.resendCooldownSeconds = params.resendCooldownSeconds;
     this.maxAttempts = params.maxAttempts;
+    this.rateLimitWindowSeconds = params.rateLimitWindowSeconds;
+    this.rateLimitMaxChallengesPerPhone = params.rateLimitMaxChallengesPerPhone;
   }
 
   /**

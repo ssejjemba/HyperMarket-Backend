@@ -30,7 +30,9 @@ const CTX = { requestId: 'req-test', traceId: 'trace-test' };
 const POLICY = new OtpChallengePolicy({
   challengeTtlSeconds: 300,
   resendCooldownSeconds: 60,
-  maxAttempts: 3
+  maxAttempts: 3,
+  rateLimitWindowSeconds: 3600,
+  rateLimitMaxChallengesPerPhone: 5
 });
 
 /** Silent pino-compatible logger for tests. */
@@ -280,6 +282,45 @@ suite('OtpChallengeService — integration', () => {
       const challenge = await repo.getChallengeById(challengeId);
       expect(challenge!.status).toBe('SEND_FAILED');
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // Request rate limiting
+  // -------------------------------------------------------------------------
+
+  it('repeated requests exceeding the per-phone limit throw AUTH_OTP_RATE_LIMITED_PHONE', async () => {
+    for (let i = 0; i < POLICY.rateLimitMaxChallengesPerPhone; i++) {
+      await service.requestChallenge(PHONE, CTX);
+    }
+
+    await expectIaaError(
+      () => service.requestChallenge(PHONE, CTX),
+      ErrorCode.AuthOtpRateLimitedPhone
+    );
+  });
+
+  it('rate-limited requests include retry_after_seconds and do not write a new challenge', async () => {
+    for (let i = 0; i < POLICY.rateLimitMaxChallengesPerPhone; i++) {
+      await service.requestChallenge(PHONE, CTX);
+    }
+
+    const before = await repo.countRecentChallengesForPhone(PHONE.toE164(), new Date(0));
+
+    let thrown: unknown;
+    try {
+      await service.requestChallenge(PHONE, CTX);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(IaaError);
+    expect((thrown as IaaError).code).toBe(ErrorCode.AuthOtpRateLimitedPhone);
+    expect((thrown as IaaError).details?.['retry_after_seconds']).toBe(
+      POLICY.rateLimitWindowSeconds
+    );
+
+    const after = await repo.countRecentChallengesForPhone(PHONE.toE164(), new Date(0));
+    expect(after).toBe(before);
   });
 
   // -------------------------------------------------------------------------
