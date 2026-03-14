@@ -10,6 +10,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, 'packages/core/src/index.ts')
       },
       {
+        find: /^@hypermarket\/core\/dev\/otpSink$/,
+        replacement: path.resolve(__dirname, 'packages/core/dev/otpSink.ts')
+      },
+      {
         find: /^@hypermarket\/core\/(.*)$/,
         replacement: path.resolve(__dirname, 'packages/core/src/$1')
       },
