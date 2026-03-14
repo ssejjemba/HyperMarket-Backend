@@ -3,6 +3,8 @@ import type { BaseLogger } from 'pino';
 import { IaaError } from '../../errors/IaaError';
 import type { MembershipClaim } from '../../membership/MembershipClaim';
 import type { MembershipReader } from '../../membership/MembershipReader';
+import { logIaaEvent } from '../../observability/IaaLogEvent';
+import type { IaaMetrics } from '../../observability/iaaMetrics';
 import { PhoneNumber } from '../../phone/PhoneNumber';
 import type { SessionService } from '../../session/SessionService';
 import type { UserService } from '../../user/UserService';
@@ -39,6 +41,7 @@ export type VerifyOtpUseCaseDeps = {
   sessionService: SessionService;
   membershipReader: MembershipReader;
   logger: BaseLogger;
+  metrics?: IaaMetrics | undefined;
 };
 
 // ---------------------------------------------------------------------------
@@ -60,20 +63,28 @@ export type VerifyOtpUseCase = {
  * TODO: add a `runInTransaction` dep and re-create scoped repos inside it.
  */
 export const createVerifyOtpUseCase = (deps: VerifyOtpUseCaseDeps): VerifyOtpUseCase => {
-  const { otpService, userService, sessionService, membershipReader, logger } = deps;
+  const { otpService, userService, sessionService, membershipReader, logger, metrics } = deps;
 
   return {
     async execute(input: VerifyOtpInput): Promise<VerifyOtpOutput> {
       const { challengeId, phoneRaw, otpCode, requestId, traceId } = input;
 
-      logger.info(
-        { event: 'usecase.otp_verify.start', challengeId, requestId },
-        'otp_verify: use case started'
+      logIaaEvent(
+        logger,
+        {
+          module: 'iaa',
+          event_name: 'otp_verify_start',
+          request_id: requestId,
+          trace_id: traceId,
+          challenge_id: challengeId
+        },
+        'otp_verify: use case started',
+        'debug'
       );
 
       // Phone parsing throws IaaError(AuthInvalidPhoneFormat) on bad input.
       const phone = PhoneNumber.parse(phoneRaw);
-      const maskedPhone = phone.toMasked();
+      const phone_masked = phone.toMasked();
 
       try {
         // 1. Verify challenge — consumes it or throws a typed IaaError.
@@ -88,31 +99,43 @@ export const createVerifyOtpUseCase = (deps: VerifyOtpUseCaseDeps): VerifyOtpUse
         // 4. Resolve memberships (read-only, best-effort — non-fatal empty list is acceptable).
         const memberships = await membershipReader.listMemberships(user.id);
 
-        logger.info(
+        logIaaEvent(
+          logger,
           {
-            event: 'usecase.otp_verify.success',
-            challengeId,
-            userId: user.id,
-            maskedPhone,
-            membershipCount: memberships.length,
-            requestId
+            module: 'iaa',
+            event_name: 'otp_verify_success',
+            request_id: requestId,
+            trace_id: traceId,
+            outcome: 'success',
+            challenge_id: challengeId,
+            phone_masked,
+            user_id: user.id,
+            membership_count: memberships.length
           },
           'otp_verify: use case succeeded'
         );
 
+        metrics?.otpVerifyTotal({ outcome: 'success' });
+
         return { accessToken, expiresAt, userId: user.id, memberships };
       } catch (e) {
         if (IaaError.is(e)) {
-          logger.warn(
+          logIaaEvent(
+            logger,
             {
-              event: 'usecase.otp_verify.failure',
-              challengeId,
-              maskedPhone,
-              errorCode: e.code,
-              requestId
+              module: 'iaa',
+              event_name: 'otp_verify_failure',
+              request_id: requestId,
+              trace_id: traceId,
+              outcome: 'failure',
+              challenge_id: challengeId,
+              phone_masked,
+              error_code: e.code
             },
-            'otp_verify: use case failed'
+            'otp_verify: use case failed',
+            'warn'
           );
+          metrics?.otpVerifyTotal({ outcome: 'failure', error_code: e.code });
           throw e;
         }
         throw e;

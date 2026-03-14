@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { BaseLogger } from 'pino';
 
 import type { MembershipReader } from '../membership/MembershipReader';
+import type { IaaMetrics } from '../observability/iaaMetrics';
 import type { RequestOtpUseCase } from '../otp/application/RequestOtpUseCase';
 import type { VerifyOtpUseCase } from '../otp/application/VerifyOtpUseCase';
 import type { SessionService } from '../session/SessionService';
@@ -19,6 +20,7 @@ export type IaaApiDeps = {
   verifyOtpUseCase: VerifyOtpUseCase;
   sessionService: SessionService;
   membershipReader: MembershipReader;
+  metrics?: IaaMetrics | undefined;
 };
 
 // ---------------------------------------------------------------------------
@@ -35,5 +37,8 @@ export const registerIaaApiRoutes = async (
 
   server.post('/auth/otp/verify', makeVerifyOtpHandler(deps.verifyOtpUseCase));
 
-  server.get('/auth/session', makeGetSessionHandler(deps.sessionService, deps.membershipReader));
+  server.get(
+    '/auth/session',
+    makeGetSessionHandler(deps.sessionService, deps.membershipReader, deps.metrics)
+  );
 };

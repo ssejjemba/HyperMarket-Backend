@@ -1,6 +1,8 @@
 import type { BaseLogger } from 'pino';
 
 import { IaaError } from '../../errors/IaaError';
+import type { IaaMetrics } from '../../observability/iaaMetrics';
+import { logIaaEvent } from '../../observability/IaaLogEvent';
 import { PhoneNumber } from '../../phone/PhoneNumber';
 import type { OtpChallengeService } from '../OtpChallengeService';
 
@@ -28,6 +30,7 @@ export type RequestOtpOutput = {
 export type RequestOtpUseCaseDeps = {
   otpService: OtpChallengeService;
   logger: BaseLogger;
+  metrics?: IaaMetrics | undefined;
 };
 
 // ---------------------------------------------------------------------------
@@ -39,33 +42,46 @@ export type RequestOtpUseCase = {
 };
 
 export const createRequestOtpUseCase = (deps: RequestOtpUseCaseDeps): RequestOtpUseCase => {
-  const { otpService, logger } = deps;
+  const { otpService, logger, metrics } = deps;
 
   return {
     async execute(input: RequestOtpInput): Promise<RequestOtpOutput> {
       const { phoneRaw, requestId, traceId } = input;
 
-      logger.info(
-        { event: 'usecase.otp_request.start', requestId },
-        'otp_request: use case started'
+      logIaaEvent(
+        logger,
+        {
+          module: 'iaa',
+          event_name: 'otp_request_start',
+          request_id: requestId,
+          trace_id: traceId
+        },
+        'otp_request: use case started',
+        'debug'
       );
 
       // Phone parsing throws IaaError(AuthInvalidPhoneFormat) on bad input.
       const phone = PhoneNumber.parse(phoneRaw);
-      const maskedPhone = phone.toMasked();
+      const phone_masked = phone.toMasked();
 
       try {
         const result = await otpService.requestChallenge(phone, { requestId, traceId });
 
-        logger.info(
+        logIaaEvent(
+          logger,
           {
-            event: 'usecase.otp_request.success',
-            challengeId: result.challengeId,
-            maskedPhone,
-            requestId
+            module: 'iaa',
+            event_name: 'otp_request_success',
+            request_id: requestId,
+            trace_id: traceId,
+            outcome: 'success',
+            challenge_id: result.challengeId,
+            phone_masked
           },
           'otp_request: challenge issued'
         );
+
+        metrics?.otpRequestTotal({ outcome: 'success' });
 
         return {
           challengeId: result.challengeId,
@@ -74,10 +90,21 @@ export const createRequestOtpUseCase = (deps: RequestOtpUseCaseDeps): RequestOtp
         };
       } catch (e) {
         if (IaaError.is(e)) {
-          logger.warn(
-            { event: 'usecase.otp_request.failure', errorCode: e.code, maskedPhone, requestId },
-            'otp_request: use case failed'
+          logIaaEvent(
+            logger,
+            {
+              module: 'iaa',
+              event_name: 'otp_request_failure',
+              request_id: requestId,
+              trace_id: traceId,
+              outcome: 'failure',
+              error_code: e.code,
+              phone_masked
+            },
+            'otp_request: use case failed',
+            'warn'
           );
+          metrics?.otpRequestTotal({ outcome: 'failure', error_code: e.code });
           throw e;
         }
         throw e;

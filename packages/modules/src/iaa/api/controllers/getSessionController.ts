@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 
 import type { MembershipReader } from '../../membership/MembershipReader';
+import type { IaaMetrics } from '../../observability/iaaMetrics';
 import type { SessionService } from '../../session/SessionService';
 
 // ---------------------------------------------------------------------------
@@ -23,7 +24,7 @@ export type GetSessionResponse = {
 // ---------------------------------------------------------------------------
 
 export const makeGetSessionHandler =
-  (sessionService: SessionService, membershipReader: MembershipReader) =>
+  (sessionService: SessionService, membershipReader: MembershipReader, metrics?: IaaMetrics) =>
   async (request: FastifyRequest): Promise<GetSessionResponse> => {
     // Extract Bearer token — never log it.
     const authHeader = request.headers.authorization;
@@ -32,17 +33,27 @@ export const makeGetSessionHandler =
         ? authHeader.slice(7)
         : undefined;
 
-    // validateSession throws AUTH_MISSING_TOKEN / AUTH_INVALID_TOKEN / AUTH_SESSION_EXPIRED.
-    const { userId } = await sessionService.validateSession(token);
+    try {
+      // validateSession throws AUTH_MISSING_TOKEN / AUTH_INVALID_TOKEN / AUTH_SESSION_EXPIRED.
+      const { userId } = await sessionService.validateSession(token);
 
-    const memberships = await membershipReader.listMemberships(userId);
+      const memberships = await membershipReader.listMemberships(userId);
 
-    return {
-      user_id: userId,
-      memberships: memberships.map((m) => ({
-        tenant_id: m.tenantId,
-        role: m.role,
-        status: m.status
-      }))
-    };
+      metrics?.sessionValidateTotal({ outcome: 'success' });
+
+      return {
+        user_id: userId,
+        memberships: memberships.map((m) => ({
+          tenant_id: m.tenantId,
+          role: m.role,
+          status: m.status
+        }))
+      };
+    } catch (e) {
+      metrics?.sessionValidateTotal({
+        outcome: 'failure',
+        error_code: (e as { code?: string }).code
+      });
+      throw e;
+    }
   };

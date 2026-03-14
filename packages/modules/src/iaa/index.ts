@@ -105,3 +105,7 @@ export type {
   IssueSessionResult,
   ValidateSessionResult
 } from './session/SessionService';
+export type { IaaLogEvent } from './observability/IaaLogEvent';
+export { logIaaEvent } from './observability/IaaLogEvent';
+export type { IaaMetrics, InMemoryIaaMetrics } from './observability/iaaMetrics';
+export { createNoopIaaMetrics, createInMemoryIaaMetrics } from './observability/iaaMetrics';

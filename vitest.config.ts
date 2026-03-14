@@ -54,6 +54,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, 'packages/modules/src/iaa/membership/index.ts')
       },
       {
+        find: /^@hypermarket\/modules\/iaa\/observability$/,
+        replacement: path.resolve(__dirname, 'packages/modules/src/iaa/observability/index.ts')
+      },
+      {
         find: /^@hypermarket\/modules\/iaa$/,
         replacement: path.resolve(__dirname, 'packages/modules/src/iaa/index.ts')
       },
