@@ -128,6 +128,7 @@ export const createOtpChallengeService = (deps: OtpChallengeServiceDeps): OtpCha
     const delivery = await sender.sendOtp(phoneE164, code, {
       requestId: ctx.requestId,
       challengeId: challenge.id,
+      expiresAt: challenge.expiresAt,
       traceId: ctx.traceId
     });
 

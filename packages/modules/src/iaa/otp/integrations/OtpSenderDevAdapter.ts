@@ -1,5 +1,7 @@
 import type { BaseLogger } from 'pino';
 
+import { otpSink } from '@hypermarket/core/dev/otpSink';
+
 import { PhoneNumber } from '../../phone/PhoneNumber';
 import type { DeliveryResult, FailureCategory, OtpSendCorrelation, OtpSender } from './OtpSender';
 
@@ -53,9 +55,12 @@ type AdapterConfig =
  * Neither mode sends a real SMS.
  */
 export const createOtpSenderDevAdapter = (config: AdapterConfig): OtpSender => {
+  const shouldWriteToSink =
+    process.env.NODE_ENV === 'development' || process.env.ENABLE_DEV_ROUTES === 'true';
+
   const sendOtp = async (
     phoneE164: string,
-    _otpCode: string, // accepted but intentionally unused — never log this
+    otpCode: string, // never log this value
     correlation: OtpSendCorrelation
   ): Promise<DeliveryResult> => {
     if (config.mode === 'test') {
@@ -72,6 +77,10 @@ export const createOtpSenderDevAdapter = (config: AdapterConfig): OtpSender => {
         provider: 'dev',
         failureCategory: behavior.failureCategory
       };
+    }
+
+    if (shouldWriteToSink) {
+      otpSink.put(correlation.challengeId, otpCode, correlation.expiresAt);
     }
 
     // dev mode — structured log, masked phone, no otpCode

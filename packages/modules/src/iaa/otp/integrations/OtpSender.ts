@@ -7,6 +7,8 @@ export type OtpSendCorrelation = {
   requestId: string;
   /** The OTP challenge row this send is associated with. */
   challengeId: string;
+  /** Challenge expiry for local dev sinks and provider metadata. */
+  expiresAt: Date;
   /** Optional distributed-trace ID (e.g. W3C trace-id). */
   traceId?: string | undefined;
 };
@@ -36,9 +38,9 @@ export type DeliveryResult = {
 /**
  * Port for OTP delivery.
  *
- * Implementations must NEVER log or persist `otpCode`.
- * The only safe observable for `otpCode` is the hashed value already stored
- * in the challenge row.
+ * Implementations must NEVER log `otpCode`.
+ * Persisting `otpCode` is only allowed in a local-only development sink that is
+ * explicitly gated off from non-dev environments.
  */
 export interface OtpSender {
   sendOtp(

@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { otpSink } from '@hypermarket/core/dev/otpSink';
 import { createOtpSenderDevAdapter } from '@hypermarket/modules/iaa/otp-sender';
 import type { OtpSendCorrelation } from '@hypermarket/modules/iaa/otp-sender';
 
@@ -12,6 +13,7 @@ const CODE = '123456'; // never should appear in any log/result
 const CORRELATION: OtpSendCorrelation = {
   requestId: 'req-aaa',
   challengeId: 'chall-bbb',
+  expiresAt: new Date('2026-03-15T12:00:00.000Z'),
   traceId: 'trace-ccc'
 };
 
@@ -102,6 +104,9 @@ describe('OtpSenderDevAdapter — test mode', () => {
 // ---------------------------------------------------------------------------
 
 describe('OtpSenderDevAdapter — dev mode', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalEnableDevRoutes = process.env.ENABLE_DEV_ROUTES;
+
   const makeLogger = () => {
     const calls: unknown[] = [];
     const logger = {
@@ -111,6 +116,30 @@ describe('OtpSenderDevAdapter — dev mode', () => {
     return { logger, calls };
   };
 
+  const resetEnv = () => {
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+
+    if (originalEnableDevRoutes === undefined) {
+      delete process.env.ENABLE_DEV_ROUTES;
+    } else {
+      process.env.ENABLE_DEV_ROUTES = originalEnableDevRoutes;
+    }
+  };
+
+  beforeEach(() => {
+    otpSink.clear();
+    resetEnv();
+  });
+
+  afterEach(() => {
+    otpSink.clear();
+    resetEnv();
+  });
+
   it('returns SENT', async () => {
     const { logger } = makeLogger();
     const adapter = createOtpSenderDevAdapter({ mode: 'dev', logger });
@@ -119,6 +148,48 @@ describe('OtpSenderDevAdapter — dev mode', () => {
 
     expect(result.status).toBe('SENT');
     expect(result.provider).toBe('dev');
+  });
+
+  it('writes the OTP to the dev sink in development mode', async () => {
+    process.env.NODE_ENV = 'development';
+    delete process.env.ENABLE_DEV_ROUTES;
+
+    const { logger } = makeLogger();
+    const adapter = createOtpSenderDevAdapter({ mode: 'dev', logger });
+
+    await adapter.sendOtp(PHONE, CODE, CORRELATION);
+
+    expect(otpSink.get(CORRELATION.challengeId)).toEqual({
+      otpCode: CODE,
+      expiresAt: CORRELATION.expiresAt
+    });
+  });
+
+  it('writes the OTP to the dev sink when ENABLE_DEV_ROUTES=true', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.ENABLE_DEV_ROUTES = 'true';
+
+    const { logger } = makeLogger();
+    const adapter = createOtpSenderDevAdapter({ mode: 'dev', logger });
+
+    await adapter.sendOtp(PHONE, CODE, CORRELATION);
+
+    expect(otpSink.get(CORRELATION.challengeId)).toEqual({
+      otpCode: CODE,
+      expiresAt: CORRELATION.expiresAt
+    });
+  });
+
+  it('does not write the OTP to the dev sink outside local dev mode', async () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.ENABLE_DEV_ROUTES;
+
+    const { logger } = makeLogger();
+    const adapter = createOtpSenderDevAdapter({ mode: 'dev', logger });
+
+    await adapter.sendOtp(PHONE, CODE, CORRELATION);
+
+    expect(otpSink.get(CORRELATION.challengeId)).toBeNull();
   });
 
   it('emits exactly one structured log entry', async () => {
