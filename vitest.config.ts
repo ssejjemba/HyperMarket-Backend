@@ -46,6 +46,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, 'packages/modules/src/iaa/otp/OtpChallengeService.ts')
       },
       {
+        find: /^@hypermarket\/modules\/iaa\/user$/,
+        replacement: path.resolve(__dirname, 'packages/modules/src/iaa/user/index.ts')
+      },
+      {
         find: /^@hypermarket\/modules\/iaa$/,
         replacement: path.resolve(__dirname, 'packages/modules/src/iaa/index.ts')
       },
