@@ -1,4 +1,5 @@
-export type TemplateRef = {
-  templateId: string;
-  version: string;
-};
+export type {
+  TemplateDefinition,
+  TemplateJsonSchema,
+  TemplateVersionDefinition
+} from './TemplateTypes';

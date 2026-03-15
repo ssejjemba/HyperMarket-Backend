@@ -1,4 +1,2 @@
-export type TemplateRegistryRecord = {
-  templateId: string;
-  version: string;
-};
+export { createTemplateRegistry } from './TemplateRegistry';
+export type { TemplateRegistry } from './TemplateRegistry';
