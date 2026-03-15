@@ -4,6 +4,7 @@ import { IaaError } from '../../errors/IaaError';
 import type { IaaMetrics } from '../../observability/iaaMetrics';
 import { logIaaEvent } from '../../observability/IaaLogEvent';
 import { PhoneNumber } from '../../phone/PhoneNumber';
+import { UgandaPhonePolicy } from '../../phone/UgandaPhonePolicy';
 import type { OtpChallengeService } from '../OtpChallengeService';
 
 // ---------------------------------------------------------------------------
@@ -43,6 +44,7 @@ export type RequestOtpUseCase = {
 
 export const createRequestOtpUseCase = (deps: RequestOtpUseCaseDeps): RequestOtpUseCase => {
   const { otpService, logger, metrics } = deps;
+  const phonePolicy = new UgandaPhonePolicy();
 
   return {
     async execute(input: RequestOtpInput): Promise<RequestOtpOutput> {
@@ -62,6 +64,7 @@ export const createRequestOtpUseCase = (deps: RequestOtpUseCaseDeps): RequestOtp
 
       // Phone parsing throws IaaError(AuthInvalidPhoneFormat) on bad input.
       const phone = PhoneNumber.parse(phoneRaw);
+      phonePolicy.assertSupported(phone);
       const phone_masked = phone.toMasked();
 
       try {

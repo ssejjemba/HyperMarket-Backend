@@ -74,6 +74,7 @@ export type { ModuleDeps };
 export { IaaError } from './errors/IaaError';
 export type { IaaErrorCode } from './errors/IaaError';
 export { PhoneNumber } from './phone/PhoneNumber';
+export { UgandaPhonePolicy } from './phone/UgandaPhonePolicy';
 export { OtpChallenge } from './otp/domain/OtpChallenge';
 export type { OtpChallengeProps, OtpChallengeStatus } from './otp/domain/OtpChallenge';
 export { OtpChallengePolicy } from './otp/domain/OtpChallengePolicy';

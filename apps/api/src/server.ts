@@ -131,4 +131,15 @@ const start = async (): Promise<void> => {
   }
 };
 
-void start();
+const isEntrypoint = (): boolean => {
+  const entryArg = process.argv[1];
+  if (entryArg === undefined) {
+    return false;
+  }
+
+  return path.resolve(entryArg) === fileURLToPath(import.meta.url);
+};
+
+if (isEntrypoint()) {
+  void start();
+}

@@ -18,6 +18,7 @@ export enum ErrorCode {
 
   // IAA (Identity and Access) module codes
   AuthInvalidPhoneFormat = 'auth_invalid_phone_format',
+  AuthPhoneCountryNotSupported = 'auth_phone_country_not_supported',
   AuthOtpRateLimitedPhone = 'auth_otp_rate_limited_phone',
   AuthOtpRateLimitedIp = 'auth_otp_rate_limited_ip',
   AuthChallengeNotFound = 'auth_challenge_not_found',

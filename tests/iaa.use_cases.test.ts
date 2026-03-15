@@ -104,6 +104,25 @@ describe('RequestOtpUseCase', () => {
     expect(otpService.requestChallenge).not.toHaveBeenCalled();
   });
 
+  it.each(['+12025550123', '+447911123456'])(
+    'throws AUTH_PHONE_COUNTRY_NOT_SUPPORTED for non-Ugandan phone %s',
+    async (phoneRaw) => {
+      const otpService = makeOtpService();
+      const uc = createRequestOtpUseCase({ otpService, logger: silentLogger });
+
+      let thrown: unknown;
+      try {
+        await uc.execute({ phoneRaw, requestId: 'req-ug-check' });
+      } catch (e) {
+        thrown = e;
+      }
+
+      expect(thrown).toBeInstanceOf(IaaError);
+      expect((thrown as IaaError).code).toBe(ErrorCode.AuthPhoneCountryNotSupported);
+      expect(otpService.requestChallenge).not.toHaveBeenCalled();
+    }
+  );
+
   it('propagates IaaError from otpService', async () => {
     const otpService = makeOtpService({
       requestChallenge: vi
@@ -270,6 +289,30 @@ describe('VerifyOtpUseCase', () => {
     expect((thrown as IaaError).code).toBe(ErrorCode.AuthInvalidPhoneFormat);
     expect(deps.otpService.verifyChallenge).not.toHaveBeenCalled();
   });
+
+  it.each(['+12025550123', '+447911123456'])(
+    'throws AUTH_PHONE_COUNTRY_NOT_SUPPORTED for non-Ugandan verify phone %s',
+    async (phoneRaw) => {
+      const deps = makeDeps();
+      const uc = createVerifyOtpUseCase(deps);
+
+      let thrown: unknown;
+      try {
+        await uc.execute({
+          challengeId: 'ch-1',
+          phoneRaw,
+          otpCode: '123456',
+          requestId: 'req-ug-verify'
+        });
+      } catch (e) {
+        thrown = e;
+      }
+
+      expect(thrown).toBeInstanceOf(IaaError);
+      expect((thrown as IaaError).code).toBe(ErrorCode.AuthPhoneCountryNotSupported);
+      expect(deps.otpService.verifyChallenge).not.toHaveBeenCalled();
+    }
+  );
 
   // -------------------------------------------------------------------------
   // Error propagation

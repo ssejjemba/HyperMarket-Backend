@@ -10,6 +10,7 @@ import type { IaaErrorCode } from '@hypermarket/modules/iaa';
 
 const expectedStatuses: [IaaErrorCode, number][] = [
   [ErrorCode.AuthInvalidPhoneFormat, 400],
+  [ErrorCode.AuthPhoneCountryNotSupported, 400],
   [ErrorCode.AuthOtpRateLimitedPhone, 429],
   [ErrorCode.AuthOtpRateLimitedIp, 429],
   [ErrorCode.AuthChallengeNotFound, 404],
@@ -37,8 +38,8 @@ describe('IAA error codes — HTTP status mapping', () => {
     expect(status).toBe(expectedStatus);
   });
 
-  it('mapping is exhaustive — all 19 IAA codes are covered', () => {
-    expect(expectedStatuses).toHaveLength(19);
+  it('mapping is exhaustive — all 20 IAA codes are covered', () => {
+    expect(expectedStatuses).toHaveLength(20);
   });
 });
 

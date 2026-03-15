@@ -8,6 +8,7 @@ import type { ErrorCode } from '@hypermarket/contracts';
  */
 export type IaaErrorCode =
   | ErrorCode.AuthInvalidPhoneFormat
+  | ErrorCode.AuthPhoneCountryNotSupported
   | ErrorCode.AuthOtpRateLimitedPhone
   | ErrorCode.AuthOtpRateLimitedIp
   | ErrorCode.AuthChallengeNotFound

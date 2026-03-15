@@ -33,6 +33,7 @@ const codeToStatus: Record<ErrorCode, number> = {
 
   // IAA codes
   [ErrorCode.AuthInvalidPhoneFormat]: 400,
+  [ErrorCode.AuthPhoneCountryNotSupported]: 400,
   [ErrorCode.AuthOtpRateLimitedPhone]: 429,
   [ErrorCode.AuthOtpRateLimitedIp]: 429,
   [ErrorCode.AuthChallengeNotFound]: 404,
