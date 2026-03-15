@@ -4,14 +4,22 @@ import type { BaseLogger } from 'pino';
 import { requireTenantMembership } from '@hypermarket/core/http';
 
 import type { SessionService } from '../../iaa/session/SessionService';
-import type { CreateTenantUseCase } from '../application';
+import type {
+  CreateTenantUseCase,
+  GetTenantSettingsUseCase,
+  UpdateTenantSettingsUseCase
+} from '../application';
 import type { MembershipReader } from '../MembershipReader';
 import { makeCreateTenantHandler } from './controllers/createTenantController';
+import { makeGetTenantSettingsHandler } from './controllers/getTenantSettingsController';
 import { makeNotImplementedTenantHandler } from './controllers/notImplementedTenantController';
+import { makeUpdateTenantSettingsHandler } from './controllers/updateTenantSettingsController';
 
 export type TenancyApiDeps = {
   logger: BaseLogger;
   createTenantUseCase: CreateTenantUseCase;
+  getTenantSettingsUseCase: GetTenantSettingsUseCase;
+  updateTenantSettingsUseCase: UpdateTenantSettingsUseCase;
   sessionService: SessionService;
   membershipReader: MembershipReader;
 };
@@ -48,13 +56,13 @@ export const registerTenancyApiRoutes = async (
   server.get(
     '/tenants/:tenantId/settings',
     { preHandler: tenantGuard },
-    makeNotImplementedTenantHandler(deps.logger, 'tenancy.get_tenant_settings.not_implemented')
+    makeGetTenantSettingsHandler(deps.getTenantSettingsUseCase)
   );
 
   server.patch(
     '/tenants/:tenantId/settings',
     { preHandler: tenantGuard },
-    makeNotImplementedTenantHandler(deps.logger, 'tenancy.update_tenant_settings.not_implemented')
+    makeUpdateTenantSettingsHandler(deps.updateTenantSettingsUseCase)
   );
 
   server.get(

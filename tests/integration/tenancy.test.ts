@@ -82,7 +82,41 @@ const run = async (): Promise<void> => {
 
   const storedSettings = await settingsRepo.getSettings(createResult.tenant.id);
   assert.equal(storedSettings.tenantId, createResult.tenant.id);
+  assert.equal(storedSettings.contactWhatsappE164, null);
   assert.deepEqual(storedSettings.socialLinks, {});
+
+  const updatedSettings = await settingsRepo.upsertSettings(createResult.tenant.id, {
+    contactName: 'Tenant Support',
+    contactEmail: 'support@test-tenant.ug',
+    contactPhoneE164: '+256712345678',
+    contactWhatsappE164: '+256772345678',
+    socialLinks: {
+      website: 'https://test-tenant.ug'
+    },
+    businessHours: {
+      monday: {
+        closed: false,
+        open: '08:00',
+        close: '17:00'
+      }
+    }
+  });
+  assert.equal(updatedSettings.contactName, 'Tenant Support');
+  assert.equal(updatedSettings.contactWhatsappE164, '+256772345678');
+  assert.deepEqual(updatedSettings.socialLinks, {
+    website: 'https://test-tenant.ug'
+  });
+
+  const reloadedSettings = await settingsRepo.getSettings(createResult.tenant.id);
+  assert.equal(reloadedSettings.contactEmail, 'support@test-tenant.ug');
+  assert.equal(reloadedSettings.contactPhoneE164, '+256712345678');
+  assert.deepEqual(reloadedSettings.businessHours, {
+    monday: {
+      closed: false,
+      open: '08:00',
+      close: '17:00'
+    }
+  });
 
   const auditRows = await db
     .selectFrom('audit_events')

@@ -4,6 +4,7 @@ export type TenantSettingsPatch = Partial<{
   contactName: string | null;
   contactEmail: string | null;
   contactPhoneE164: string | null;
+  contactWhatsappE164: string | null;
   socialLinks: Record<string, unknown>;
   businessHours: Record<string, unknown>;
 }>;

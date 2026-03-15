@@ -5,10 +5,20 @@ import { sql } from 'kysely';
 import { loadEnv } from '../config/loadEnv';
 import { createDbClient } from '../db/client';
 
+const ensureTenantSettingsWhatsappColumn = async (
+  db: ReturnType<typeof createDbClient>
+): Promise<void> => {
+  await sql`
+    alter table tenant_settings
+    add column if not exists contact_whatsapp_e164 text null
+  `.execute(db);
+};
+
 export const resetDatabase = async (): Promise<void> => {
   const config = loadEnv();
   const db = createDbClient(config.databaseUrl);
 
+  await ensureTenantSettingsWhatsappColumn(db);
   await db.deleteFrom('auth_otps').execute();
   await db.deleteFrom('sessions').execute();
   await db.deleteFrom('tenant_settings').execute();
@@ -46,6 +56,7 @@ const createSeed = (): TestSeed => {
 export const createTestContext = async () => {
   const config = loadEnv();
   const db = createDbClient(config.databaseUrl);
+  await ensureTenantSettingsWhatsappColumn(db);
 
   const seed = createSeed();
 
@@ -114,6 +125,7 @@ export const canConnectDatabase = async (): Promise<boolean> => {
   try {
     const config = loadEnv();
     const db = createDbClient(config.databaseUrl);
+    await ensureTenantSettingsWhatsappColumn(db);
     await db.selectFrom('tenants').select('id').limit(1).execute();
     await db.destroy();
     return true;

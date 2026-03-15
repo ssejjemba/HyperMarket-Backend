@@ -70,6 +70,7 @@ export const mapTenantSettingsRow = (row: DatabaseSchema['tenant_settings']): Te
   contactName: row.contact_name,
   contactEmail: row.contact_email,
   contactPhoneE164: row.contact_phone_e164,
+  contactWhatsappE164: row.contact_whatsapp_e164,
   socialLinks: row.social_links,
   businessHours: row.business_hours,
   createdAt: row.created_at,

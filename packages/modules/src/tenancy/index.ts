@@ -4,9 +4,14 @@ import type { ModuleDeps } from '../types';
 import { createSessionRepoPg } from '../iaa/session/persistence/SessionRepoPg';
 import { createSessionService } from '../iaa/session/SessionService';
 import { createTokenSigner } from '../iaa/session/TokenSigner';
-import { createCreateTenantUseCase } from './application';
+import {
+  createCreateTenantUseCase,
+  createGetTenantSettingsUseCase,
+  createUpdateTenantSettingsUseCase
+} from './application';
 import { registerTenancyApiRoutes } from './api/routes';
 import { createMembershipReaderPg } from './persistence/TenancyMembershipReaderPg';
+import { createTenantSettingsRepoPg } from './persistence/TenantSettingsRepoPg';
 
 export const registerTenancyRoutes = async (
   server: FastifyInstance,
@@ -27,11 +32,19 @@ export const registerTenancyRoutes = async (
     db: deps.db,
     platformRootDomain: deps.config.platformRootDomain
   });
+  const getTenantSettingsUseCase = createGetTenantSettingsUseCase({
+    settingsRepo: createTenantSettingsRepoPg(deps.db)
+  });
+  const updateTenantSettingsUseCase = createUpdateTenantSettingsUseCase({
+    db: deps.db
+  });
   const membershipReader = createMembershipReaderPg(deps.db);
 
   await registerTenancyApiRoutes(server, {
     logger: deps.logger,
     createTenantUseCase,
+    getTenantSettingsUseCase,
+    updateTenantSettingsUseCase,
     sessionService,
     membershipReader
   });
@@ -52,7 +65,12 @@ export type {
   CreateTenantInput as CreateTenantUseCaseInput,
   CreateTenantOutput,
   CreateTenantUseCase,
-  CreateTenantUseCaseDeps
+  CreateTenantUseCaseDeps,
+  GetTenantSettingsUseCase,
+  GetTenantSettingsUseCaseDeps,
+  UpdateTenantSettingsInput,
+  UpdateTenantSettingsUseCase,
+  UpdateTenantSettingsUseCaseDeps
 } from './application';
 export type { Tenant, TenantMembership, TenantSettings } from './domain/Tenant';
 export type { TenantDomain } from './persistence/TenantDomainRepository';

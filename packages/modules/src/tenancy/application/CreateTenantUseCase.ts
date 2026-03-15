@@ -9,8 +9,7 @@ import { createTenantDomainRepoPg } from '../persistence/TenantDomainRepoPg';
 import { createTenantMembershipRepoPg } from '../persistence/TenantMembershipRepoPg';
 import { createTenantRepoPg } from '../persistence/TenantRepoPg';
 import { createTenantSettingsRepoPg } from '../persistence/TenantSettingsRepoPg';
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { toAuditRequestId } from './auditRequestId';
 
 const slugifyBusinessName = (businessName: string): string => {
   return businessName
@@ -20,10 +19,6 @@ const slugifyBusinessName = (businessName: string): string => {
     .replace(/^-+/g, '')
     .replace(/-+$/g, '')
     .replace(/-{2,}/g, '-');
-};
-
-const toAuditRequestId = (requestId: string | undefined): string | undefined => {
-  return requestId !== undefined && UUID_PATTERN.test(requestId) ? requestId : undefined;
 };
 
 export type CreateTenantInput = {

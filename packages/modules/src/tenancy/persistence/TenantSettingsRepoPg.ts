@@ -23,6 +23,7 @@ export const createTenantSettingsRepoPg = (
         contactName: null,
         contactEmail: null,
         contactPhoneE164: null,
+        contactWhatsappE164: null,
         socialLinks: {},
         businessHours: {},
         createdAt: now,
@@ -41,6 +42,7 @@ export const createTenantSettingsRepoPg = (
         contact_name: patch.contactName ?? null,
         contact_email: patch.contactEmail ?? null,
         contact_phone_e164: patch.contactPhoneE164 ?? null,
+        contact_whatsapp_e164: patch.contactWhatsappE164 ?? null,
         social_links: patch.socialLinks ?? {},
         business_hours: patch.businessHours ?? {},
         created_at: sql`now()`,
@@ -51,6 +53,8 @@ export const createTenantSettingsRepoPg = (
           contact_name: patch.contactName ?? sql`tenant_settings.contact_name`,
           contact_email: patch.contactEmail ?? sql`tenant_settings.contact_email`,
           contact_phone_e164: patch.contactPhoneE164 ?? sql`tenant_settings.contact_phone_e164`,
+          contact_whatsapp_e164:
+            patch.contactWhatsappE164 ?? sql`tenant_settings.contact_whatsapp_e164`,
           social_links: patch.socialLinks ?? sql`tenant_settings.social_links`,
           business_hours: patch.businessHours ?? sql`tenant_settings.business_hours`,
           updated_at: sql`now()`

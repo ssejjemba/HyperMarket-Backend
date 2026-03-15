@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { ErrorCode } from '@hypermarket/contracts';
@@ -184,11 +186,13 @@ flowSuite('TEN routes - create tenant', () => {
 
   it('tenant-scoped routes return tenant_membership_not_found when the user has no membership', async () => {
     ctx = await createTestContext();
+    const otherUserId = randomUUID();
+    const otherPhone = `+256712${otherUserId.replace(/-/g, '').slice(0, 6)}`;
     await ctx.db
       .insertInto('users')
       .values({
-        id: '00000000-0000-0000-0000-000000000010',
-        phone_e164: '+256712000010',
+        id: otherUserId,
+        phone_e164: otherPhone,
         email: null,
         is_active: true,
         created_at: new Date(),
@@ -209,8 +213,8 @@ flowSuite('TEN routes - create tenant', () => {
     });
     const access = await sessionService.issueSession(
       new UserIdentity({
-        id: '00000000-0000-0000-0000-000000000010',
-        phoneE164: '+256712000010',
+        id: otherUserId,
+        phoneE164: otherPhone,
         status: 'active',
         createdAt: new Date(),
         updatedAt: new Date()
@@ -259,6 +263,178 @@ flowSuite('TEN routes - create tenant', () => {
 
     expect(res.statusCode).toBe(403);
     expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.TenantMembershipRevoked);
+
+    await server.close();
+  });
+
+  it('GET /tenants/:tenantId/settings returns the stored tenant settings for a member', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessToken(ctx);
+    await ctx.db
+      .insertInto('tenant_settings')
+      .values({
+        tenant_id: ctx.seed.tenantId,
+        contact_name: 'Store Owner',
+        contact_email: 'owner@example.com',
+        contact_phone_e164: '+256712000001',
+        contact_whatsapp_e164: '+256712000002',
+        social_links: { website: 'https://example.com' },
+        business_hours: { monday: { closed: false, open: '08:00', close: '18:00' } },
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .onConflict((oc) =>
+        oc.column('tenant_id').doUpdateSet({
+          contact_name: 'Store Owner',
+          contact_email: 'owner@example.com',
+          contact_phone_e164: '+256712000001',
+          contact_whatsapp_e164: '+256712000002',
+          social_links: { website: 'https://example.com' },
+          business_hours: { monday: { closed: false, open: '08:00', close: '18:00' } },
+          updated_at: new Date()
+        })
+      )
+      .execute();
+
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'GET',
+      url: `/tenants/${ctx.seed.tenantId}/settings`,
+      headers: { authorization: `Bearer ${token}` }
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      tenant_id: ctx.seed.tenantId,
+      contact_name: 'Store Owner',
+      contact_email: 'owner@example.com',
+      contact_phone: '+256712000001',
+      contact_whatsapp: '+256712000002',
+      social_links: { website: 'https://example.com' },
+      business_hours: { monday: { closed: false, open: '08:00', close: '18:00' } }
+    });
+
+    await server.close();
+  });
+
+  it('PATCH /tenants/:tenantId/settings returns tenant_settings_invalid for invalid payloads', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessToken(ctx);
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'PATCH',
+      url: `/tenants/${ctx.seed.tenantId}/settings`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        contact_phone: '+14155550123',
+        social_links: {
+          youtube: 'https://youtube.com/@bad-key'
+        }
+      }
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.TenantSettingsInvalid);
+
+    await server.close();
+  });
+
+  it('PATCH /tenants/:tenantId/settings upserts settings and writes an audit event', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessToken(ctx);
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'PATCH',
+      url: `/tenants/${ctx.seed.tenantId}/settings`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        contact_name: 'Acme Support',
+        contact_email: 'support@acme.ug',
+        contact_phone: '+256712345678',
+        contact_whatsapp: '+256772345678',
+        social_links: {
+          website: 'https://acme.ug',
+          instagram: 'https://instagram.com/acme'
+        },
+        business_hours: {
+          monday: { closed: false, open: '08:00', close: '18:00' },
+          sunday: { closed: true }
+        }
+      }
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      tenant_id: ctx.seed.tenantId,
+      contact_name: 'Acme Support',
+      contact_email: 'support@acme.ug',
+      contact_phone: '+256712345678',
+      contact_whatsapp: '+256772345678'
+    });
+
+    const stored = await ctx.db
+      .selectFrom('tenant_settings')
+      .select([
+        'contact_name',
+        'contact_email',
+        'contact_phone_e164',
+        'contact_whatsapp_e164',
+        'social_links',
+        'business_hours'
+      ])
+      .where('tenant_id', '=', ctx.seed.tenantId)
+      .executeTakeFirstOrThrow();
+
+    expect(stored.contact_name).toBe('Acme Support');
+    expect(stored.contact_email).toBe('support@acme.ug');
+    expect(stored.contact_phone_e164).toBe('+256712345678');
+    expect(stored.contact_whatsapp_e164).toBe('+256772345678');
+    expect(stored.social_links).toEqual({
+      website: 'https://acme.ug',
+      instagram: 'https://instagram.com/acme'
+    });
+    expect(stored.business_hours).toEqual({
+      monday: { closed: false, open: '08:00', close: '18:00' },
+      sunday: { closed: true }
+    });
+
+    const auditRow = await ctx.db
+      .selectFrom('audit_events')
+      .select(['action', 'target_id', 'before', 'after'])
+      .where('action', '=', 'tenant.settings.updated')
+      .where('target_id', '=', ctx.seed.tenantId)
+      .executeTakeFirst();
+
+    expect(auditRow).toBeDefined();
+    expect(auditRow?.before).toMatchObject({
+      tenant_id: ctx.seed.tenantId,
+      contact_name: null,
+      contact_email: null,
+      contact_phone: null,
+      contact_whatsapp: null
+    });
+    expect(auditRow?.after).toMatchObject({
+      tenant_id: ctx.seed.tenantId,
+      contact_name: 'Acme Support',
+      contact_email: 'support@acme.ug',
+      contact_phone: '+256712345678',
+      contact_whatsapp: '+256772345678'
+    });
 
     await server.close();
   });

@@ -75,6 +75,7 @@ export type DatabaseSchema = {
     contact_name: string | null;
     contact_email: string | null;
     contact_phone_e164: string | null;
+    contact_whatsapp_e164: string | null;
     social_links: Record<string, unknown>;
     business_hours: Record<string, unknown>;
     created_at: Date;
