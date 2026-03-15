@@ -10,6 +10,7 @@ import {
   createGetTenantUseCase,
   createGetTenantSettingsUseCase,
   createListTenantMembershipsUseCase,
+  createRevokeTenantMembershipUseCase,
   createListTenantsUseCase,
   createUpdateTenantSettingsUseCase
 } from './application';
@@ -40,6 +41,9 @@ export const registerTenancyRoutes = async (
     platformRootDomain: deps.config.platformRootDomain
   });
   const createTenantMembershipUseCase = createCreateTenantMembershipUseCase({
+    db: deps.db
+  });
+  const revokeTenantMembershipUseCase = createRevokeTenantMembershipUseCase({
     db: deps.db
   });
   const tenantRepo = createTenantRepoPg(deps.db);
@@ -73,6 +77,7 @@ export const registerTenancyRoutes = async (
     getTenantSettingsUseCase,
     listTenantMembershipsUseCase,
     listTenantsUseCase,
+    revokeTenantMembershipUseCase,
     updateTenantSettingsUseCase,
     sessionService,
     membershipReader
@@ -89,7 +94,11 @@ export type {
 } from './domain/MembershipClaim';
 export { TenantSlug } from './domain/TenantSlug';
 export type { ResolvedTenant, TenantResolutionCache, TenantResolver } from './TenantResolver';
-export { createCreateTenantMembershipUseCase, createCreateTenantUseCase } from './application';
+export {
+  createCreateTenantMembershipUseCase,
+  createCreateTenantUseCase,
+  createRevokeTenantMembershipUseCase
+} from './application';
 export type {
   CreateTenantMembershipInput as CreateTenantMembershipUseCaseInput,
   CreateTenantMembershipOutput,
@@ -107,6 +116,10 @@ export type {
   ListTenantMembershipsUseCaseDeps,
   ListTenantsUseCase,
   ListTenantsUseCaseDeps,
+  RevokeTenantMembershipInput,
+  RevokeTenantMembershipOutput,
+  RevokeTenantMembershipUseCase,
+  RevokeTenantMembershipUseCaseDeps,
   TenantMembershipSummary,
   TenantSummary,
   UpdateTenantSettingsInput,

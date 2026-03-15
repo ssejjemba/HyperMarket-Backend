@@ -10,6 +10,7 @@ import type {
   GetTenantUseCase,
   GetTenantSettingsUseCase,
   ListTenantMembershipsUseCase,
+  RevokeTenantMembershipUseCase,
   ListTenantsUseCase,
   UpdateTenantSettingsUseCase
 } from '../application';
@@ -21,6 +22,7 @@ import { makeGetTenantSettingsHandler } from './controllers/getTenantSettingsCon
 import { makeListTenantMembershipsHandler } from './controllers/listTenantMembershipsController';
 import { makeListTenantsHandler } from './controllers/listTenantsController';
 import { makeNotImplementedTenantHandler } from './controllers/notImplementedTenantController';
+import { makeRevokeTenantMembershipHandler } from './controllers/revokeTenantMembershipController';
 import { makeUpdateTenantSettingsHandler } from './controllers/updateTenantSettingsController';
 
 export type TenancyApiDeps = {
@@ -31,6 +33,7 @@ export type TenancyApiDeps = {
   getTenantSettingsUseCase: GetTenantSettingsUseCase;
   listTenantMembershipsUseCase: ListTenantMembershipsUseCase;
   listTenantsUseCase: ListTenantsUseCase;
+  revokeTenantMembershipUseCase: RevokeTenantMembershipUseCase;
   updateTenantSettingsUseCase: UpdateTenantSettingsUseCase;
   sessionService: SessionService;
   membershipReader: MembershipReader;
@@ -99,7 +102,7 @@ export const registerTenancyApiRoutes = async (
   server.post(
     '/tenants/:tenantId/memberships/:userId/revoke',
     { preHandler: tenantOwnerGuard },
-    makeNotImplementedTenantHandler(deps.logger, 'tenancy.revoke_tenant_membership.not_implemented')
+    makeRevokeTenantMembershipHandler(deps.revokeTenantMembershipUseCase)
   );
 
   server.patch(

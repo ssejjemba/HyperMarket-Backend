@@ -575,9 +575,242 @@ flowSuite('TEN routes - create tenant', () => {
       expect(res.statusCode).toBe(403);
       expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.TenantAccessForbidden);
 
+      const revokeTargetUserId = randomUUID();
+      await ctx.db
+        .insertInto('users')
+        .values({
+          id: revokeTargetUserId,
+          phone_e164: `+256712${revokeTargetUserId.replace(/-/g, '').slice(0, 6)}`,
+          email: null,
+          is_active: true,
+          created_at: new Date(),
+          updated_at: new Date()
+        })
+        .execute();
+      await ctx.db
+        .insertInto('tenant_memberships')
+        .values({
+          id: randomUUID(),
+          tenant_id: ctx.seed.tenantId,
+          user_id: revokeTargetUserId,
+          role: 'staff',
+          status: 'active',
+          created_at: new Date(),
+          revoked_at: null
+        })
+        .execute();
+
+      const revokeRes = await server.inject({
+        method: 'POST',
+        url: `/tenants/${ctx.seed.tenantId}/memberships/${revokeTargetUserId}/revoke`,
+        headers: { authorization: `Bearer ${token}` }
+      });
+
+      expect(revokeRes.statusCode).toBe(403);
+      expect(revokeRes.json<ErrorEnvelope>().error_code).toBe(ErrorCode.TenantAccessForbidden);
+
       await server.close();
     }
   );
+
+  it('owner cannot revoke the last active owner membership', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessToken(ctx);
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/memberships/${ctx.seed.userId}/revoke`,
+      headers: { authorization: `Bearer ${token}` }
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.TenantLastOwnerRevokeForbidden);
+
+    await server.close();
+  });
+
+  it('owner can revoke a normal member and writes an audit event', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessToken(ctx);
+    const targetUserId = randomUUID();
+    const targetPhone = `+256712${targetUserId.replace(/-/g, '').slice(0, 6)}`;
+    await ctx.db
+      .insertInto('users')
+      .values({
+        id: targetUserId,
+        phone_e164: targetPhone,
+        email: null,
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .execute();
+    await ctx.db
+      .insertInto('tenant_memberships')
+      .values({
+        id: randomUUID(),
+        tenant_id: ctx.seed.tenantId,
+        user_id: targetUserId,
+        role: 'staff',
+        status: 'active',
+        created_at: new Date(),
+        revoked_at: null
+      })
+      .execute();
+
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/memberships/${targetUserId}/revoke`,
+      headers: { authorization: `Bearer ${token}` }
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{
+      changed: boolean;
+      membership: {
+        user_id: string;
+        role: string;
+        status: string;
+        created_at: string;
+        revoked_at: string | null;
+      };
+    }>();
+    expect(body.changed).toBe(true);
+    expect(body.membership).toMatchObject({
+      user_id: targetUserId,
+      role: 'staff',
+      status: 'revoked'
+    });
+    expect(typeof body.membership.revoked_at).toBe('string');
+
+    const storedMembership = await ctx.db
+      .selectFrom('tenant_memberships')
+      .select(['status', 'revoked_at'])
+      .where('tenant_id', '=', ctx.seed.tenantId)
+      .where('user_id', '=', targetUserId)
+      .executeTakeFirst();
+    expect(storedMembership?.status).toBe('revoked');
+    expect(storedMembership?.revoked_at).not.toBeNull();
+
+    const auditRow = await ctx.db
+      .selectFrom('audit_events')
+      .select([
+        'action',
+        'tenant_id',
+        'actor_user_id',
+        'target_type',
+        'target_id',
+        'before',
+        'after'
+      ])
+      .where('action', '=', 'tenant.membership.revoked')
+      .where('tenant_id', '=', ctx.seed.tenantId)
+      .orderBy('created_at', 'desc')
+      .executeTakeFirst();
+    expect(auditRow).toMatchObject({
+      action: 'tenant.membership.revoked',
+      tenant_id: ctx.seed.tenantId,
+      actor_user_id: ctx.seed.userId,
+      target_type: 'tenant_membership',
+      target_id: `${ctx.seed.tenantId}:${targetUserId}`
+    });
+    expect(auditRow?.before).toMatchObject({
+      tenant_id: ctx.seed.tenantId,
+      user_id: targetUserId,
+      role: 'staff',
+      status: 'active'
+    });
+    expect(auditRow?.after).toMatchObject({
+      tenant_id: ctx.seed.tenantId,
+      user_id: targetUserId,
+      role: 'staff',
+      status: 'revoked'
+    });
+
+    await server.close();
+  });
+
+  it('revoking an already revoked membership is idempotent', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessToken(ctx);
+    const targetUserId = randomUUID();
+    const targetPhone = `+256712${targetUserId.replace(/-/g, '').slice(0, 6)}`;
+    const revokedAt = new Date();
+    await ctx.db
+      .insertInto('users')
+      .values({
+        id: targetUserId,
+        phone_e164: targetPhone,
+        email: null,
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .execute();
+    await ctx.db
+      .insertInto('tenant_memberships')
+      .values({
+        id: randomUUID(),
+        tenant_id: ctx.seed.tenantId,
+        user_id: targetUserId,
+        role: 'staff',
+        status: 'revoked',
+        created_at: new Date(),
+        revoked_at: revokedAt
+      })
+      .execute();
+
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/memberships/${targetUserId}/revoke`,
+      headers: { authorization: `Bearer ${token}` }
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{
+      changed: boolean;
+      membership: {
+        user_id: string;
+        status: string;
+        revoked_at: string | null;
+      };
+    }>();
+    expect(body).toMatchObject({
+      changed: false,
+      membership: {
+        user_id: targetUserId,
+        status: 'revoked',
+        revoked_at: revokedAt.toISOString()
+      }
+    });
+
+    const auditRows = await ctx.db
+      .selectFrom('audit_events')
+      .select(['id'])
+      .where('action', '=', 'tenant.membership.revoked')
+      .where('tenant_id', '=', ctx.seed.tenantId)
+      .execute();
+    expect(auditRows).toHaveLength(0);
+
+    await server.close();
+  });
 
   it('tenant-scoped routes return tenant_membership_not_found when the user has no membership', async () => {
     ctx = await createTestContext();
