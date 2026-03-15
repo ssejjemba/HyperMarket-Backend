@@ -21,7 +21,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./identity-access": "./modules/identity-access/src/index.ts",
-    "./tenancy": "./modules/tenancy/src/index.ts",
+    "./tenancy": "./src/tenancy/index.ts",
     "./iaa": "./src/iaa/index.ts",
     "./iaa/testkit": "./src/iaa/testkit.ts"
   }
