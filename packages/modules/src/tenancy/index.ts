@@ -16,6 +16,13 @@ export { DomainName } from './domain/DomainName';
 export type { MembershipReader } from './MembershipReader';
 export { TenantSlug } from './domain/TenantSlug';
 export type { TenantResolver } from './TenantResolver';
+export { createCreateTenantUseCase } from './application';
+export type {
+  CreateTenantInput as CreateTenantUseCaseInput,
+  CreateTenantOutput,
+  CreateTenantUseCase,
+  CreateTenantUseCaseDeps
+} from './application';
 export type { Tenant, TenantMembership, TenantSettings } from './domain/Tenant';
 export type { TenantDomain } from './persistence/TenantDomainRepository';
 export type {
