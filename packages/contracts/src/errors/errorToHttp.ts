@@ -31,6 +31,23 @@ const codeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.DevOtpNotFound]: 404,
   [ErrorCode.DevForbidden]: 403,
 
+  // TEN codes
+  [ErrorCode.TenantSlugInvalid]: 400,
+  [ErrorCode.TenantSlugTaken]: 409,
+  [ErrorCode.TenantNotFound]: 404,
+  [ErrorCode.TenantSuspended]: 403,
+  [ErrorCode.TenantArchived]: 409,
+  [ErrorCode.TenantDomainInvalid]: 400,
+  [ErrorCode.TenantDomainTaken]: 409,
+  [ErrorCode.TenantDomainNotFound]: 404,
+  [ErrorCode.TenantSettingsInvalid]: 400,
+  [ErrorCode.TenantMembershipExists]: 409,
+  [ErrorCode.TenantMembershipNotFound]: 404,
+  [ErrorCode.TenantMembershipRevoked]: 403,
+  [ErrorCode.TenantMembershipRoleInvalid]: 400,
+  [ErrorCode.TenantAccessForbidden]: 403,
+  [ErrorCode.TenantDbFailure]: 500,
+
   // IAA codes
   [ErrorCode.AuthInvalidPhoneFormat]: 400,
   [ErrorCode.AuthPhoneCountryNotSupported]: 400,

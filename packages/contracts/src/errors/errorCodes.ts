@@ -16,6 +16,23 @@ export enum ErrorCode {
   DevOtpNotFound = 'dev_otp_not_found',
   DevForbidden = 'dev_forbidden',
 
+  // TEN (Tenancy & Storefront Configuration) module codes
+  TenantSlugInvalid = 'tenant_slug_invalid',
+  TenantSlugTaken = 'tenant_slug_taken',
+  TenantNotFound = 'tenant_not_found',
+  TenantSuspended = 'tenant_suspended',
+  TenantArchived = 'tenant_archived',
+  TenantDomainInvalid = 'tenant_domain_invalid',
+  TenantDomainTaken = 'tenant_domain_taken',
+  TenantDomainNotFound = 'tenant_domain_not_found',
+  TenantSettingsInvalid = 'tenant_settings_invalid',
+  TenantMembershipExists = 'tenant_membership_exists',
+  TenantMembershipNotFound = 'tenant_membership_not_found',
+  TenantMembershipRevoked = 'tenant_membership_revoked',
+  TenantMembershipRoleInvalid = 'tenant_membership_role_invalid',
+  TenantAccessForbidden = 'tenant_access_forbidden',
+  TenantDbFailure = 'tenant_db_failure',
+
   // IAA (Identity and Access) module codes
   AuthInvalidPhoneFormat = 'auth_invalid_phone_format',
   AuthPhoneCountryNotSupported = 'auth_phone_country_not_supported',

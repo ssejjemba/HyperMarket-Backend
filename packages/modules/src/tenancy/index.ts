@@ -10,6 +10,8 @@ export const registerTenancyRoutes = async (
   await registerTenancyApiRoutes(server, { logger: deps.logger });
 };
 
+export { TenancyError } from './errors/TenancyError';
+export type { TenancyErrorCode } from './errors/TenancyError';
 export type { MembershipReader } from './MembershipReader';
 export type { TenantResolver } from './TenantResolver';
 export type { Tenant, TenantMembership, TenantSettings } from './domain/Tenant';
