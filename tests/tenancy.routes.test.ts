@@ -423,21 +423,10 @@ flowSuite('TEN routes - create tenant', () => {
     await server.close();
   });
 
-  it('owner can access membership management routes', async () => {
+  it('owner can add a tenant member and writes an audit event', async () => {
     ctx = await createTestContext();
     const token = await issueAccessToken(ctx);
-    const targetUserId = randomUUID();
-    await ctx.db
-      .insertInto('users')
-      .values({
-        id: targetUserId,
-        phone_e164: `+256712${targetUserId.replace(/-/g, '').slice(0, 6)}`,
-        email: null,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date()
-      })
-      .execute();
+    const memberPhone = `+256712${ctx.seed.tenantId.replace(/\D/g, '').padEnd(6, '0').slice(0, 6)}`;
 
     const server = buildServer({
       config: { ...ctx.config, nodeEnv: 'test' },
@@ -449,27 +438,88 @@ flowSuite('TEN routes - create tenant', () => {
       method: 'POST',
       url: `/tenants/${ctx.seed.tenantId}/memberships`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { phone_e164: '+256712345678', role: 'staff' }
+      payload: { phone_e164: memberPhone, role: 'staff' }
     });
-    expect(createRes.statusCode).toBe(501);
-    expectErrorEnvelope(createRes.json<ErrorEnvelope>());
+    expect(createRes.statusCode).toBe(200);
+    const body = createRes.json<{
+      membership: {
+        user_id: string;
+        role: string;
+        status: string;
+        created_at: string;
+      };
+    }>();
+    expect(body.membership.role).toBe('staff');
+    expect(body.membership.status).toBe('active');
+    expect(typeof body.membership.user_id).toBe('string');
+    expect(typeof body.membership.created_at).toBe('string');
 
-    const revokeRes = await server.inject({
+    const storedUser = await ctx.db
+      .selectFrom('users')
+      .select(['id', 'phone_e164'])
+      .where('phone_e164', '=', memberPhone)
+      .executeTakeFirst();
+    expect(storedUser).toMatchObject({
+      id: body.membership.user_id,
+      phone_e164: memberPhone
+    });
+
+    const storedMembership = await ctx.db
+      .selectFrom('tenant_memberships')
+      .select(['tenant_id', 'user_id', 'role', 'status'])
+      .where('tenant_id', '=', ctx.seed.tenantId)
+      .where('user_id', '=', body.membership.user_id)
+      .executeTakeFirst();
+    expect(storedMembership).toMatchObject({
+      tenant_id: ctx.seed.tenantId,
+      user_id: body.membership.user_id,
+      role: 'staff',
+      status: 'active'
+    });
+
+    const auditRow = await ctx.db
+      .selectFrom('audit_events')
+      .select(['action', 'tenant_id', 'actor_user_id', 'target_type', 'target_id', 'after'])
+      .where('action', '=', 'tenant.membership.created')
+      .where('tenant_id', '=', ctx.seed.tenantId)
+      .orderBy('created_at', 'desc')
+      .executeTakeFirst();
+    expect(auditRow).toMatchObject({
+      action: 'tenant.membership.created',
+      tenant_id: ctx.seed.tenantId,
+      actor_user_id: ctx.seed.userId,
+      target_type: 'tenant_membership',
+      target_id: `${ctx.seed.tenantId}:${body.membership.user_id}`
+    });
+    expect(auditRow?.after).toMatchObject({
+      tenant_id: ctx.seed.tenantId,
+      user_id: body.membership.user_id,
+      role: 'staff',
+      status: 'active',
+      phone_e164: memberPhone
+    });
+
+    await server.close();
+  });
+
+  it('owner add member returns tenant_membership_exists for duplicate membership', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessToken(ctx);
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
       method: 'POST',
-      url: `/tenants/${ctx.seed.tenantId}/memberships/${targetUserId}/revoke`,
-      headers: { authorization: `Bearer ${token}` }
-    });
-    expect(revokeRes.statusCode).toBe(501);
-    expectErrorEnvelope(revokeRes.json<ErrorEnvelope>());
-
-    const roleRes = await server.inject({
-      method: 'PATCH',
-      url: `/tenants/${ctx.seed.tenantId}/memberships/${targetUserId}/role`,
+      url: `/tenants/${ctx.seed.tenantId}/memberships`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { role: 'manager' }
+      payload: { phone_e164: ctx.seed.userPhone, role: 'owner' }
     });
-    expect(roleRes.statusCode).toBe(501);
-    expectErrorEnvelope(roleRes.json<ErrorEnvelope>());
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.TenantMembershipExists);
 
     await server.close();
   });
@@ -480,28 +530,16 @@ flowSuite('TEN routes - create tenant', () => {
       ctx = await createTestContext();
       const membershipUserId = randomUUID();
       const membershipPhone = `+256712${membershipUserId.replace(/-/g, '').slice(0, 6)}`;
-      const targetUserId = randomUUID();
-
       await ctx.db
         .insertInto('users')
-        .values([
-          {
-            id: membershipUserId,
-            phone_e164: membershipPhone,
-            email: null,
-            is_active: true,
-            created_at: new Date(),
-            updated_at: new Date()
-          },
-          {
-            id: targetUserId,
-            phone_e164: `+256712${targetUserId.replace(/-/g, '').slice(0, 6)}`,
-            email: null,
-            is_active: true,
-            created_at: new Date(),
-            updated_at: new Date()
-          }
-        ])
+        .values({
+          id: membershipUserId,
+          phone_e164: membershipPhone,
+          email: null,
+          is_active: true,
+          created_at: new Date(),
+          updated_at: new Date()
+        })
         .execute();
 
       await ctx.db
@@ -527,31 +565,15 @@ flowSuite('TEN routes - create tenant', () => {
       });
       await server.ready();
 
-      const requests = [
-        server.inject({
-          method: 'POST',
-          url: `/tenants/${ctx.seed.tenantId}/memberships`,
-          headers: { authorization: `Bearer ${token}` },
-          payload: { phone_e164: '+256712345678', role: 'staff' }
-        }),
-        server.inject({
-          method: 'POST',
-          url: `/tenants/${ctx.seed.tenantId}/memberships/${targetUserId}/revoke`,
-          headers: { authorization: `Bearer ${token}` }
-        }),
-        server.inject({
-          method: 'PATCH',
-          url: `/tenants/${ctx.seed.tenantId}/memberships/${targetUserId}/role`,
-          headers: { authorization: `Bearer ${token}` },
-          payload: { role: 'owner' }
-        })
-      ];
+      const res = await server.inject({
+        method: 'POST',
+        url: `/tenants/${ctx.seed.tenantId}/memberships`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { phone_e164: '+256712345678', role: 'staff' }
+      });
 
-      const [createRes, revokeRes, roleRes] = await Promise.all(requests);
-      for (const res of [createRes, revokeRes, roleRes]) {
-        expect(res.statusCode).toBe(403);
-        expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.TenantAccessForbidden);
-      }
+      expect(res.statusCode).toBe(403);
+      expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.TenantAccessForbidden);
 
       await server.close();
     }

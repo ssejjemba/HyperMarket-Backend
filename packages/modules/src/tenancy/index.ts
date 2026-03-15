@@ -5,6 +5,7 @@ import { createSessionRepoPg } from '../iaa/session/persistence/SessionRepoPg';
 import { createSessionService } from '../iaa/session/SessionService';
 import { createTokenSigner } from '../iaa/session/TokenSigner';
 import {
+  createCreateTenantMembershipUseCase,
   createCreateTenantUseCase,
   createGetTenantUseCase,
   createGetTenantSettingsUseCase,
@@ -38,6 +39,9 @@ export const registerTenancyRoutes = async (
     db: deps.db,
     platformRootDomain: deps.config.platformRootDomain
   });
+  const createTenantMembershipUseCase = createCreateTenantMembershipUseCase({
+    db: deps.db
+  });
   const tenantRepo = createTenantRepoPg(deps.db);
   const domainRepo = createTenantDomainRepoPg(deps.db, {
     platformRootDomain: deps.config.platformRootDomain
@@ -63,6 +67,7 @@ export const registerTenancyRoutes = async (
 
   await registerTenancyApiRoutes(server, {
     logger: deps.logger,
+    createTenantMembershipUseCase,
     createTenantUseCase,
     getTenantUseCase,
     getTenantSettingsUseCase,
@@ -84,8 +89,12 @@ export type {
 } from './domain/MembershipClaim';
 export { TenantSlug } from './domain/TenantSlug';
 export type { ResolvedTenant, TenantResolutionCache, TenantResolver } from './TenantResolver';
-export { createCreateTenantUseCase } from './application';
+export { createCreateTenantMembershipUseCase, createCreateTenantUseCase } from './application';
 export type {
+  CreateTenantMembershipInput as CreateTenantMembershipUseCaseInput,
+  CreateTenantMembershipOutput,
+  CreateTenantMembershipUseCase,
+  CreateTenantMembershipUseCaseDeps,
   CreateTenantInput as CreateTenantUseCaseInput,
   CreateTenantOutput,
   CreateTenantUseCase,

@@ -1,9 +1,16 @@
+export { createCreateTenantMembershipUseCase } from './CreateTenantMembershipUseCase';
 export { createCreateTenantUseCase } from './CreateTenantUseCase';
 export { createGetTenantUseCase } from './GetTenantUseCase';
 export { createGetTenantSettingsUseCase } from './GetTenantSettingsUseCase';
 export { createListTenantMembershipsUseCase } from './ListTenantMembershipsUseCase';
 export { createListTenantsUseCase } from './ListTenantsUseCase';
 export { createUpdateTenantSettingsUseCase } from './UpdateTenantSettingsUseCase';
+export type {
+  CreateTenantMembershipInput,
+  CreateTenantMembershipOutput,
+  CreateTenantMembershipUseCase,
+  CreateTenantMembershipUseCaseDeps
+} from './CreateTenantMembershipUseCase';
 export type {
   CreateTenantInput,
   CreateTenantOutput,

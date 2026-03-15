@@ -5,6 +5,7 @@ import { requireTenantMembership, requireTenantOwner } from '@hypermarket/core/h
 
 import type { SessionService } from '../../iaa/session/SessionService';
 import type {
+  CreateTenantMembershipUseCase,
   CreateTenantUseCase,
   GetTenantUseCase,
   GetTenantSettingsUseCase,
@@ -13,6 +14,7 @@ import type {
   UpdateTenantSettingsUseCase
 } from '../application';
 import type { MembershipReader } from '../MembershipReader';
+import { makeCreateTenantMembershipHandler } from './controllers/createTenantMembershipController';
 import { makeCreateTenantHandler } from './controllers/createTenantController';
 import { makeGetTenantHandler } from './controllers/getTenantController';
 import { makeGetTenantSettingsHandler } from './controllers/getTenantSettingsController';
@@ -23,6 +25,7 @@ import { makeUpdateTenantSettingsHandler } from './controllers/updateTenantSetti
 
 export type TenancyApiDeps = {
   logger: BaseLogger;
+  createTenantMembershipUseCase: CreateTenantMembershipUseCase;
   createTenantUseCase: CreateTenantUseCase;
   getTenantUseCase: GetTenantUseCase;
   getTenantSettingsUseCase: GetTenantSettingsUseCase;
@@ -90,7 +93,7 @@ export const registerTenancyApiRoutes = async (
   server.post(
     '/tenants/:tenantId/memberships',
     { preHandler: tenantOwnerGuard },
-    makeNotImplementedTenantHandler(deps.logger, 'tenancy.create_tenant_membership.not_implemented')
+    makeCreateTenantMembershipHandler(deps.createTenantMembershipUseCase)
   );
 
   server.post(
