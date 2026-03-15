@@ -29,6 +29,11 @@ const TEST_CONFIG: AppConfig = {
   enableDevRoutes: false
 };
 
+const DEV_CONFIG: AppConfig = {
+  ...TEST_CONFIG,
+  nodeEnv: 'development'
+};
+
 describe('dev OTP routes', () => {
   beforeEach(() => {
     otpSink.clear();
@@ -40,7 +45,7 @@ describe('dev OTP routes', () => {
 
   it('returns the OTP for a local request when the feature is enabled', async () => {
     const server = buildServer({
-      config: { ...TEST_CONFIG, enableDevRoutes: true },
+      config: DEV_CONFIG,
       devRoutesMode: 'enabled'
     });
     await server.ready();
@@ -63,8 +68,11 @@ describe('dev OTP routes', () => {
     await server.close();
   });
 
-  it('returns DEV_FEATURE_DISABLED when the route is registered as disabled', async () => {
-    const server = buildServer({ config: TEST_CONFIG, devRoutesMode: 'disabled' });
+  it('does not register dev routes in production, even when forced on', async () => {
+    const server = buildServer({
+      config: { ...TEST_CONFIG, enableDevRoutes: true },
+      devRoutesMode: 'enabled'
+    });
     await server.ready();
 
     const res = await server.inject({
@@ -74,14 +82,19 @@ describe('dev OTP routes', () => {
     });
 
     expect(res.statusCode).toBe(404);
-    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.DevFeatureDisabled);
+    expect(res.json()).toEqual({
+      error: 'Not Found',
+      message: 'Route GET:/__dev/otp/challenge-2 not found',
+      statusCode: 404
+    });
+    expect(server.hasRoute({ method: 'GET', url: '/__dev/otp/:challenge_id' })).toBe(false);
 
     await server.close();
   });
 
   it('returns DEV_FORBIDDEN for non-local requests', async () => {
     const server = buildServer({
-      config: { ...TEST_CONFIG, enableDevRoutes: true },
+      config: DEV_CONFIG,
       devRoutesMode: 'enabled'
     });
     await server.ready();
@@ -102,7 +115,7 @@ describe('dev OTP routes', () => {
 
   it('returns DEV_OTP_NOT_FOUND when no OTP exists for the challenge id', async () => {
     const server = buildServer({
-      config: { ...TEST_CONFIG, enableDevRoutes: true },
+      config: DEV_CONFIG,
       devRoutesMode: 'enabled'
     });
     await server.ready();

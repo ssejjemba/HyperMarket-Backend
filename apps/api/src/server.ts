@@ -28,11 +28,8 @@ const createRequestContext = (requestId: string, traceId: string): RequestContex
 export const buildServer = ({ config, devRoutesMode = 'auto' }: ServerOptions) => {
   const logger = createLogger({ config, base: { service: 'api' } });
   const devRoutesEnabled =
-    devRoutesMode === 'enabled'
-      ? true
-      : devRoutesMode === 'disabled'
-        ? false
-        : config.nodeEnv === 'development' || config.enableDevRoutes;
+    config.nodeEnv === 'development' &&
+    (devRoutesMode === 'enabled' || (devRoutesMode === 'auto' && config.nodeEnv === 'development'));
 
   const app = Fastify({
     logger,
@@ -71,10 +68,8 @@ export const buildServer = ({ config, devRoutesMode = 'auto' }: ServerOptions) =
     config
   });
 
-  if (devRoutesMode === 'disabled') {
-    registerDevRoutes(app, { enabled: false });
-  } else if (devRoutesEnabled) {
-    registerDevRoutes(app, { enabled: true });
+  if (devRoutesEnabled) {
+    registerDevRoutes(app);
   }
 
   app.setErrorHandler(async (error, request, reply) => {

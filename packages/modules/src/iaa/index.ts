@@ -37,7 +37,7 @@ export const registerIaaRoutes = async (
   const membershipReader = createTenancyMembershipAdapter(deps.db);
 
   const verificationProvider =
-    deps.config.nodeEnv === 'development' || deps.config.enableDevRoutes
+    deps.config.nodeEnv === 'development'
       ? createLocalOtpVerificationProvider({ logger: deps.logger })
       : createTwilioOtpVerificationProvider({
           client: createTwilioVerifyClient({

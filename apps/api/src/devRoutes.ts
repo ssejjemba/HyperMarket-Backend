@@ -3,10 +3,6 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { AppError, ErrorCode } from '@hypermarket/contracts';
 import { otpSink } from '@hypermarket/core/dev/otpSink';
 
-type RegisterDevRoutesOptions = {
-  enabled: boolean;
-};
-
 type DevOtpParams = {
   challenge_id: string;
 };
@@ -28,20 +24,10 @@ const assertLocalRequest = (request: FastifyRequest): void => {
   }
 };
 
-export const registerDevRoutes = (
-  server: FastifyInstance<any, any, any, any>,
-  options: RegisterDevRoutesOptions
-): void => {
+export const registerDevRoutes = (server: FastifyInstance<any, any, any, any>): void => {
   server.get<{ Params: DevOtpParams }>(
     '/__dev/otp/:challenge_id',
     async (request): Promise<DevOtpResponse> => {
-      if (!options.enabled) {
-        throw new AppError({
-          code: ErrorCode.DevFeatureDisabled,
-          message: 'Dev OTP routes are disabled'
-        });
-      }
-
       assertLocalRequest(request);
 
       const entry = otpSink.get(request.params.challenge_id);
