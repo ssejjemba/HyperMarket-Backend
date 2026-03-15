@@ -6,10 +6,6 @@ settings:
 
 importers:
   .:
-    dependencies:
-      bullmq:
-        specifier: ^5.71.0
-        version: 5.71.0
     devDependencies:
       '@eslint/js':
         specifier: ^9.39.4
@@ -86,9 +82,15 @@ importers:
 
   apps/worker:
     dependencies:
+      '@hypermarket/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@hypermarket/core':
         specifier: workspace:*
         version: link:../../packages/core
+      bullmq:
+        specifier: ^5.71.0
+        version: 5.71.0
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1

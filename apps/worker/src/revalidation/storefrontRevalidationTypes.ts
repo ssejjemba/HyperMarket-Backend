@@ -1,9 +1,6 @@
-export type StorefrontRevalidationRequest = {
-  tenant_id: string;
-  targets: string[];
-};
+import type { RevalidationRequest } from '@hypermarket/contracts';
 
-export type StorefrontRevalidationJobPayload = StorefrontRevalidationRequest & {
+export type StorefrontRevalidationJobPayload = RevalidationRequest & {
   event_type: 'Publish.Completed' | 'Rollback.Completed';
   config_id: string;
   previous_config_id: string | null;

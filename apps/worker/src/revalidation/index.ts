@@ -7,7 +7,4 @@ export {
 export { createStorefrontRevalidationClient } from './storefrontRevalidationClient';
 export { createNoopStorefrontRevalidationMetrics } from './storefrontRevalidationMetrics';
 export type { StorefrontRevalidationMetrics } from './storefrontRevalidationMetrics';
-export type {
-  StorefrontRevalidationJobPayload,
-  StorefrontRevalidationRequest
-} from './storefrontRevalidationTypes';
+export type { StorefrontRevalidationJobPayload } from './storefrontRevalidationTypes';

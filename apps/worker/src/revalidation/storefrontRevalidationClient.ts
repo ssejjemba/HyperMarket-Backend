@@ -1,6 +1,6 @@
 import type { BaseLogger } from 'pino';
 
-import type { StorefrontRevalidationRequest } from './storefrontRevalidationTypes';
+import type { RevalidationRequest } from '@hypermarket/contracts';
 
 export class PermanentStorefrontRevalidationError extends Error {
   constructor(message: string) {
@@ -12,7 +12,7 @@ export class PermanentStorefrontRevalidationError extends Error {
 type FetchFn = typeof fetch;
 
 export type StorefrontRevalidationClient = {
-  revalidate(input: StorefrontRevalidationRequest): Promise<void>;
+  revalidate(input: RevalidationRequest): Promise<void>;
 };
 
 export const createStorefrontRevalidationClient = (deps: {
