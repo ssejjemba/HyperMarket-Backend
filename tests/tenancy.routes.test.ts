@@ -83,8 +83,18 @@ describe('TEN routes scaffold', () => {
     ],
     [
       'POST',
-      '/tenants/:tenantId/memberships/revoke',
-      '/tenants/00000000-0000-0000-0000-000000000001/memberships/revoke'
+      '/tenants/:tenantId/memberships',
+      '/tenants/00000000-0000-0000-0000-000000000001/memberships'
+    ],
+    [
+      'POST',
+      '/tenants/:tenantId/memberships/:userId/revoke',
+      '/tenants/00000000-0000-0000-0000-000000000001/memberships/00000000-0000-0000-0000-000000000002/revoke'
+    ],
+    [
+      'PATCH',
+      '/tenants/:tenantId/memberships/:userId/role',
+      '/tenants/00000000-0000-0000-0000-000000000001/memberships/00000000-0000-0000-0000-000000000002/role'
     ]
   ])('registers %s %s and returns the shared error envelope', async (method, _pattern, url) => {
     const server = buildServer({ config: TEST_CONFIG, devRoutesMode: 'disabled' });
@@ -342,6 +352,140 @@ flowSuite('TEN routes - create tenant', () => {
 
     await server.close();
   });
+
+  it('owner can access membership management routes', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessToken(ctx);
+    const targetUserId = randomUUID();
+    await ctx.db
+      .insertInto('users')
+      .values({
+        id: targetUserId,
+        phone_e164: `+256712${targetUserId.replace(/-/g, '').slice(0, 6)}`,
+        email: null,
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .execute();
+
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const createRes = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/memberships`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { phone_e164: '+256712345678', role: 'staff' }
+    });
+    expect(createRes.statusCode).toBe(501);
+    expectErrorEnvelope(createRes.json<ErrorEnvelope>());
+
+    const revokeRes = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/memberships/${targetUserId}/revoke`,
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(revokeRes.statusCode).toBe(501);
+    expectErrorEnvelope(revokeRes.json<ErrorEnvelope>());
+
+    const roleRes = await server.inject({
+      method: 'PATCH',
+      url: `/tenants/${ctx.seed.tenantId}/memberships/${targetUserId}/role`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { role: 'manager' }
+    });
+    expect(roleRes.statusCode).toBe(501);
+    expectErrorEnvelope(roleRes.json<ErrorEnvelope>());
+
+    await server.close();
+  });
+
+  it.each(['manager', 'staff'] as const)(
+    '%s cannot access membership management routes',
+    async (role) => {
+      ctx = await createTestContext();
+      const membershipUserId = randomUUID();
+      const membershipPhone = `+256712${membershipUserId.replace(/-/g, '').slice(0, 6)}`;
+      const targetUserId = randomUUID();
+
+      await ctx.db
+        .insertInto('users')
+        .values([
+          {
+            id: membershipUserId,
+            phone_e164: membershipPhone,
+            email: null,
+            is_active: true,
+            created_at: new Date(),
+            updated_at: new Date()
+          },
+          {
+            id: targetUserId,
+            phone_e164: `+256712${targetUserId.replace(/-/g, '').slice(0, 6)}`,
+            email: null,
+            is_active: true,
+            created_at: new Date(),
+            updated_at: new Date()
+          }
+        ])
+        .execute();
+
+      await ctx.db
+        .insertInto('tenant_memberships')
+        .values({
+          id: randomUUID(),
+          tenant_id: ctx.seed.tenantId,
+          user_id: membershipUserId,
+          role,
+          status: 'active',
+          created_at: new Date(),
+          revoked_at: null
+        })
+        .execute();
+
+      const token = await issueAccessTokenForUser(ctx, {
+        id: membershipUserId,
+        phoneE164: membershipPhone
+      });
+      const server = buildServer({
+        config: { ...ctx.config, nodeEnv: 'test' },
+        devRoutesMode: 'disabled'
+      });
+      await server.ready();
+
+      const requests = [
+        server.inject({
+          method: 'POST',
+          url: `/tenants/${ctx.seed.tenantId}/memberships`,
+          headers: { authorization: `Bearer ${token}` },
+          payload: { phone_e164: '+256712345678', role: 'staff' }
+        }),
+        server.inject({
+          method: 'POST',
+          url: `/tenants/${ctx.seed.tenantId}/memberships/${targetUserId}/revoke`,
+          headers: { authorization: `Bearer ${token}` }
+        }),
+        server.inject({
+          method: 'PATCH',
+          url: `/tenants/${ctx.seed.tenantId}/memberships/${targetUserId}/role`,
+          headers: { authorization: `Bearer ${token}` },
+          payload: { role: 'owner' }
+        })
+      ];
+
+      const [createRes, revokeRes, roleRes] = await Promise.all(requests);
+      for (const res of [createRes, revokeRes, roleRes]) {
+        expect(res.statusCode).toBe(403);
+        expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.TenantAccessForbidden);
+      }
+
+      await server.close();
+    }
+  );
 
   it('tenant-scoped routes return tenant_membership_not_found when the user has no membership', async () => {
     ctx = await createTestContext();

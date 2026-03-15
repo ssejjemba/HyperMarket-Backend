@@ -53,7 +53,8 @@ export const requireTenantMembership = (deps: TenantMembershipGuardDeps) => {
     const claim = await deps.assertMembership(auth.userId, tenantId);
     request.tenant = {
       tenantId: claim.tenantId,
-      role: claim.role
+      role: claim.role,
+      status: claim.status
     };
   };
 };

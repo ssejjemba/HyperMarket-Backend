@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { BaseLogger } from 'pino';
 
-import { requireTenantMembership } from '@hypermarket/core/http';
+import { requireTenantMembership, requireTenantOwner } from '@hypermarket/core/http';
 
 import type { SessionService } from '../../iaa/session/SessionService';
 import type {
@@ -45,6 +45,16 @@ export const registerTenancyApiRoutes = async (
     assertMembership: async (userId, tenantId) =>
       deps.membershipReader.assertMembership(userId, tenantId)
   });
+  const tenantOwnerGuard = requireTenantOwner({
+    getAuth: async (request) =>
+      deps.sessionService.validateSession(
+        request.headers.authorization?.startsWith('Bearer ') === true
+          ? request.headers.authorization.slice(7)
+          : undefined
+      ),
+    assertMembership: async (userId, tenantId) =>
+      deps.membershipReader.assertMembership(userId, tenantId)
+  });
 
   server.post('/tenants', makeCreateTenantHandler(deps.createTenantUseCase, deps.sessionService));
 
@@ -75,8 +85,23 @@ export const registerTenancyApiRoutes = async (
   );
 
   server.post(
-    '/tenants/:tenantId/memberships/revoke',
-    { preHandler: tenantGuard },
+    '/tenants/:tenantId/memberships',
+    { preHandler: tenantOwnerGuard },
+    makeNotImplementedTenantHandler(deps.logger, 'tenancy.create_tenant_membership.not_implemented')
+  );
+
+  server.post(
+    '/tenants/:tenantId/memberships/:userId/revoke',
+    { preHandler: tenantOwnerGuard },
     makeNotImplementedTenantHandler(deps.logger, 'tenancy.revoke_tenant_membership.not_implemented')
+  );
+
+  server.patch(
+    '/tenants/:tenantId/memberships/:userId/role',
+    { preHandler: tenantOwnerGuard },
+    makeNotImplementedTenantHandler(
+      deps.logger,
+      'tenancy.update_tenant_membership_role.not_implemented'
+    )
   );
 };

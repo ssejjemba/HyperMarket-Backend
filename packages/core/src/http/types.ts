@@ -8,6 +8,7 @@ export type AuthContext = {
 export type TenantContext = {
   tenantId?: string;
   role?: string;
+  status?: string;
 };
 
 export type RequestAuthState = {
