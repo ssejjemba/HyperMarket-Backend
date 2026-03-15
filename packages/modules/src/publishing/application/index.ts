@@ -12,5 +12,11 @@ export type {
   PublishConfigOutput,
   PublishConfigUseCase
 } from './PublishConfigUseCase';
+export { createRollbackConfigUseCase } from './RollbackConfigUseCase';
+export type {
+  RollbackConfigInput,
+  RollbackConfigOutput,
+  RollbackConfigUseCase
+} from './RollbackConfigUseCase';
 export { createUpdateStoreConfigUseCase } from './UpdateStoreConfigUseCase';
 export type { UpdateStoreConfigInput, UpdateStoreConfigUseCase } from './UpdateStoreConfigUseCase';

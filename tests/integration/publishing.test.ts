@@ -9,6 +9,7 @@ import {
   PublishingError,
   createConfigValidator,
   createPublishConfigUseCase,
+  createRollbackConfigUseCase,
   createStoreConfigRepoPg
 } from '../../packages/modules/src/publishing';
 import { createTemplateRegistry } from '../../packages/modules/src/templates';
@@ -30,6 +31,10 @@ const run = async (): Promise<void> => {
   const storeConfigRepo = createStoreConfigRepoPg(db);
   const configValidator = createConfigValidator(createTemplateRegistry());
   const publishConfigUseCase = createPublishConfigUseCase({
+    db,
+    configValidator
+  });
+  const rollbackConfigUseCase = createRollbackConfigUseCase({
     db,
     configValidator
   });
@@ -212,7 +217,11 @@ const run = async (): Promise<void> => {
     templateId: 'basic-commerce',
     templateVersion: 'v1',
     configPayload: {
-      brand_name: 'Draft One'
+      brand_name: 'Draft One',
+      hero_title: 'Fresh products for Kampala',
+      hero_subtitle: 'Fast ordering and same-day delivery for local customers.',
+      primary_color: '#0B6E4F',
+      cta_label: 'Shop now'
     },
     validationReport: {
       isValid: true,
@@ -226,7 +235,11 @@ const run = async (): Promise<void> => {
     templateId: 'basic-commerce',
     templateVersion: 'v1',
     configPayload: {
-      brand_name: 'Draft Two'
+      brand_name: 'Draft Two',
+      hero_title: 'Fresh products for Kampala',
+      hero_subtitle: 'Fast ordering and same-day delivery for local customers.',
+      primary_color: '#0B6E4F',
+      cta_label: 'Shop now'
     },
     validationReport: {
       isValid: true,
@@ -382,6 +395,67 @@ const run = async (): Promise<void> => {
 
   assert.ok(invalidPublishError instanceof PublishingError);
   assert.equal(invalidPublishError.code, ErrorCode.PublishValidationFailed);
+
+  const rollbackResult = await rollbackConfigUseCase.execute({
+    tenantId: otherTenantId,
+    configId: draftTwo.id,
+    actorUserId: userId,
+    requestId: `rollback-${stamp}`
+  });
+
+  assert.equal(rollbackResult.activeConfigId, draftTwo.id);
+  assert.equal(rollbackResult.previousConfigId, publishDraft.id);
+
+  const rolledBackTenant = await db
+    .selectFrom('tenants')
+    .select('active_config_id')
+    .where('id', '=', otherTenantId)
+    .executeTakeFirst();
+  assert.equal(rolledBackTenant?.active_config_id, draftTwo.id);
+
+  const rollbackHistory = await db
+    .selectFrom('publish_history')
+    .select(['action', 'from_config_id', 'to_config_id', 'result'])
+    .where('tenant_id', '=', otherTenantId)
+    .where('action', '=', 'rollback')
+    .where('to_config_id', '=', draftTwo.id)
+    .executeTakeFirst();
+  assert.deepEqual(rollbackHistory, {
+    action: 'rollback',
+    from_config_id: publishDraft.id,
+    to_config_id: draftTwo.id,
+    result: 'success'
+  });
+
+  const rollbackOutboxEvent = await db
+    .selectFrom('outbox_events')
+    .select(['event_type', 'tenant_id', 'actor_user_id', 'payload'])
+    .where('tenant_id', '=', otherTenantId)
+    .where('event_type', '=', 'Rollback.Completed')
+    .executeTakeFirst();
+  assert.ok(rollbackOutboxEvent);
+  assert.equal(rollbackOutboxEvent.event_type, 'Rollback.Completed');
+  assert.equal(rollbackOutboxEvent.tenant_id, otherTenantId);
+  assert.equal(rollbackOutboxEvent.actor_user_id, userId);
+  assert.deepEqual(rollbackOutboxEvent.payload, {
+    tenant_id: otherTenantId,
+    config_id: draftTwo.id,
+    previous_config_id: publishDraft.id
+  });
+
+  let invalidRollbackError: unknown;
+  try {
+    await rollbackConfigUseCase.execute({
+      tenantId: otherTenantId,
+      configId: invalidPublishConfigId,
+      actorUserId: userId
+    });
+  } catch (error) {
+    invalidRollbackError = error;
+  }
+
+  assert.ok(invalidRollbackError instanceof PublishingError);
+  assert.equal(invalidRollbackError.code, ErrorCode.RollbackFailed);
 
   await db.destroy();
 };

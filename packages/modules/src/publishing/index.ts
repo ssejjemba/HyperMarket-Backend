@@ -42,6 +42,12 @@ export { createConfigValidator } from './application';
 export type { ConfigValidator } from './application';
 export { createPublishConfigUseCase } from './application';
 export type { PublishConfigInput, PublishConfigOutput, PublishConfigUseCase } from './application';
+export { createRollbackConfigUseCase } from './application';
+export type {
+  RollbackConfigInput,
+  RollbackConfigOutput,
+  RollbackConfigUseCase
+} from './application';
 export { createStoreConfigRepoPg } from './persistence';
 export type {
   CreateDraftConfigInput,
