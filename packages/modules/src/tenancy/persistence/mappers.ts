@@ -20,7 +20,7 @@ export const mapTenantRow = (row: DatabaseSchema['tenants']): Tenant => ({
 export const mapMembershipRecord = (
   row: Pick<
     DatabaseSchema['tenant_memberships'],
-    'tenant_id' | 'user_id' | 'role' | 'status' | 'created_at'
+    'tenant_id' | 'user_id' | 'role' | 'status' | 'created_at' | 'revoked_at'
   >
 ): TenantMembershipRecord => ({
   tenantId: row.tenant_id,
@@ -28,7 +28,8 @@ export const mapMembershipRecord = (
   role: row.role,
   status: row.status,
   isActive: row.status === 'active',
-  createdAt: row.created_at
+  createdAt: row.created_at,
+  revokedAt: row.revoked_at
 });
 
 export const mapMembership = (row: TenantMembershipRecord): TenantMembership => ({

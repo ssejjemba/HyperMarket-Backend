@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { config as loadDotenv } from 'dotenv';
 
 import { loadEnv } from '../../packages/core/src/config/loadEnv';
-import { createDbClient } from '../../packages/core/src/db/index';
+import { createDbClient, sql } from '../../packages/core/src/db/index';
 import {
   createCreateTenantUseCase,
   createTenantResolverPg,
@@ -31,6 +31,10 @@ if (databaseUrl === undefined || databaseUrl.length === 0) {
 const run = async (): Promise<void> => {
   const config = loadEnv();
   const db = createDbClient(databaseUrl);
+  await sql`
+    alter table tenant_memberships
+    add column if not exists revoked_at timestamptz null
+  `.execute(db);
   const tenantRepo = createTenantRepoPg(db);
   const domainRepo = createTenantDomainRepoPg(db, {
     platformRootDomain: config.platformRootDomain
@@ -77,6 +81,19 @@ const run = async (): Promise<void> => {
     )
   );
 
+  const initialOwnerMembership = await membershipRepo.getMembership(
+    createResult.tenant.id,
+    ownerUserId
+  );
+  assert.ok(initialOwnerMembership);
+  assert.equal(initialOwnerMembership.role, 'owner');
+  assert.equal(initialOwnerMembership.status, 'active');
+  assert.equal(initialOwnerMembership.revokedAt, null);
+
+  const activeOwners = await membershipRepo.listActiveOwners(createResult.tenant.id);
+  assert.equal(activeOwners.length, 1);
+  assert.equal(activeOwners[0]?.userId, ownerUserId);
+
   const listedDomains = await domainRepo.listDomains(createResult.tenant.id);
   assert.ok(listedDomains.some((item) => item.domain === domain));
 
@@ -117,6 +134,89 @@ const run = async (): Promise<void> => {
       close: '17:00'
     }
   });
+
+  const staffUserId = '00000000-0000-0000-0000-000000000003';
+  await db
+    .insertInto('users')
+    .values({
+      id: staffUserId,
+      phone_e164: '+256712000003',
+      email: null,
+      is_active: true,
+      created_at: new Date(),
+      updated_at: new Date()
+    })
+    .execute();
+
+  const createdMembership = await membershipRepo.createMembership(
+    createResult.tenant.id,
+    staffUserId,
+    'staff'
+  );
+  assert.equal(createdMembership.userId, staffUserId);
+  assert.equal(createdMembership.role, 'staff');
+  assert.equal(createdMembership.status, 'active');
+  assert.equal(createdMembership.revokedAt, null);
+
+  const fetchedCreatedMembership = await membershipRepo.getMembership(
+    createResult.tenant.id,
+    staffUserId
+  );
+  assert.ok(fetchedCreatedMembership);
+  assert.equal(fetchedCreatedMembership.role, 'staff');
+
+  const updatedMembership = await membershipRepo.updateRole(
+    createResult.tenant.id,
+    staffUserId,
+    'manager'
+  );
+  assert.ok(updatedMembership);
+  assert.equal(updatedMembership.role, 'manager');
+  assert.equal(updatedMembership.status, 'active');
+
+  const updatedMembershipReloaded = await membershipRepo.getMembership(
+    createResult.tenant.id,
+    staffUserId
+  );
+  assert.ok(updatedMembershipReloaded);
+  assert.equal(updatedMembershipReloaded.role, 'manager');
+
+  const secondOwnerUserId = '00000000-0000-0000-0000-000000000004';
+  await db
+    .insertInto('users')
+    .values({
+      id: secondOwnerUserId,
+      phone_e164: '+256712000004',
+      email: null,
+      is_active: true,
+      created_at: new Date(),
+      updated_at: new Date()
+    })
+    .execute();
+
+  await membershipRepo.createMembership(createResult.tenant.id, secondOwnerUserId, 'owner');
+  const activeOwnersAfterSecondOwner = await membershipRepo.listActiveOwners(
+    createResult.tenant.id
+  );
+  assert.equal(activeOwnersAfterSecondOwner.length, 2);
+  assert.ok(activeOwnersAfterSecondOwner.some((item) => item.userId === secondOwnerUserId));
+
+  const revokedMembership = await membershipRepo.revokeMembership(
+    createResult.tenant.id,
+    staffUserId,
+    ownerUserId
+  );
+  assert.ok(revokedMembership);
+  assert.equal(revokedMembership.status, 'revoked');
+  assert.ok(revokedMembership.revokedAt instanceof Date);
+
+  const revokedMembershipReloaded = await membershipRepo.getMembership(
+    createResult.tenant.id,
+    staffUserId
+  );
+  assert.ok(revokedMembershipReloaded);
+  assert.equal(revokedMembershipReloaded.status, 'revoked');
+  assert.ok(revokedMembershipReloaded.revokedAt instanceof Date);
 
   const auditRows = await db
     .selectFrom('audit_events')

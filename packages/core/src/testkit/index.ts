@@ -14,11 +14,21 @@ const ensureTenantSettingsWhatsappColumn = async (
   `.execute(db);
 };
 
+const ensureTenantMembershipRevokedAtColumn = async (
+  db: ReturnType<typeof createDbClient>
+): Promise<void> => {
+  await sql`
+    alter table tenant_memberships
+    add column if not exists revoked_at timestamptz null
+  `.execute(db);
+};
+
 export const resetDatabase = async (): Promise<void> => {
   const config = loadEnv();
   const db = createDbClient(config.databaseUrl);
 
   await ensureTenantSettingsWhatsappColumn(db);
+  await ensureTenantMembershipRevokedAtColumn(db);
   await db.deleteFrom('auth_otps').execute();
   await db.deleteFrom('sessions').execute();
   await db.deleteFrom('tenant_settings').execute();
@@ -57,6 +67,7 @@ export const createTestContext = async () => {
   const config = loadEnv();
   const db = createDbClient(config.databaseUrl);
   await ensureTenantSettingsWhatsappColumn(db);
+  await ensureTenantMembershipRevokedAtColumn(db);
 
   const seed = createSeed();
 
@@ -126,6 +137,7 @@ export const canConnectDatabase = async (): Promise<boolean> => {
     const config = loadEnv();
     const db = createDbClient(config.databaseUrl);
     await ensureTenantSettingsWhatsappColumn(db);
+    await ensureTenantMembershipRevokedAtColumn(db);
     await db.selectFrom('tenants').select('id').limit(1).execute();
     await db.destroy();
     return true;

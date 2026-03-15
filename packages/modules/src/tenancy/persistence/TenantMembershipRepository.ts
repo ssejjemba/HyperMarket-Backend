@@ -5,6 +5,7 @@ export type TenantMembershipRecord = {
   status: 'active' | 'revoked';
   isActive: boolean;
   createdAt: Date;
+  revokedAt: Date | null;
 };
 
 export interface TenantMembershipRepository {
@@ -13,7 +14,17 @@ export interface TenantMembershipRepository {
     userId: string,
     role: 'owner' | 'manager' | 'staff'
   ): Promise<TenantMembershipRecord>;
-  findMembership(tenantId: string, userId: string): Promise<TenantMembershipRecord | null>;
+  getMembership(tenantId: string, userId: string): Promise<TenantMembershipRecord | null>;
   listMemberships(userId: string): Promise<TenantMembershipRecord[]>;
-  revokeMembership(tenantId: string, userId: string): Promise<TenantMembershipRecord | null>;
+  listActiveOwners(tenantId: string): Promise<TenantMembershipRecord[]>;
+  updateRole(
+    tenantId: string,
+    userId: string,
+    role: 'owner' | 'manager' | 'staff'
+  ): Promise<TenantMembershipRecord | null>;
+  revokeMembership(
+    tenantId: string,
+    userId: string,
+    actorUserId: string
+  ): Promise<TenantMembershipRecord | null>;
 }

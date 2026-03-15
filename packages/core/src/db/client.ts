@@ -60,6 +60,7 @@ export type DatabaseSchema = {
     role: 'owner' | 'manager' | 'staff';
     status: 'active' | 'revoked';
     created_at: Date;
+    revoked_at: Date | null;
   };
   tenant_domains: {
     id: string;

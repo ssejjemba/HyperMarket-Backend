@@ -16,7 +16,7 @@ export const createMembershipReaderPg = (db: Kysely<DatabaseSchema>): Membership
       return (await membershipRepo.listMemberships(userId)).map(mapMembershipClaim);
     },
     async assertMembership(userId: string, tenantId: string): Promise<MembershipClaim> {
-      const membership = await membershipRepo.findMembership(tenantId, userId);
+      const membership = await membershipRepo.getMembership(tenantId, userId);
 
       if (membership === null) {
         throw new TenancyError({

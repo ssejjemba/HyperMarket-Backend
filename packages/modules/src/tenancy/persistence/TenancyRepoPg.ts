@@ -51,7 +51,7 @@ export const createTenancyRepository = (
     userId: string,
     tenantId: string
   ): Promise<TenantMembership | null> => {
-    const membership = await membershipRepo.findMembership(tenantId, userId);
+    const membership = await membershipRepo.getMembership(tenantId, userId);
     return membership === null ? null : mapMembership(membership);
   };
 
