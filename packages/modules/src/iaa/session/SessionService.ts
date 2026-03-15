@@ -2,6 +2,7 @@ import { ErrorCode } from '@hypermarket/contracts';
 
 import { IaaError } from '../errors/IaaError';
 import type { UserIdentity } from '../user/domain/UserIdentity';
+import type { SessionRepository } from './persistence/SessionRepository';
 import type { TokenSigner } from './TokenSigner';
 
 // ---------------------------------------------------------------------------
@@ -16,10 +17,13 @@ export type IssueSessionResult = {
 
 export type ValidateSessionResult = {
   userId: string;
+  sessionId: string;
 };
 
 export type SessionServiceDeps = {
   signer: TokenSigner;
+  repo: SessionRepository;
+  ttlSeconds: number;
 };
 
 export type SessionService = {
@@ -43,13 +47,19 @@ export type SessionService = {
 // ---------------------------------------------------------------------------
 
 export const createSessionService = (deps: SessionServiceDeps): SessionService => {
-  const { signer } = deps;
+  const { signer, repo, ttlSeconds } = deps;
 
   return {
     async issueSession(user: UserIdentity): Promise<IssueSessionResult> {
       try {
-        const { token, expiresAt } = await signer.sign(user.id);
-        return { accessToken: token, expiresAt };
+        const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
+        const session = await repo.createSession(user.id, '', expiresAt);
+        const { token, expiresAt: signedExpiresAt } = await signer.sign(
+          user.id,
+          session.id,
+          expiresAt
+        );
+        return { accessToken: token, expiresAt: signedExpiresAt };
       } catch (e) {
         // Re-throw typed IaaErrors as-is (e.g. if signer itself throws one).
         if (IaaError.is(e)) throw e;
@@ -71,7 +81,22 @@ export const createSessionService = (deps: SessionServiceDeps): SessionService =
 
       // signer.verify throws AUTH_SESSION_EXPIRED or AUTH_INVALID_TOKEN.
       const claims = await signer.verify(token);
-      return { userId: claims.userId };
+      const session = await repo.getSessionById(claims.sessionId);
+      if (session === null) {
+        throw new IaaError({
+          code: ErrorCode.AuthSessionNotFound,
+          message: 'Session not found'
+        });
+      }
+
+      if (session.revokedAt !== null) {
+        throw new IaaError({
+          code: ErrorCode.AuthSessionRevoked,
+          message: 'Session has been revoked'
+        });
+      }
+
+      return { userId: claims.userId, sessionId: claims.sessionId };
     }
   };
 };

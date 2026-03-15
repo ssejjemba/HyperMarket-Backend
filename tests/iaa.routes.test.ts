@@ -143,7 +143,7 @@ describe('IAA routes — schema validation (no DB)', () => {
   it('GET /auth/session with expired token returns 401 auth_session_expired', async () => {
     // Sign a token with a -1s TTL (already expired)
     const expiredSigner = createTokenSigner({ secret: TEST_JWT_SECRET, ttlSeconds: -1 });
-    const { token } = await expiredSigner.sign('user-expired');
+    const { token } = await expiredSigner.sign('user-expired', 'stub-expired-session');
     const res = await server.inject({
       method: 'GET',
       url: '/auth/session',
@@ -154,7 +154,7 @@ describe('IAA routes — schema validation (no DB)', () => {
   });
 
   it('GET /auth/session with valid token returns 200 with user_id', async () => {
-    const { token } = await tokenSigner.sign('user-session-ok');
+    const { token } = await tokenSigner.sign('user-session-ok', 'stub-session-ok');
     const res = await server.inject({
       method: 'GET',
       url: '/auth/session',
@@ -171,7 +171,7 @@ describe('IAA routes — schema validation (no DB)', () => {
       secret: 'completely-different-secret-1234567',
       ttlSeconds: 3600
     });
-    const { token } = await wrongSigner.sign('user-abc');
+    const { token } = await wrongSigner.sign('user-abc', 'stub-session-wrong-secret');
     const res = await server.inject({
       method: 'GET',
       url: '/auth/session',
@@ -192,6 +192,8 @@ const flowSuite = dbAvailable ? describe : describe.skip;
 flowSuite('IAA routes — OTP flows (real DB)', () => {
   let server: Awaited<ReturnType<typeof buildIaaApiTestServer>>['server'];
   let otpRepo: Awaited<ReturnType<typeof buildIaaApiTestServer>>['otpRepo'];
+  let sessionRepo: Awaited<ReturnType<typeof buildIaaApiTestServer>>['sessionRepo'];
+  let tokenSignerReal: Awaited<ReturnType<typeof buildIaaApiTestServer>>['tokenSigner'];
   let ctx: Awaited<ReturnType<typeof createTestContext>>;
 
   beforeEach(async () => {
@@ -202,6 +204,8 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
     const built = await buildIaaApiTestServer({ db: ctx.db });
     server = built.server;
     otpRepo = built.otpRepo;
+    sessionRepo = built.sessionRepo;
+    tokenSignerReal = built.tokenSigner;
     await server.ready();
   });
 
@@ -510,5 +514,37 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
     });
     expect(res.statusCode).toBe(409);
     expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.AuthChallengeConsumed);
+  });
+
+  it('GET /auth/session returns 401 auth_session_revoked after DB revocation', async () => {
+    const phone = '+256712990010';
+
+    const requestRes = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/request',
+      payload: { phone }
+    });
+    const { challenge_id } = requestRes.json<{ challenge_id: string }>();
+    const challenge = await otpRepo.getChallengeById(challenge_id);
+    const code = recoverCode(challenge!.codeHash, TEST_OTP_SECRET);
+
+    const verifyRes = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/verify',
+      payload: { challenge_id, phone, code }
+    });
+    expect(verifyRes.statusCode).toBe(200);
+
+    const accessToken = verifyRes.json<{ access_token: string }>().access_token;
+    const claims = await tokenSignerReal.verify(accessToken);
+    await sessionRepo.revokeSession(claims.sessionId);
+
+    const sessionRes = await server.inject({
+      method: 'GET',
+      url: '/auth/session',
+      headers: { authorization: `Bearer ${accessToken}` }
+    });
+    expect(sessionRes.statusCode).toBe(401);
+    expectErrorEnvelope(sessionRes.json<ErrorEnvelope>(), ErrorCode.AuthSessionRevoked);
   });
 });

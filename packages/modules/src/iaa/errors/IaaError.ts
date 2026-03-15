@@ -21,6 +21,7 @@ export type IaaErrorCode =
   | ErrorCode.AuthSessionIssueFailed
   | ErrorCode.AuthMissingToken
   | ErrorCode.AuthInvalidToken
+  | ErrorCode.AuthSessionNotFound
   | ErrorCode.AuthSessionExpired
   | ErrorCode.AuthSessionRevoked
   | ErrorCode.AuthTenantMembershipMissing

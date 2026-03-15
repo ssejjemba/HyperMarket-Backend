@@ -10,6 +10,7 @@ import { createOtpChallengeService } from './otp/OtpChallengeService';
 import { createRequestOtpUseCase } from './otp/application/RequestOtpUseCase';
 import { createVerifyOtpUseCase } from './otp/application/VerifyOtpUseCase';
 import { createSessionService } from './session/SessionService';
+import { createSessionRepoPg } from './session/persistence/SessionRepoPg';
 import { createTokenSigner } from './session/TokenSigner';
 import { createUserRepoPg } from './user/persistence/UserRepoPg';
 import { createUserService } from './user/UserService';
@@ -28,6 +29,7 @@ export const registerIaaRoutes = async (
 
   const otpRepo = createOtpChallengeRepoPg(deps.db);
   const userRepo = createUserRepoPg(deps.db);
+  const sessionRepo = createSessionRepoPg(deps.db);
   const membershipReader = createTenancyMembershipAdapter(deps.db);
 
   const otpSender = createOtpSenderDevAdapter({ mode: 'dev', logger: deps.logger });
@@ -47,7 +49,11 @@ export const registerIaaRoutes = async (
     ttlSeconds: deps.config.sessionTtlSeconds,
     issuer: deps.config.jwtIssuer
   });
-  const sessionService = createSessionService({ signer: tokenSigner });
+  const sessionService = createSessionService({
+    signer: tokenSigner,
+    repo: sessionRepo,
+    ttlSeconds: deps.config.sessionTtlSeconds
+  });
 
   const requestOtpUseCase = createRequestOtpUseCase({
     otpService,

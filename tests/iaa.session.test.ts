@@ -8,6 +8,7 @@ import {
   createTokenSigner
 } from '@hypermarket/modules/iaa';
 import type { TokenSigner } from '@hypermarket/modules/iaa';
+import type { SessionRepository } from '@hypermarket/modules/iaa';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -28,7 +29,29 @@ const makeUser = (overrides: Partial<{ id: string; status: 'active' | 'suspended
 const makeSigner = (overrides: { ttlSeconds?: number } = {}) =>
   createTokenSigner({ secret: SECRET, ttlSeconds: overrides.ttlSeconds ?? TTL });
 
-const makeService = (signer: TokenSigner) => createSessionService({ signer });
+const makeRepo = (): SessionRepository => ({
+  createSession: async (userId, tokenHash, expiresAt) => ({
+    id: 'session-123',
+    userId,
+    tokenHash,
+    expiresAt,
+    revokedAt: null,
+    createdAt: new Date()
+  }),
+  getSessionById: async (sessionId) => ({
+    id: sessionId,
+    userId: 'user-123',
+    tokenHash: '',
+    expiresAt: new Date(Date.now() + TTL * 1000),
+    revokedAt: null,
+    createdAt: new Date()
+  }),
+  revokeSession: async () => undefined,
+  revokeAllForUser: async () => undefined
+});
+
+const makeService = (signer: TokenSigner, repo: SessionRepository = makeRepo()) =>
+  createSessionService({ signer, repo, ttlSeconds: TTL });
 
 const tamperTokenPayload = (token: string): string => {
   const [header, payload, signature] = token.split('.');
@@ -49,7 +72,7 @@ const tamperTokenPayload = (token: string): string => {
 describe('TokenSigner', () => {
   it('sign produces a non-empty JWT string', async () => {
     const signer = makeSigner();
-    const { token } = await signer.sign('user-abc');
+    const { token } = await signer.sign('user-abc', 'session-abc');
     expect(typeof token).toBe('string');
     expect(token.split('.').length).toBe(3); // header.payload.signature
   });
@@ -57,7 +80,7 @@ describe('TokenSigner', () => {
   it('sign returns expiresAt roughly ttl seconds in the future', async () => {
     const signer = makeSigner({ ttlSeconds: 600 });
     const before = Date.now();
-    const { expiresAt } = await signer.sign('user-abc');
+    const { expiresAt } = await signer.sign('user-abc', 'session-abc');
     const after = Date.now();
 
     const minExpected = before + 599_000;
@@ -68,14 +91,23 @@ describe('TokenSigner', () => {
 
   it('verify round-trips a signed token and returns correct userId', async () => {
     const signer = makeSigner();
-    const { token } = await signer.sign('user-xyz');
+    const { token } = await signer.sign('user-xyz', 'session-xyz');
     const claims = await signer.verify(token);
     expect(claims.userId).toBe('user-xyz');
+    expect(claims.sessionId).toBe('session-xyz');
+  });
+
+  it('sign includes session_id in the token claims', async () => {
+    const signer = makeSigner();
+    const { token } = await signer.sign('user-session', 'session-claim-1');
+
+    const claims = await signer.verify(token);
+    expect(claims.sessionId).toBe('session-claim-1');
   });
 
   it('verify returns correct issuedAt and expiresAt', async () => {
     const signer = makeSigner({ ttlSeconds: 300 });
-    const { token } = await signer.sign('u1');
+    const { token } = await signer.sign('u1', 'session-u1');
     const claims = await signer.verify(token);
 
     expect(claims.issuedAt).toBeInstanceOf(Date);
@@ -88,7 +120,7 @@ describe('TokenSigner', () => {
 
   it('tampered signature throws AUTH_INVALID_TOKEN', async () => {
     const signer = makeSigner();
-    const { token } = await signer.sign('user-abc');
+    const { token } = await signer.sign('user-abc', 'session-tampered');
     const tampered = tamperTokenPayload(token);
 
     let thrown: unknown;
@@ -108,7 +140,7 @@ describe('TokenSigner', () => {
       ttlSeconds: TTL
     });
 
-    const { token } = await signerA.sign('user-abc');
+    const { token } = await signerA.sign('user-abc', 'session-abc');
 
     let thrown: unknown;
     try {
@@ -125,7 +157,7 @@ describe('TokenSigner', () => {
     // setExpirationTime — simplest: sign with ttl=1, wait, then verify.
     // Instead, use jose directly to produce an already-expired token.
     const expiredSigner = createTokenSigner({ secret: SECRET, ttlSeconds: -10 });
-    const { token } = await expiredSigner.sign('user-abc');
+    const { token } = await expiredSigner.sign('user-abc', 'session-expired');
 
     let thrown: unknown;
     try {
@@ -171,6 +203,7 @@ describe('SessionService.issueSession', () => {
 
     const result = await service.validateSession(accessToken);
     expect(result.userId).toBe('user-999');
+    expect(result.sessionId).toBe('session-123');
   });
 
   it('wraps unexpected signer errors as AUTH_SESSION_ISSUE_FAILED', async () => {
@@ -239,7 +272,7 @@ describe('SessionService.validateSession', () => {
   it('tampered token throws AUTH_INVALID_TOKEN', async () => {
     const signer = makeSigner();
     const service = makeService(signer);
-    const { token } = await signer.sign('user-abc');
+    const { token } = await signer.sign('user-abc', 'session-abc');
 
     let thrown: unknown;
     try {
@@ -254,7 +287,7 @@ describe('SessionService.validateSession', () => {
   it('expired token throws AUTH_SESSION_EXPIRED', async () => {
     const expiredSigner = createTokenSigner({ secret: SECRET, ttlSeconds: -10 });
     const service = makeService(makeSigner());
-    const { token } = await expiredSigner.sign('user-abc');
+    const { token } = await expiredSigner.sign('user-abc', 'session-expired');
 
     let thrown: unknown;
     try {
@@ -268,8 +301,55 @@ describe('SessionService.validateSession', () => {
 
   it('valid token returns correct userId', async () => {
     const service = makeService(makeSigner());
-    const { token } = await makeSigner().sign('user-444');
+    const { token } = await makeSigner().sign('user-444', 'session-444');
     const result = await service.validateSession(token);
     expect(result.userId).toBe('user-444');
+  });
+
+  it('revoked session throws AUTH_SESSION_REVOKED', async () => {
+    const signer = makeSigner();
+    const repo: SessionRepository = {
+      ...makeRepo(),
+      getSessionById: async (sessionId) => ({
+        id: sessionId,
+        userId: 'user-123',
+        tokenHash: '',
+        expiresAt: new Date(Date.now() + TTL * 1000),
+        revokedAt: new Date(),
+        createdAt: new Date()
+      })
+    };
+    const service = makeService(signer, repo);
+    const { token } = await signer.sign('user-123', 'session-revoked');
+
+    let thrown: unknown;
+    try {
+      await service.validateSession(token);
+    } catch (e) {
+      thrown = e;
+    }
+
+    expect(thrown).toBeInstanceOf(IaaError);
+    expect((thrown as IaaError).code).toBe(ErrorCode.AuthSessionRevoked);
+  });
+
+  it('missing session row throws AUTH_SESSION_NOT_FOUND', async () => {
+    const signer = makeSigner();
+    const repo: SessionRepository = {
+      ...makeRepo(),
+      getSessionById: async () => null
+    };
+    const service = makeService(signer, repo);
+    const { token } = await signer.sign('user-123', 'session-missing');
+
+    let thrown: unknown;
+    try {
+      await service.validateSession(token);
+    } catch (e) {
+      thrown = e;
+    }
+
+    expect(thrown).toBeInstanceOf(IaaError);
+    expect((thrown as IaaError).code).toBe(ErrorCode.AuthSessionNotFound);
   });
 });

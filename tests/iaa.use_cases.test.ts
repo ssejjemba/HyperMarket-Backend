@@ -183,7 +183,10 @@ describe('VerifyOtpUseCase', () => {
       accessToken: 'tok.abc.def',
       expiresAt: futureDate()
     } satisfies IssueSessionResult),
-    validateSession: vi.fn()
+    validateSession: vi.fn().mockResolvedValue({
+      userId: 'user-123',
+      sessionId: 'session-123'
+    })
   });
 
   const makeMembershipReader = (claims: MembershipClaim[] = []): MembershipReader => ({

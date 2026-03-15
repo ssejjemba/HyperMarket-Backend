@@ -20,6 +20,7 @@ import { createVerifyOtpUseCase } from './otp/application/VerifyOtpUseCase';
 import type { VerifyOtpUseCase } from './otp/application/VerifyOtpUseCase';
 import { createSessionService } from './session/SessionService';
 import type { SessionService } from './session/SessionService';
+import { createSessionRepoPg } from './session/persistence/SessionRepoPg';
 import { createTokenSigner } from './session/TokenSigner';
 import { createUserRepoPg } from './user/persistence/UserRepoPg';
 import { createUserService } from './user/UserService';
@@ -80,6 +81,7 @@ export const buildIaaApiTestServer = async (params: IaaApiTestServerParams) => {
 
   const otpRepo = createOtpChallengeRepoPg(params.db);
   const userRepo = createUserRepoPg(params.db);
+  const sessionRepo = createSessionRepoPg(params.db);
   const membershipReader = createTenancyMembershipAdapter(params.db);
 
   const otpService = createOtpChallengeService({
@@ -93,7 +95,11 @@ export const buildIaaApiTestServer = async (params: IaaApiTestServerParams) => {
   const userService = createUserService({ repo: userRepo });
 
   const tokenSigner = createTokenSigner({ secret: jwtSecret, ttlSeconds: sessionTtlSeconds });
-  const sessionService = createSessionService({ signer: tokenSigner });
+  const sessionService = createSessionService({
+    signer: tokenSigner,
+    repo: sessionRepo,
+    ttlSeconds: sessionTtlSeconds
+  });
 
   const requestOtpUseCase = createRequestOtpUseCase({ otpService, logger: silentLogger });
   const verifyOtpUseCase = createVerifyOtpUseCase({
@@ -112,7 +118,7 @@ export const buildIaaApiTestServer = async (params: IaaApiTestServerParams) => {
     membershipReader
   });
 
-  return { server, tokenSigner, otpRepo, otpSecret };
+  return { server, tokenSigner, otpRepo, otpSecret, sessionRepo };
 };
 
 // ---------------------------------------------------------------------------
@@ -135,7 +141,24 @@ export const buildIaaStubTestServer = async (
 
   const tokenSigner = createTokenSigner({ secret: jwtSecret, ttlSeconds: sessionTtlSeconds });
   const sessionService: SessionService =
-    overrides.sessionService ?? createSessionService({ signer: tokenSigner });
+    overrides.sessionService ??
+    ({
+      issueSession: async (user) => {
+        const { token, expiresAt } = await tokenSigner.sign(user.id, 'stub-session');
+        return { accessToken: token, expiresAt };
+      },
+      validateSession: async (token) => {
+        if (token === undefined || token === null || token.trim() === '') {
+          throw new AppError({
+            code: ErrorCode.AuthMissingToken,
+            message: 'Authorization token is required'
+          });
+        }
+
+        const claims = await tokenSigner.verify(token);
+        return { userId: claims.userId, sessionId: claims.sessionId };
+      }
+    } satisfies SessionService);
 
   const membershipReader: MembershipReader = overrides.membershipReader ?? {
     listMemberships: () => Promise.resolve([]),

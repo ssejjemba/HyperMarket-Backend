@@ -23,6 +23,7 @@ const expectedStatuses: [IaaErrorCode, number][] = [
   [ErrorCode.AuthSessionIssueFailed, 500],
   [ErrorCode.AuthMissingToken, 401],
   [ErrorCode.AuthInvalidToken, 401],
+  [ErrorCode.AuthSessionNotFound, 401],
   [ErrorCode.AuthSessionExpired, 401],
   [ErrorCode.AuthSessionRevoked, 401],
   [ErrorCode.AuthTenantMembershipMissing, 403],
@@ -38,8 +39,8 @@ describe('IAA error codes — HTTP status mapping', () => {
     expect(status).toBe(expectedStatus);
   });
 
-  it('mapping is exhaustive — all 20 IAA codes are covered', () => {
-    expect(expectedStatuses).toHaveLength(20);
+  it('mapping is exhaustive — all 21 IAA codes are covered', () => {
+    expect(expectedStatuses).toHaveLength(21);
   });
 });
 

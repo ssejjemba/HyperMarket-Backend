@@ -31,6 +31,7 @@ export enum ErrorCode {
   AuthSessionIssueFailed = 'auth_session_issue_failed',
   AuthMissingToken = 'auth_missing_token',
   AuthInvalidToken = 'auth_invalid_token',
+  AuthSessionNotFound = 'auth_session_not_found',
   AuthSessionExpired = 'auth_session_expired',
   AuthSessionRevoked = 'auth_session_revoked',
   AuthTenantMembershipMissing = 'auth_tenant_membership_missing',

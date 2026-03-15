@@ -10,6 +10,7 @@ import { IaaError } from '../errors/IaaError';
 
 export type TokenClaims = {
   userId: string;
+  sessionId: string;
   issuedAt: Date;
   expiresAt: Date;
 };
@@ -25,7 +26,11 @@ export type TokenSigner = {
    * Sign a JWT for the given user ID.
    * Never log the returned token — it is a bearer credential.
    */
-  sign(userId: string): Promise<{ token: string; expiresAt: Date }>;
+  sign(
+    userId: string,
+    sessionId: string,
+    expiresAt?: Date
+  ): Promise<{ token: string; expiresAt: Date }>;
 
   /**
    * Verify and decode a JWT.
@@ -43,11 +48,14 @@ export const createTokenSigner = (config: TokenSignerConfig): TokenSigner => {
   const secretBytes = new TextEncoder().encode(config.secret);
 
   return {
-    async sign(userId: string): Promise<{ token: string; expiresAt: Date }> {
-      const now = new Date();
-      const expiresAt = new Date(now.getTime() + config.ttlSeconds * 1000);
+    async sign(
+      userId: string,
+      sessionId: string,
+      expiresAtArg?: Date
+    ): Promise<{ token: string; expiresAt: Date }> {
+      const expiresAt = expiresAtArg ?? new Date(Date.now() + config.ttlSeconds * 1000);
 
-      let builder = new SignJWT({ sub: userId })
+      let builder = new SignJWT({ sub: userId, session_id: sessionId })
         .setProtectedHeader({ alg: 'HS256' })
         .setIssuedAt()
         .setExpirationTime(expiresAt);
@@ -69,6 +77,7 @@ export const createTokenSigner = (config: TokenSignerConfig): TokenSigner => {
         // Both `iat` and `exp` are guaranteed to be numbers when set by our signer.
         return {
           userId: payload.sub as string,
+          sessionId: payload['session_id'] as string,
           issuedAt: new Date((payload.iat as number) * 1000),
           expiresAt: new Date((payload.exp as number) * 1000)
         };

@@ -46,6 +46,7 @@ const codeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.AuthSessionIssueFailed]: 500,
   [ErrorCode.AuthMissingToken]: 401,
   [ErrorCode.AuthInvalidToken]: 401,
+  [ErrorCode.AuthSessionNotFound]: 401,
   [ErrorCode.AuthSessionExpired]: 401,
   [ErrorCode.AuthSessionRevoked]: 401,
   [ErrorCode.AuthTenantMembershipMissing]: 403,
