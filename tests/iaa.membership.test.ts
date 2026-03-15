@@ -58,7 +58,7 @@ suite('TenancyMembershipAdapter — integration', () => {
     // Revoke the seeded membership
     await ctx.db
       .updateTable('tenant_memberships')
-      .set({ is_active: false })
+      .set({ status: 'revoked' })
       .where('user_id', '=', ctx.seed.userId)
       .where('tenant_id', '=', ctx.seed.tenantId)
       .execute();
@@ -119,7 +119,7 @@ suite('TenancyMembershipAdapter — integration', () => {
   it('assertMembership throws AUTH_TENANT_MEMBERSHIP_REVOKED for inactive membership', async () => {
     await ctx.db
       .updateTable('tenant_memberships')
-      .set({ is_active: false })
+      .set({ status: 'revoked' })
       .where('user_id', '=', ctx.seed.userId)
       .where('tenant_id', '=', ctx.seed.tenantId)
       .execute();

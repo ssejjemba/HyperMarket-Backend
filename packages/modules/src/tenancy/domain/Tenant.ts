@@ -3,6 +3,9 @@ export type Tenant = {
   name: string;
   slug: string;
   isActive: boolean;
+  status: 'active' | 'suspended' | 'archived';
+  defaultCurrency: string;
+  activeConfigId: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -11,6 +14,7 @@ export type TenantMembership = {
   tenantId: string;
   role: string;
   isActive: boolean;
+  status: 'active' | 'revoked';
 };
 
 export type TenantSettings = Record<string, unknown>;

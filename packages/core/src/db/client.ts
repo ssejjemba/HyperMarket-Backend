@@ -45,9 +45,11 @@ export type DatabaseSchema = {
   };
   tenants: {
     id: string;
-    name: string;
     slug: string;
-    is_active: boolean;
+    business_name: string;
+    status: 'active' | 'suspended' | 'archived';
+    default_currency: string;
+    active_config_id: string | null;
     created_at: Date;
     updated_at: Date;
   };
@@ -55,16 +57,28 @@ export type DatabaseSchema = {
     id: string;
     tenant_id: string;
     user_id: string;
-    role: string;
-    is_active: boolean;
+    role: 'owner' | 'manager' | 'staff';
+    status: 'active' | 'revoked';
     created_at: Date;
   };
   tenant_domains: {
     id: string;
     tenant_id: string;
-    hostname: string;
+    domain: string;
+    domain_type: 'subdomain' | 'custom';
+    verification_status: 'verified' | 'pending' | 'failed';
     is_primary: boolean;
     created_at: Date;
+  };
+  tenant_settings: {
+    tenant_id: string;
+    contact_name: string | null;
+    contact_email: string | null;
+    contact_phone_e164: string | null;
+    social_links: Record<string, unknown>;
+    business_hours: Record<string, unknown>;
+    created_at: Date;
+    updated_at: Date;
   };
   auth_otps: {
     id: string;

@@ -11,6 +11,7 @@ export const resetDatabase = async (): Promise<void> => {
 
   await db.deleteFrom('auth_otps').execute();
   await db.deleteFrom('sessions').execute();
+  await db.deleteFrom('tenant_settings').execute();
   await db.deleteFrom('tenant_memberships').execute();
   await db.deleteFrom('tenant_domains').execute();
   await db.deleteFrom('tenants').execute();
@@ -52,9 +53,11 @@ export const createTestContext = async () => {
     .insertInto('tenants')
     .values({
       id: seed.tenantId,
-      name: 'Test Tenant',
+      business_name: 'Test Tenant',
       slug: seed.tenantSlug,
-      is_active: true,
+      status: 'active',
+      default_currency: 'UGX',
+      active_config_id: null,
       created_at: sql`now()`,
       updated_at: sql`now()`
     })
@@ -65,7 +68,9 @@ export const createTestContext = async () => {
     .values({
       id: sql`gen_random_uuid()` as unknown as string,
       tenant_id: seed.tenantId,
-      hostname: seed.tenantDomain,
+      domain: seed.tenantDomain,
+      domain_type: 'subdomain',
+      verification_status: 'verified',
       is_primary: true,
       created_at: sql`now()`
     })
@@ -90,7 +95,7 @@ export const createTestContext = async () => {
       tenant_id: seed.tenantId,
       user_id: seed.userId,
       role: 'owner',
-      is_active: true,
+      status: 'active',
       created_at: sql`now()`
     })
     .execute();

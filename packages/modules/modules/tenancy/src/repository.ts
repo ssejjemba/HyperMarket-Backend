@@ -33,13 +33,24 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>) => {
       .insertInto('tenants')
       .values({
         id: sql`gen_random_uuid()` as unknown as string,
-        name: input.name,
+        business_name: input.name,
         slug: input.slug,
-        is_active: true,
+        status: 'active',
+        default_currency: 'UGX',
+        active_config_id: null,
         created_at: sql`now()`,
         updated_at: sql`now()`
       })
-      .returning(['id', 'name', 'slug', 'is_active', 'created_at', 'updated_at'])
+      .returning([
+        'id',
+        'business_name',
+        'slug',
+        'status',
+        'default_currency',
+        'active_config_id',
+        'created_at',
+        'updated_at'
+      ])
       .executeTakeFirstOrThrow();
 
     await trx
@@ -49,7 +60,7 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>) => {
         tenant_id: tenantRow.id,
         user_id: input.ownerUserId,
         role: 'owner',
-        is_active: true,
+        status: 'active',
         created_at: sql`now()`
       })
       .execute();
@@ -59,7 +70,9 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>) => {
       .values({
         id: sql`gen_random_uuid()` as unknown as string,
         tenant_id: tenantRow.id,
-        hostname: input.domain,
+        domain: input.domain,
+        domain_type: 'subdomain',
+        verification_status: 'verified',
         is_primary: true,
         created_at: sql`now()`
       })
@@ -67,9 +80,9 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>) => {
 
     return {
       id: tenantRow.id,
-      name: tenantRow.name,
+      name: tenantRow.business_name,
       slug: tenantRow.slug,
-      isActive: tenantRow.is_active,
+      isActive: tenantRow.status === 'active',
       createdAt: tenantRow.created_at,
       updatedAt: tenantRow.updated_at
     };
@@ -81,9 +94,9 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>) => {
       .innerJoin('tenants', 'tenants.id', 'tenant_memberships.tenant_id')
       .select([
         'tenants.id as id',
-        'tenants.name as name',
+        'tenants.business_name as business_name',
         'tenants.slug as slug',
-        'tenants.is_active as is_active',
+        'tenants.status as status',
         'tenants.created_at as created_at',
         'tenants.updated_at as updated_at'
       ])
@@ -92,9 +105,9 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>) => {
 
     return rows.map((row) => ({
       id: row.id,
-      name: row.name,
+      name: row.business_name,
       slug: row.slug,
-      isActive: row.is_active,
+      isActive: row.status === 'active',
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }));
@@ -104,7 +117,7 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>) => {
     const row = await db
       .selectFrom('tenant_domains')
       .select(['tenant_id'])
-      .where('hostname', '=', hostname)
+      .where('domain', '=', hostname)
       .executeTakeFirst();
 
     return row?.tenant_id ?? null;
@@ -113,23 +126,27 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>) => {
   const getMembershipsForUser = async (userId: string): Promise<MembershipRow[]> => {
     const rows = await db
       .selectFrom('tenant_memberships')
-      .select(['tenant_id', 'role', 'is_active'])
+      .select(['tenant_id', 'role', 'status'])
       .where('user_id', '=', userId)
       .execute();
 
-    return rows.map((r) => ({ tenantId: r.tenant_id, role: r.role, isActive: r.is_active }));
+    return rows.map((r) => ({
+      tenantId: r.tenant_id,
+      role: r.role,
+      isActive: r.status === 'active'
+    }));
   };
 
   const getMembership = async (userId: string, tenantId: string): Promise<MembershipRow | null> => {
     const row = await db
       .selectFrom('tenant_memberships')
-      .select(['tenant_id', 'role', 'is_active'])
+      .select(['tenant_id', 'role', 'status'])
       .where('user_id', '=', userId)
       .where('tenant_id', '=', tenantId)
       .executeTakeFirst();
 
     return row !== undefined
-      ? { tenantId: row.tenant_id, role: row.role, isActive: row.is_active }
+      ? { tenantId: row.tenant_id, role: row.role, isActive: row.status === 'active' }
       : null;
   };
 

@@ -14,13 +14,24 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>): TenancyRepo
       .insertInto('tenants')
       .values({
         id: sql`gen_random_uuid()` as unknown as string,
-        name: input.name,
+        business_name: input.name,
         slug: input.slug,
-        is_active: true,
+        status: 'active',
+        default_currency: 'UGX',
+        active_config_id: null,
         created_at: sql`now()`,
         updated_at: sql`now()`
       })
-      .returning(['id', 'name', 'slug', 'is_active', 'created_at', 'updated_at'])
+      .returning([
+        'id',
+        'business_name',
+        'slug',
+        'status',
+        'default_currency',
+        'active_config_id',
+        'created_at',
+        'updated_at'
+      ])
       .executeTakeFirstOrThrow();
 
     await trx
@@ -30,7 +41,7 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>): TenancyRepo
         tenant_id: tenantRow.id,
         user_id: input.ownerUserId,
         role: 'owner',
-        is_active: true,
+        status: 'active',
         created_at: sql`now()`
       })
       .execute();
@@ -40,7 +51,9 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>): TenancyRepo
       .values({
         id: sql`gen_random_uuid()` as unknown as string,
         tenant_id: tenantRow.id,
-        hostname: input.domain,
+        domain: input.domain,
+        domain_type: 'subdomain',
+        verification_status: 'verified',
         is_primary: true,
         created_at: sql`now()`
       })
@@ -48,9 +61,12 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>): TenancyRepo
 
     return {
       id: tenantRow.id,
-      name: tenantRow.name,
+      name: tenantRow.business_name,
       slug: tenantRow.slug,
-      isActive: tenantRow.is_active,
+      isActive: tenantRow.status === 'active',
+      status: tenantRow.status,
+      defaultCurrency: tenantRow.default_currency,
+      activeConfigId: tenantRow.active_config_id,
       createdAt: tenantRow.created_at,
       updatedAt: tenantRow.updated_at
     };
@@ -62,9 +78,11 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>): TenancyRepo
       .innerJoin('tenants', 'tenants.id', 'tenant_memberships.tenant_id')
       .select([
         'tenants.id as id',
-        'tenants.name as name',
+        'tenants.business_name as business_name',
         'tenants.slug as slug',
-        'tenants.is_active as is_active',
+        'tenants.status as status',
+        'tenants.default_currency as default_currency',
+        'tenants.active_config_id as active_config_id',
         'tenants.created_at as created_at',
         'tenants.updated_at as updated_at'
       ])
@@ -73,9 +91,12 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>): TenancyRepo
 
     return rows.map((row) => ({
       id: row.id,
-      name: row.name,
+      name: row.business_name,
       slug: row.slug,
-      isActive: row.is_active,
+      isActive: row.status === 'active',
+      status: row.status,
+      defaultCurrency: row.default_currency,
+      activeConfigId: row.active_config_id,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }));
@@ -84,7 +105,16 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>): TenancyRepo
   const getTenantById = async (tenantId: string): Promise<Tenant | null> => {
     const row = await db
       .selectFrom('tenants')
-      .select(['id', 'name', 'slug', 'is_active', 'created_at', 'updated_at'])
+      .select([
+        'id',
+        'business_name',
+        'slug',
+        'status',
+        'default_currency',
+        'active_config_id',
+        'created_at',
+        'updated_at'
+      ])
       .where('id', '=', tenantId)
       .executeTakeFirst();
 
@@ -92,9 +122,12 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>): TenancyRepo
       ? null
       : {
           id: row.id,
-          name: row.name,
+          name: row.business_name,
           slug: row.slug,
-          isActive: row.is_active,
+          isActive: row.status === 'active',
+          status: row.status,
+          defaultCurrency: row.default_currency,
+          activeConfigId: row.active_config_id,
           createdAt: row.created_at,
           updatedAt: row.updated_at
         };
@@ -108,7 +141,7 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>): TenancyRepo
     const row = await db
       .selectFrom('tenant_domains')
       .select(['tenant_id'])
-      .where('hostname', '=', hostname)
+      .where('domain', '=', hostname)
       .executeTakeFirst();
 
     return row?.tenant_id ?? null;
@@ -117,14 +150,15 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>): TenancyRepo
   const getMembershipsForUser = async (userId: string): Promise<TenantMembership[]> => {
     const rows = await db
       .selectFrom('tenant_memberships')
-      .select(['tenant_id', 'role', 'is_active'])
+      .select(['tenant_id', 'role', 'status'])
       .where('user_id', '=', userId)
       .execute();
 
     return rows.map((row) => ({
       tenantId: row.tenant_id,
       role: row.role,
-      isActive: row.is_active
+      isActive: row.status === 'active',
+      status: row.status
     }));
   };
 
@@ -134,7 +168,7 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>): TenancyRepo
   ): Promise<TenantMembership | null> => {
     const row = await db
       .selectFrom('tenant_memberships')
-      .select(['tenant_id', 'role', 'is_active'])
+      .select(['tenant_id', 'role', 'status'])
       .where('user_id', '=', userId)
       .where('tenant_id', '=', tenantId)
       .executeTakeFirst();
@@ -144,7 +178,8 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>): TenancyRepo
       : {
           tenantId: row.tenant_id,
           role: row.role,
-          isActive: row.is_active
+          isActive: row.status === 'active',
+          status: row.status
         };
   };
 

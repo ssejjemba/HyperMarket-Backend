@@ -1,9 +1,19 @@
 import assert from 'node:assert/strict';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import { createDbClient } from '@hypermarket/core/db';
-import { createTenancyRepository } from '@hypermarket/modules/tenancy';
+import { config as loadDotenv } from 'dotenv';
 import type { Transaction } from 'kysely';
-import type { DatabaseSchema } from '@hypermarket/core';
+
+import type { DatabaseSchema } from '../../packages/core/src/db/client';
+import { createDbClient } from '../../packages/core/src/db/index';
+import { createTenancyRepository } from '../../packages/modules/src/tenancy/index';
+
+const currentFile = fileURLToPath(import.meta.url);
+const rootDir = path.resolve(path.dirname(currentFile), '../..');
+
+loadDotenv({ path: path.join(rootDir, '.env.example') });
+loadDotenv({ path: path.join(rootDir, '.env'), override: true });
 
 const databaseUrl = process.env.DATABASE_URL;
 if (databaseUrl === undefined || databaseUrl.length === 0) {
@@ -36,6 +46,32 @@ const run = async (): Promise<void> => {
 
   const otherList = await repo.listTenantsForUser('00000000-0000-0000-0000-000000000002');
   assert.ok(otherList.every((item) => item.id !== tenant.id));
+
+  await assert.rejects(
+    () =>
+      db.transaction().execute(async (trx: Transaction<DatabaseSchema>) =>
+        repo.createTenant(trx, {
+          name: 'Duplicate Slug Tenant',
+          slug,
+          ownerUserId,
+          domain: `other-${stamp}.example.com`
+        })
+      ),
+    /tenant/i
+  );
+
+  await assert.rejects(
+    () =>
+      db.transaction().execute(async (trx: Transaction<DatabaseSchema>) =>
+        repo.createTenant(trx, {
+          name: 'Duplicate Domain Tenant',
+          slug: `other-${slug}`,
+          ownerUserId,
+          domain
+        })
+      ),
+    /tenant/i
+  );
 
   await db.destroy();
 };

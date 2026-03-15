@@ -21,9 +21,11 @@ suite('tenant isolation', () => {
       .insertInto('tenants')
       .values({
         id: otherTenantId,
-        name: 'Other Tenant',
+        business_name: 'Other Tenant',
         slug: `other-tenant-${otherTenantId.slice(0, 8)}`,
-        is_active: true,
+        status: 'active',
+        default_currency: 'UGX',
+        active_config_id: null,
         created_at: new Date(),
         updated_at: new Date()
       })
@@ -36,7 +38,7 @@ suite('tenant isolation', () => {
         tenant_id: otherTenantId,
         user_id: otherUserId,
         role: 'owner',
-        is_active: true,
+        status: 'active',
         created_at: new Date()
       })
       .execute();
