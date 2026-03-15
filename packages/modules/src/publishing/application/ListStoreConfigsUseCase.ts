@@ -2,8 +2,7 @@ import type { Kysely } from 'kysely';
 
 import type { DatabaseSchema } from '@hypermarket/core';
 
-import type { StoreConfig } from '../domain';
-import { createStoreConfigRepoPg } from '../persistence';
+import { createStoreConfigRepoPg, type StoreConfig } from '../persistence';
 
 export type ListStoreConfigsUseCase = {
   execute(tenantId: string): Promise<StoreConfig[]>;

@@ -141,7 +141,7 @@ const withStoreConfigTx = async <T>(
   fn: (trx: Transaction<DatabaseSchema>) => Promise<T>
 ): Promise<T> => {
   if (db.isTransaction) {
-    return fn(db);
+    return fn(db as Transaction<DatabaseSchema>);
   }
 
   return db.transaction().execute(async (trx) => fn(trx));

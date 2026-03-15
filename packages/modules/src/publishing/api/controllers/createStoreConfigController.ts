@@ -14,14 +14,16 @@ export const makeCreateStoreConfigHandler =
     }
 
     const body = parseCreateConfigRequest(request.body);
-    const config = await useCase.execute({
+    const input = {
       tenantId,
       actorUserId: userId,
       templateId: body.template_id,
       templateVersion: body.template_version,
-      configPayload: body.config_payload,
       requestId: request.id
-    });
+    };
+    const config = await useCase.execute(
+      body.config_payload === undefined ? input : { ...input, configPayload: body.config_payload }
+    );
 
     return mapStoreConfigResponse(config);
   };

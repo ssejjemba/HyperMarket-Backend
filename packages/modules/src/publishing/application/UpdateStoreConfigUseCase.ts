@@ -3,9 +3,9 @@ import type { Kysely } from 'kysely';
 import { createAuditWriter, runInTransaction, type DatabaseSchema } from '@hypermarket/core';
 import { ErrorCode } from '@hypermarket/contracts';
 
-import type { StoreConfig, ValidationReport } from '../domain';
 import { PublishingError } from '../errors/PublishingError';
-import { createStoreConfigRepoPg } from '../persistence';
+import { createStoreConfigRepoPg, type StoreConfig } from '../persistence';
+import type { ValidationReport } from '../domain';
 
 export type UpdateStoreConfigInput = {
   tenantId: string;

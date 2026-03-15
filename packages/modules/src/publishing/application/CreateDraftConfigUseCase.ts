@@ -4,9 +4,9 @@ import { createAuditWriter, runInTransaction, type DatabaseSchema } from '@hyper
 import { ErrorCode } from '@hypermarket/contracts';
 
 import type { TemplateRegistry } from '../../templates';
-import type { StoreConfig, ValidationReport } from '../domain';
 import { PublishingError } from '../errors/PublishingError';
-import { createStoreConfigRepoPg } from '../persistence';
+import { createStoreConfigRepoPg, type StoreConfig } from '../persistence';
+import type { ValidationReport } from '../domain';
 
 export type CreateDraftConfigInput = {
   tenantId: string;
