@@ -1,5 +1,6 @@
 import type { DatabaseSchema } from '@hypermarket/core';
 
+import type { MembershipClaim } from '../domain/MembershipClaim';
 import type { Tenant, TenantMembership, TenantSettings } from '../domain/Tenant';
 import type { TenantDomain } from './TenantDomainRepository';
 import type { TenantMembershipRecord } from './TenantMembershipRepository';
@@ -35,6 +36,12 @@ export const mapMembership = (row: TenantMembershipRecord): TenantMembership => 
   role: row.role,
   status: row.status,
   isActive: row.isActive
+});
+
+export const mapMembershipClaim = (row: TenantMembershipRecord): MembershipClaim => ({
+  tenantId: row.tenantId,
+  role: row.role,
+  status: row.status
 });
 
 export const mapTenantDomainRow = (

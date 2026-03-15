@@ -38,6 +38,10 @@ export { TenancyError } from './errors/TenancyError';
 export type { TenancyErrorCode } from './errors/TenancyError';
 export { DomainName } from './domain/DomainName';
 export type { MembershipReader } from './MembershipReader';
+export type {
+  MembershipClaim as TenancyMembershipClaim,
+  MembershipStatus
+} from './domain/MembershipClaim';
 export { TenantSlug } from './domain/TenantSlug';
 export type { TenantResolver } from './TenantResolver';
 export { createCreateTenantUseCase } from './application';

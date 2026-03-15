@@ -1,4 +1,4 @@
-import type { TenantMembership } from './domain/Tenant';
+import type { MembershipClaim } from './domain/MembershipClaim';
 
 /**
  * TEN-owned read port for membership lookups.
@@ -6,6 +6,6 @@ import type { TenantMembership } from './domain/Tenant';
  * Implementations must not mutate tenancy state.
  */
 export interface MembershipReader {
-  listMemberships(userId: string): Promise<TenantMembership[]>;
-  assertMembership(userId: string, tenantId: string): Promise<TenantMembership>;
+  listMemberships(userId: string): Promise<MembershipClaim[]>;
+  assertMembership(userId: string, tenantId: string): Promise<MembershipClaim>;
 }
