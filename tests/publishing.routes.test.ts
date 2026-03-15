@@ -12,6 +12,7 @@ import {
 } from '@hypermarket/modules/iaa';
 
 import { buildServer } from '../apps/api/src/server';
+import { enqueueStorefrontRevalidationJob } from '../apps/worker/src/revalidation/storefrontRevalidationQueue';
 
 const TEST_CONFIG: AppConfig = {
   nodeEnv: 'test',
@@ -343,6 +344,124 @@ flowSuite('PUB routes scaffold - membership guarded placeholders', () => {
     await server.close();
   });
 
+  it('completes the draft to publish flow with history, outbox, and revalidation dispatch payload', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessTokenForUser(ctx, {
+      id: ctx.seed.userId,
+      phoneE164: ctx.seed.userPhone
+    });
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const created = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/configs`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        template_id: 'basic-commerce',
+        template_version: 'v1'
+      }
+    });
+    const configId = created.json<{ config: { id: string } }>().config.id;
+
+    const publish = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/publish`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        config_id: configId
+      }
+    });
+
+    expect(publish.statusCode).toBe(200);
+
+    const tenantRow = await ctx.db
+      .selectFrom('tenants')
+      .select('active_config_id')
+      .where('id', '=', ctx.seed.tenantId)
+      .executeTakeFirst();
+
+    expect(tenantRow?.active_config_id).toBe(configId);
+
+    const publishHistory = await ctx.db
+      .selectFrom('publish_history')
+      .select(['action', 'from_config_id', 'to_config_id', 'result'])
+      .where('tenant_id', '=', ctx.seed.tenantId)
+      .where('to_config_id', '=', configId)
+      .orderBy('created_at', 'desc')
+      .executeTakeFirst();
+
+    expect(publishHistory).toEqual({
+      action: 'publish',
+      from_config_id: null,
+      to_config_id: configId,
+      result: 'success'
+    });
+
+    const outboxEvent = await ctx.db
+      .selectFrom('outbox_events')
+      .select(['id', 'event_type', 'tenant_id', 'actor_user_id', 'payload'])
+      .where('tenant_id', '=', ctx.seed.tenantId)
+      .where('event_type', '=', 'Publish.Completed')
+      .orderBy('created_at', 'desc')
+      .executeTakeFirstOrThrow();
+
+    expect(outboxEvent).toMatchObject({
+      event_type: 'Publish.Completed',
+      tenant_id: ctx.seed.tenantId,
+      actor_user_id: ctx.seed.userId,
+      payload: {
+        tenant_id: ctx.seed.tenantId,
+        config_id: configId,
+        previous_config_id: null,
+        targets: ['/', '/sitemap.xml', '/robots.txt']
+      }
+    });
+
+    const queuedJobs: Array<{ name: string; data: unknown }> = [];
+    const enqueued = await enqueueStorefrontRevalidationJob(
+      {
+        add: async (name, data) => {
+          queuedJobs.push({ name, data });
+          return {} as never;
+        }
+      },
+      {
+        id: outboxEvent.id,
+        eventType: outboxEvent.event_type,
+        tenantId: outboxEvent.tenant_id,
+        correlationId: null,
+        actorUserId: outboxEvent.actor_user_id,
+        payload: outboxEvent.payload,
+        occurredAt: new Date(),
+        availableAt: new Date(),
+        dispatchedAt: null,
+        attempts: 0,
+        lastError: null,
+        createdAt: new Date()
+      }
+    );
+
+    expect(enqueued).toBe(true);
+    expect(queuedJobs).toEqual([
+      {
+        name: 'storefront.revalidate',
+        data: {
+          event_type: 'Publish.Completed',
+          tenant_id: ctx.seed.tenantId,
+          config_id: configId,
+          previous_config_id: null,
+          targets: ['/', '/sitemap.xml', '/robots.txt']
+        }
+      }
+    ]);
+
+    await server.close();
+  });
+
   it('returns publish_validation_failed for invalid publish targets', async () => {
     ctx = await createTestContext();
     const token = await issueAccessTokenForUser(ctx, {
@@ -508,6 +627,154 @@ flowSuite('PUB routes scaffold - membership guarded placeholders', () => {
         previous_config_id: secondConfigId
       }
     });
+
+    await server.close();
+  });
+
+  it('completes publish to rollback flow with history, outbox, and revalidation dispatch payload', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessTokenForUser(ctx, {
+      id: ctx.seed.userId,
+      phoneE164: ctx.seed.userPhone
+    });
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const firstDraft = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/configs`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        template_id: 'basic-commerce',
+        template_version: 'v1'
+      }
+    });
+    const firstConfigId = firstDraft.json<{ config: { id: string } }>().config.id;
+
+    const secondDraft = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/configs`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        template_id: 'basic-commerce',
+        template_version: 'v1',
+        config_payload: {
+          brand_name: 'HyperMart Express',
+          hero_title: 'Shop Kampala in minutes',
+          hero_subtitle: 'A faster storefront for repeat customers.',
+          primary_color: '#14532D',
+          cta_label: 'Browse deals'
+        }
+      }
+    });
+    const secondConfigId = secondDraft.json<{ config: { id: string } }>().config.id;
+
+    const publish = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/publish`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        config_id: secondConfigId
+      }
+    });
+
+    expect(publish.statusCode).toBe(200);
+
+    const rollback = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/rollback`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        config_id: firstConfigId
+      }
+    });
+
+    expect(rollback.statusCode).toBe(200);
+
+    const tenantRow = await ctx.db
+      .selectFrom('tenants')
+      .select('active_config_id')
+      .where('id', '=', ctx.seed.tenantId)
+      .executeTakeFirst();
+
+    expect(tenantRow?.active_config_id).toBe(firstConfigId);
+
+    const rollbackHistory = await ctx.db
+      .selectFrom('publish_history')
+      .select(['action', 'from_config_id', 'to_config_id', 'result'])
+      .where('tenant_id', '=', ctx.seed.tenantId)
+      .where('action', '=', 'rollback')
+      .where('to_config_id', '=', firstConfigId)
+      .orderBy('created_at', 'desc')
+      .executeTakeFirst();
+
+    expect(rollbackHistory).toEqual({
+      action: 'rollback',
+      from_config_id: secondConfigId,
+      to_config_id: firstConfigId,
+      result: 'success'
+    });
+
+    const outboxEvent = await ctx.db
+      .selectFrom('outbox_events')
+      .select(['id', 'event_type', 'tenant_id', 'actor_user_id', 'payload'])
+      .where('tenant_id', '=', ctx.seed.tenantId)
+      .where('event_type', '=', 'Rollback.Completed')
+      .orderBy('created_at', 'desc')
+      .executeTakeFirstOrThrow();
+
+    expect(outboxEvent).toMatchObject({
+      event_type: 'Rollback.Completed',
+      tenant_id: ctx.seed.tenantId,
+      actor_user_id: ctx.seed.userId,
+      payload: {
+        tenant_id: ctx.seed.tenantId,
+        config_id: firstConfigId,
+        previous_config_id: secondConfigId,
+        targets: ['/', '/sitemap.xml', '/robots.txt']
+      }
+    });
+
+    const queuedJobs: Array<{ name: string; data: unknown }> = [];
+    const enqueued = await enqueueStorefrontRevalidationJob(
+      {
+        add: async (name, data) => {
+          queuedJobs.push({ name, data });
+          return {} as never;
+        }
+      },
+      {
+        id: outboxEvent.id,
+        eventType: outboxEvent.event_type,
+        tenantId: outboxEvent.tenant_id,
+        correlationId: null,
+        actorUserId: outboxEvent.actor_user_id,
+        payload: outboxEvent.payload,
+        occurredAt: new Date(),
+        availableAt: new Date(),
+        dispatchedAt: null,
+        attempts: 0,
+        lastError: null,
+        createdAt: new Date()
+      }
+    );
+
+    expect(enqueued).toBe(true);
+    expect(queuedJobs).toEqual([
+      {
+        name: 'storefront.revalidate',
+        data: {
+          event_type: 'Rollback.Completed',
+          tenant_id: ctx.seed.tenantId,
+          config_id: firstConfigId,
+          previous_config_id: secondConfigId,
+          targets: ['/', '/sitemap.xml', '/robots.txt']
+        }
+      }
+    ]);
 
     await server.close();
   });
