@@ -1,4 +1,2 @@
-export type StoreConfigDraft = {
-  configId: string;
-  tenantId: string;
-};
+export { createConfigValidator } from './ConfigValidator';
+export type { ConfigValidator } from './ConfigValidator';

@@ -4,7 +4,9 @@ import { createSessionRepoPg } from '../iaa/session/persistence/SessionRepoPg';
 import { createSessionService } from '../iaa/session/SessionService';
 import { createTokenSigner } from '../iaa/session/TokenSigner';
 import { createMembershipReaderPg } from '../tenancy/persistence/TenancyMembershipReaderPg';
+import { createTemplateRegistry } from '../templates';
 import type { ModuleDeps } from '../types';
+import { createConfigValidator } from './application';
 import { registerPublishingApiRoutes } from './api/routes';
 
 export const registerPublishingRoutes = async (
@@ -23,14 +25,19 @@ export const registerPublishingRoutes = async (
     ttlSeconds: deps.config.sessionTtlSeconds
   });
   const membershipReader = createMembershipReaderPg(deps.db);
+  const templateRegistry = createTemplateRegistry();
+  const configValidator = createConfigValidator(templateRegistry);
 
   await registerPublishingApiRoutes(server, {
     logger: deps.logger,
     sessionService,
-    membershipReader
+    membershipReader,
+    configValidator
   });
 };
 
 export { registerPublishingApiRoutes } from './api/routes';
+export { createConfigValidator } from './application';
+export type { ConfigValidator } from './application';
 export { PublishingError } from './errors/PublishingError';
 export type { PublishingErrorCode } from './errors/PublishingError';

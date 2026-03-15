@@ -1,3 +1,5 @@
+import type { ZodType } from 'zod';
+
 export type TemplateJsonSchema = {
   $schema: 'https://json-schema.org/draft/2020-12/schema';
   type: 'object';
@@ -8,6 +10,7 @@ export type TemplateJsonSchema = {
 
 export type TemplateVersionDefinition = {
   templateVersion: string;
+  configSchema: ZodType<Record<string, unknown>>;
   schema: TemplateJsonSchema;
   defaultConfigPayload: Record<string, unknown>;
 };

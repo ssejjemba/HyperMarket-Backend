@@ -1,4 +1,5 @@
 import { ErrorCode } from '@hypermarket/contracts';
+import { z } from 'zod';
 
 import type {
   TemplateDefinition,
@@ -6,6 +7,18 @@ import type {
   TemplateVersionDefinition
 } from '../domain/TemplateTypes';
 import { TemplateError } from '../errors/TemplateError';
+
+const basicCommerceConfigSchema = z
+  .object({
+    brand_name: z.string().min(1, 'Brand name is required'),
+    hero_title: z.string().min(1, 'Hero title is required'),
+    hero_subtitle: z.string().min(1, 'Hero subtitle is required'),
+    primary_color: z
+      .string()
+      .regex(/^#[0-9A-Fa-f]{6}$/, 'Primary color must be a 6-digit hex code'),
+    cta_label: z.string().min(1, 'CTA label is required')
+  })
+  .strict();
 
 const basicCommerceSchema: TemplateJsonSchema = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
@@ -49,6 +62,7 @@ const registry: TemplateDefinition[] = [
     versions: [
       {
         templateVersion: 'v1',
+        configSchema: basicCommerceConfigSchema,
         schema: basicCommerceSchema,
         defaultConfigPayload: {
           brand_name: 'My Shop',
@@ -70,11 +84,12 @@ export type TemplateRegistry = {
 };
 
 export const createTemplateRegistry = (): TemplateRegistry => ({
-  listTemplates: () => registry.map((template) => structuredClone(template)),
+  listTemplates: () => registry.map((template) => cloneTemplateDefinition(template)),
   listVersions: (templateId) =>
-    getTemplate(templateId).versions.map((version) => structuredClone(version)),
-  getTemplate: (templateId) => structuredClone(getTemplate(templateId)),
-  getVersion: (templateId, version) => structuredClone(getVersion(templateId, version))
+    getTemplate(templateId).versions.map((version) => cloneTemplateVersionDefinition(version)),
+  getTemplate: (templateId) => cloneTemplateDefinition(getTemplate(templateId)),
+  getVersion: (templateId, version) =>
+    cloneTemplateVersionDefinition(getVersion(templateId, version))
 });
 
 const getTemplate = (templateId: string): TemplateDefinition => {
@@ -105,3 +120,19 @@ const getVersion = (templateId: string, version: string): TemplateVersionDefinit
 
   return templateVersion;
 };
+
+const cloneTemplateDefinition = (template: TemplateDefinition): TemplateDefinition => ({
+  templateId: template.templateId,
+  name: template.name,
+  description: template.description,
+  versions: template.versions.map((version) => cloneTemplateVersionDefinition(version))
+});
+
+const cloneTemplateVersionDefinition = (
+  version: TemplateVersionDefinition
+): TemplateVersionDefinition => ({
+  templateVersion: version.templateVersion,
+  configSchema: version.configSchema,
+  schema: structuredClone(version.schema),
+  defaultConfigPayload: structuredClone(version.defaultConfigPayload)
+});

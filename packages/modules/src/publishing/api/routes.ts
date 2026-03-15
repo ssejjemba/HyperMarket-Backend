@@ -6,12 +6,14 @@ import { requireTenantMembership } from '@hypermarket/core/http';
 import { extractBearerToken } from '../../iaa/api/controllers/extractBearerToken';
 import type { SessionService } from '../../iaa/session/SessionService';
 import type { MembershipReader } from '../../tenancy/MembershipReader';
+import type { ConfigValidator } from '../application';
 import { makeNotImplementedPublishingHandler } from './controllers/notImplementedPublishingController';
 
 export type PublishingApiDeps = {
   logger: BaseLogger;
   sessionService: SessionService;
   membershipReader: MembershipReader;
+  configValidator: ConfigValidator;
 };
 
 export const registerPublishingApiRoutes = async (
