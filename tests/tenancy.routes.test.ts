@@ -353,6 +353,76 @@ flowSuite('TEN routes - create tenant', () => {
     await server.close();
   });
 
+  it('GET /tenants/:tenantId/memberships returns memberships for an active tenant member', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessToken(ctx);
+
+    const staffUserId = randomUUID();
+    const staffPhone = `+256712${staffUserId.replace(/-/g, '').slice(0, 6)}`;
+    await ctx.db
+      .insertInto('users')
+      .values({
+        id: staffUserId,
+        phone_e164: staffPhone,
+        email: null,
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .execute();
+    await ctx.db
+      .insertInto('tenant_memberships')
+      .values({
+        id: randomUUID(),
+        tenant_id: ctx.seed.tenantId,
+        user_id: staffUserId,
+        role: 'staff',
+        status: 'active',
+        created_at: new Date(),
+        revoked_at: null
+      })
+      .execute();
+
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'GET',
+      url: `/tenants/${ctx.seed.tenantId}/memberships`,
+      headers: { authorization: `Bearer ${token}` }
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{
+      memberships: Array<{
+        user_id: string;
+        role: string;
+        status: string;
+        created_at: string;
+      }>;
+    }>();
+    expect(body.memberships).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          user_id: ctx.seed.userId,
+          role: 'owner',
+          status: 'active'
+        }),
+        expect.objectContaining({
+          user_id: staffUserId,
+          role: 'staff',
+          status: 'active'
+        })
+      ])
+    );
+    expect(typeof body.memberships[0]?.created_at).toBe('string');
+
+    await server.close();
+  });
+
   it('owner can access membership management routes', async () => {
     ctx = await createTestContext();
     const token = await issueAccessToken(ctx);

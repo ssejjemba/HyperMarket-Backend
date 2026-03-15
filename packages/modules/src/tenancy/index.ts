@@ -8,11 +8,13 @@ import {
   createCreateTenantUseCase,
   createGetTenantUseCase,
   createGetTenantSettingsUseCase,
+  createListTenantMembershipsUseCase,
   createListTenantsUseCase,
   createUpdateTenantSettingsUseCase
 } from './application';
 import { registerTenancyApiRoutes } from './api/routes';
 import { createTenantDomainRepoPg } from './persistence/TenantDomainRepoPg';
+import { createTenantMembershipRepoPg } from './persistence/TenantMembershipRepoPg';
 import { createMembershipReaderPg } from './persistence/TenancyMembershipReaderPg';
 import { createTenantRepoPg } from './persistence/TenantRepoPg';
 import { createTenantSettingsRepoPg } from './persistence/TenantSettingsRepoPg';
@@ -44,6 +46,9 @@ export const registerTenancyRoutes = async (
     tenantRepo,
     domainRepo
   });
+  const listTenantMembershipsUseCase = createListTenantMembershipsUseCase({
+    membershipRepo: createTenantMembershipRepoPg(deps.db)
+  });
   const getTenantUseCase = createGetTenantUseCase({
     tenantRepo,
     domainRepo
@@ -61,6 +66,7 @@ export const registerTenancyRoutes = async (
     createTenantUseCase,
     getTenantUseCase,
     getTenantSettingsUseCase,
+    listTenantMembershipsUseCase,
     listTenantsUseCase,
     updateTenantSettingsUseCase,
     sessionService,
@@ -88,8 +94,11 @@ export type {
   GetTenantUseCaseDeps,
   GetTenantSettingsUseCase,
   GetTenantSettingsUseCaseDeps,
+  ListTenantMembershipsUseCase,
+  ListTenantMembershipsUseCaseDeps,
   ListTenantsUseCase,
   ListTenantsUseCaseDeps,
+  TenantMembershipSummary,
   TenantSummary,
   UpdateTenantSettingsInput,
   UpdateTenantSettingsUseCase,

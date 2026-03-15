@@ -15,6 +15,7 @@ export interface TenantMembershipRepository {
     role: 'owner' | 'manager' | 'staff'
   ): Promise<TenantMembershipRecord>;
   getMembership(tenantId: string, userId: string): Promise<TenantMembershipRecord | null>;
+  listTenantMemberships(tenantId: string): Promise<TenantMembershipRecord[]>;
   listMemberships(userId: string): Promise<TenantMembershipRecord[]>;
   listActiveOwners(tenantId: string): Promise<TenantMembershipRecord[]>;
   updateRole(

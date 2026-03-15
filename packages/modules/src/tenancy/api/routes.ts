@@ -8,6 +8,7 @@ import type {
   CreateTenantUseCase,
   GetTenantUseCase,
   GetTenantSettingsUseCase,
+  ListTenantMembershipsUseCase,
   ListTenantsUseCase,
   UpdateTenantSettingsUseCase
 } from '../application';
@@ -15,6 +16,7 @@ import type { MembershipReader } from '../MembershipReader';
 import { makeCreateTenantHandler } from './controllers/createTenantController';
 import { makeGetTenantHandler } from './controllers/getTenantController';
 import { makeGetTenantSettingsHandler } from './controllers/getTenantSettingsController';
+import { makeListTenantMembershipsHandler } from './controllers/listTenantMembershipsController';
 import { makeListTenantsHandler } from './controllers/listTenantsController';
 import { makeNotImplementedTenantHandler } from './controllers/notImplementedTenantController';
 import { makeUpdateTenantSettingsHandler } from './controllers/updateTenantSettingsController';
@@ -24,6 +26,7 @@ export type TenancyApiDeps = {
   createTenantUseCase: CreateTenantUseCase;
   getTenantUseCase: GetTenantUseCase;
   getTenantSettingsUseCase: GetTenantSettingsUseCase;
+  listTenantMembershipsUseCase: ListTenantMembershipsUseCase;
   listTenantsUseCase: ListTenantsUseCase;
   updateTenantSettingsUseCase: UpdateTenantSettingsUseCase;
   sessionService: SessionService;
@@ -81,7 +84,7 @@ export const registerTenancyApiRoutes = async (
   server.get(
     '/tenants/:tenantId/memberships',
     { preHandler: tenantGuard },
-    makeNotImplementedTenantHandler(deps.logger, 'tenancy.list_tenant_memberships.not_implemented')
+    makeListTenantMembershipsHandler(deps.listTenantMembershipsUseCase)
   );
 
   server.post(

@@ -52,6 +52,17 @@ export const createTenantMembershipRepoPg = (
     return rows.map((row) => mapMembershipRecord(row));
   };
 
+  const listTenantMemberships = async (tenantId: string) => {
+    const rows = await db
+      .selectFrom('tenant_memberships')
+      .select(['tenant_id', 'user_id', 'role', 'status', 'created_at', 'revoked_at'])
+      .where('tenant_id', '=', tenantId)
+      .orderBy('created_at', 'asc')
+      .execute();
+
+    return rows.map((row) => mapMembershipRecord(row));
+  };
+
   const listActiveOwners = async (tenantId: string) => {
     const rows = await db
       .selectFrom('tenant_memberships')
@@ -98,6 +109,7 @@ export const createTenantMembershipRepoPg = (
   return {
     createMembership,
     getMembership,
+    listTenantMemberships,
     listMemberships,
     listActiveOwners,
     updateRole,
