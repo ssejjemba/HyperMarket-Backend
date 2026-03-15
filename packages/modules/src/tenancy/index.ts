@@ -6,6 +6,7 @@ import { createSessionService } from '../iaa/session/SessionService';
 import { createTokenSigner } from '../iaa/session/TokenSigner';
 import { createCreateTenantUseCase } from './application';
 import { registerTenancyApiRoutes } from './api/routes';
+import { createMembershipReaderPg } from './persistence/TenancyMembershipReaderPg';
 
 export const registerTenancyRoutes = async (
   server: FastifyInstance,
@@ -26,11 +27,13 @@ export const registerTenancyRoutes = async (
     db: deps.db,
     platformRootDomain: deps.config.platformRootDomain
   });
+  const membershipReader = createMembershipReaderPg(deps.db);
 
   await registerTenancyApiRoutes(server, {
     logger: deps.logger,
     createTenantUseCase,
-    sessionService
+    sessionService,
+    membershipReader
   });
 };
 

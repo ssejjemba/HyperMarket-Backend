@@ -44,32 +44,24 @@ const expectErrorEnvelope = (body: ErrorEnvelope): void => {
 };
 
 describe('TEN routes scaffold', () => {
-  it.each([
-    ['GET', '/tenants', undefined],
-    ['GET', '/tenants/00000000-0000-0000-0000-000000000001', undefined],
-    ['GET', '/tenants/00000000-0000-0000-0000-000000000001/settings', undefined],
-    ['PATCH', '/tenants/00000000-0000-0000-0000-000000000001/settings', { theme: 'default' }],
-    ['GET', '/tenants/00000000-0000-0000-0000-000000000001/memberships', undefined],
-    [
-      'POST',
-      '/tenants/00000000-0000-0000-0000-000000000001/memberships/revoke',
-      { user_id: '00000000-0000-0000-0000-000000000002' }
-    ]
-  ])('registers %s %s and returns the shared error envelope', async (method, url, payload) => {
-    const server = buildServer({ config: TEST_CONFIG, devRoutesMode: 'disabled' });
-    await server.ready();
+  it.each([['GET', '/tenants', undefined]])(
+    'registers %s %s and returns the shared error envelope',
+    async (method, url, payload) => {
+      const server = buildServer({ config: TEST_CONFIG, devRoutesMode: 'disabled' });
+      await server.ready();
 
-    const res = await server.inject({
-      method,
-      url,
-      payload
-    });
+      const res = await server.inject({
+        method,
+        url,
+        payload
+      });
 
-    expect(res.statusCode).toBe(501);
-    expectErrorEnvelope(res.json<ErrorEnvelope>());
+      expect(res.statusCode).toBe(501);
+      expectErrorEnvelope(res.json<ErrorEnvelope>());
 
-    await server.close();
-  });
+      await server.close();
+    }
+  );
 });
 
 const dbAvailable = await canConnectDatabase();
@@ -186,6 +178,87 @@ flowSuite('TEN routes - create tenant', () => {
 
     expect(res.statusCode).toBe(409);
     expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.TenantSlugTaken);
+
+    await server.close();
+  });
+
+  it('tenant-scoped routes return tenant_membership_not_found when the user has no membership', async () => {
+    ctx = await createTestContext();
+    await ctx.db
+      .insertInto('users')
+      .values({
+        id: '00000000-0000-0000-0000-000000000010',
+        phone_e164: '+256712000010',
+        email: null,
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .execute();
+
+    const sessionRepo = createSessionRepoPg(ctx.db);
+    const tokenSigner = createTokenSigner({
+      secret: ctx.config.jwtSecret,
+      ttlSeconds: ctx.config.sessionTtlSeconds,
+      issuer: ctx.config.jwtIssuer
+    });
+    const sessionService = createSessionService({
+      signer: tokenSigner,
+      repo: sessionRepo,
+      ttlSeconds: ctx.config.sessionTtlSeconds
+    });
+    const access = await sessionService.issueSession(
+      new UserIdentity({
+        id: '00000000-0000-0000-0000-000000000010',
+        phoneE164: '+256712000010',
+        status: 'active',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+    );
+
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'GET',
+      url: `/tenants/${ctx.seed.tenantId}/settings`,
+      headers: { authorization: `Bearer ${access.accessToken}` }
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.TenantMembershipNotFound);
+
+    await server.close();
+  });
+
+  it('tenant-scoped routes return tenant_membership_revoked when the membership is revoked', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessToken(ctx);
+    await ctx.db
+      .updateTable('tenant_memberships')
+      .set({ status: 'revoked' })
+      .where('tenant_id', '=', ctx.seed.tenantId)
+      .where('user_id', '=', ctx.seed.userId)
+      .execute();
+
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'GET',
+      url: `/tenants/${ctx.seed.tenantId}/settings`,
+      headers: { authorization: `Bearer ${token}` }
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.TenantMembershipRevoked);
 
     await server.close();
   });
