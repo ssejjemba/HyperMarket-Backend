@@ -39,5 +39,12 @@ export const registerPublishingRoutes = async (
 export { registerPublishingApiRoutes } from './api/routes';
 export { createConfigValidator } from './application';
 export type { ConfigValidator } from './application';
+export { createStoreConfigRepoPg } from './persistence';
+export type {
+  CreateDraftConfigInput,
+  StoreConfig,
+  StoreConfigRepository,
+  UpdateDraftConfigInput
+} from './persistence';
 export { PublishingError } from './errors/PublishingError';
 export type { PublishingErrorCode } from './errors/PublishingError';

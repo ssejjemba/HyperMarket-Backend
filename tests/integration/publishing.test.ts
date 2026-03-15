@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { config as loadDotenv } from 'dotenv';
 
 import { createDbClient, sql } from '../../packages/core/src/db/index';
+import { PublishingError, createStoreConfigRepoPg } from '../../packages/modules/src/publishing';
+import { ErrorCode } from '../../packages/contracts/src/errors/errorCodes';
 
 const currentFile = fileURLToPath(import.meta.url);
 const rootDir = path.resolve(path.dirname(currentFile), '../..');
@@ -19,12 +21,14 @@ if (databaseUrl === undefined || databaseUrl.length === 0) {
 
 const run = async (): Promise<void> => {
   const db = createDbClient(databaseUrl);
+  const storeConfigRepo = createStoreConfigRepoPg(db);
   const stamp = Date.now().toString();
   const suffix = stamp.slice(-12).padStart(12, '0');
   const tenantId = `10000000-0000-0000-0000-${suffix}`;
   const userId = `20000000-0000-0000-0000-${suffix}`;
   const firstConfigId = `30000000-0000-0000-0000-${suffix}`;
   const secondConfigId = `40000000-0000-0000-0000-${suffix}`;
+  const otherTenantId = `50000000-0000-0000-0000-${suffix}`;
 
   await db
     .insertInto('users')
@@ -44,6 +48,20 @@ const run = async (): Promise<void> => {
       id: tenantId,
       slug: `publishing-${stamp}`,
       business_name: 'Publishing Test Tenant',
+      status: 'active',
+      default_currency: 'UGX',
+      active_config_id: null,
+      created_at: new Date(),
+      updated_at: new Date()
+    })
+    .execute();
+
+  await db
+    .insertInto('tenants')
+    .values({
+      id: otherTenantId,
+      slug: `publishing-other-${stamp}`,
+      business_name: 'Other Publishing Test Tenant',
       status: 'active',
       default_currency: 'UGX',
       active_config_id: null,
@@ -177,6 +195,81 @@ const run = async (): Promise<void> => {
   assert.equal(publishHistoryRow.from_config_id, firstConfigId);
   assert.equal(publishHistoryRow.to_config_id, secondConfigId);
   assert.equal(publishHistoryRow.result, 'success');
+
+  const draftOne = await storeConfigRepo.createDraftConfig({
+    tenantId: otherTenantId,
+    templateId: 'basic-commerce',
+    templateVersion: 'v1',
+    configPayload: {
+      brand_name: 'Draft One'
+    },
+    validationReport: {
+      isValid: true,
+      errors: []
+    },
+    createdByUserId: userId
+  });
+
+  const draftTwo = await storeConfigRepo.createDraftConfig({
+    tenantId: otherTenantId,
+    templateId: 'basic-commerce',
+    templateVersion: 'v1',
+    configPayload: {
+      brand_name: 'Draft Two'
+    },
+    validationReport: {
+      isValid: true,
+      errors: []
+    },
+    createdByUserId: userId
+  });
+
+  assert.equal(draftOne.configVersion, 1);
+  assert.equal(draftTwo.configVersion, 2);
+
+  const listedConfigs = await storeConfigRepo.listConfigs(otherTenantId);
+  assert.deepEqual(
+    listedConfigs.map((config) => config.configVersion),
+    [2, 1]
+  );
+
+  const scopedRead = await storeConfigRepo.getConfigById(tenantId, draftOne.id);
+  assert.equal(scopedRead, null);
+
+  const updatedDraft = await storeConfigRepo.updateDraftConfig({
+    tenantId: otherTenantId,
+    configId: draftOne.id,
+    configPayload: {
+      brand_name: 'Draft One Updated'
+    },
+    validationReport: {
+      isValid: true,
+      errors: []
+    }
+  });
+  assert.equal(updatedDraft.configPayload.brand_name, 'Draft One Updated');
+
+  await db
+    .updateTable('store_configs')
+    .set({ status: 'active' })
+    .where('id', '=', draftTwo.id)
+    .execute();
+
+  let nonDraftUpdateError: unknown;
+  try {
+    await storeConfigRepo.updateDraftConfig({
+      tenantId: otherTenantId,
+      configId: draftTwo.id,
+      configPayload: {
+        brand_name: 'Should Fail'
+      }
+    });
+  } catch (error) {
+    nonDraftUpdateError = error;
+  }
+
+  assert.ok(nonDraftUpdateError instanceof PublishingError);
+  assert.equal(nonDraftUpdateError.code, ErrorCode.ConfigNotDraft);
 
   await db.destroy();
 };

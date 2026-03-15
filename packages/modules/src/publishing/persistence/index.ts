@@ -1,4 +1,7 @@
-export type StoreConfigRecord = {
-  configId: string;
-  tenantId: string;
-};
+export { createStoreConfigRepoPg } from './StoreConfigRepoPg';
+export type {
+  CreateDraftConfigInput,
+  StoreConfig,
+  StoreConfigRepository,
+  UpdateDraftConfigInput
+} from './StoreConfigRepository';
