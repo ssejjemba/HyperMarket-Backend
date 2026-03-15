@@ -28,6 +28,9 @@ if (databaseUrl === undefined || databaseUrl.length === 0) {
   throw new Error('DATABASE_URL is required for tenancy integration tests');
 }
 
+const buildTestUuid = (prefix: string, suffix: string): string =>
+  `${prefix}0000-0000-0000-0000-${suffix}`;
+
 const run = async (): Promise<void> => {
   const config = loadEnv();
   const db = createDbClient(databaseUrl);
@@ -50,9 +53,36 @@ const run = async (): Promise<void> => {
   });
 
   const stamp = Date.now();
+  const uuidSuffix = stamp.toString().slice(-12).padStart(12, '0');
   const slug = `test-tenant-${stamp}`;
   const domain = `${slug}.${config.platformRootDomain}`;
-  const ownerUserId = '00000000-0000-0000-0000-000000000001';
+  const ownerUserId = buildTestUuid('1000', uuidSuffix);
+  const observerUserId = buildTestUuid('2000', uuidSuffix);
+  const staffUserId = buildTestUuid('3000', uuidSuffix);
+  const secondOwnerUserId = buildTestUuid('4000', uuidSuffix);
+
+  await db
+    .insertInto('users')
+    .values([
+      {
+        id: ownerUserId,
+        phone_e164: `+256701${uuidSuffix.slice(-6)}`,
+        email: null,
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
+      },
+      {
+        id: observerUserId,
+        phone_e164: `+256702${uuidSuffix.slice(-6)}`,
+        email: null,
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
+      }
+    ])
+    .execute();
+
   const createResult = await createTenantUseCase.execute({
     businessName: 'Test Tenant',
     slug,
@@ -135,12 +165,11 @@ const run = async (): Promise<void> => {
     }
   });
 
-  const staffUserId = '00000000-0000-0000-0000-000000000003';
   await db
     .insertInto('users')
     .values({
       id: staffUserId,
-      phone_e164: '+256712000003',
+      phone_e164: `+256703${uuidSuffix.slice(-6)}`,
       email: null,
       is_active: true,
       created_at: new Date(),
@@ -181,12 +210,11 @@ const run = async (): Promise<void> => {
   assert.ok(updatedMembershipReloaded);
   assert.equal(updatedMembershipReloaded.role, 'manager');
 
-  const secondOwnerUserId = '00000000-0000-0000-0000-000000000004';
   await db
     .insertInto('users')
     .values({
       id: secondOwnerUserId,
-      phone_e164: '+256712000004',
+      phone_e164: `+256704${uuidSuffix.slice(-6)}`,
       email: null,
       is_active: true,
       created_at: new Date(),
@@ -226,7 +254,7 @@ const run = async (): Promise<void> => {
     .execute();
   assert.equal(auditRows.length, 1);
 
-  const otherList = await tenantRepo.listForUser('00000000-0000-0000-0000-000000000002');
+  const otherList = await tenantRepo.listForUser(observerUserId);
   assert.ok(otherList.every((item) => item.id !== createResult.tenant.id));
 
   let missingThrown: unknown;

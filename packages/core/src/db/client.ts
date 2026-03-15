@@ -82,6 +82,29 @@ export type DatabaseSchema = {
     created_at: Date;
     updated_at: Date;
   };
+  store_configs: {
+    id: string;
+    tenant_id: string;
+    status: 'draft' | 'active' | 'archived';
+    template_id: string;
+    template_version: string;
+    config_version: number;
+    config_payload: Record<string, unknown>;
+    validation_report: Record<string, unknown> | null;
+    created_by_user_id: string;
+    created_at: Date;
+  };
+  publish_history: {
+    id: string;
+    tenant_id: string;
+    action: 'publish' | 'rollback';
+    from_config_id: string | null;
+    to_config_id: string;
+    actor_user_id: string;
+    result: 'success' | 'failed';
+    failure_reason: string | null;
+    created_at: Date;
+  };
   auth_otps: {
     id: string;
     phone_e164: string;

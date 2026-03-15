@@ -31,6 +31,9 @@ export const resetDatabase = async (): Promise<void> => {
   await ensureTenantMembershipRevokedAtColumn(db);
   await db.deleteFrom('auth_otps').execute();
   await db.deleteFrom('sessions').execute();
+  await db.deleteFrom('publish_history').execute();
+  await db.updateTable('tenants').set({ active_config_id: null }).execute();
+  await db.deleteFrom('store_configs').execute();
   await db.deleteFrom('tenant_settings').execute();
   await db.deleteFrom('tenant_memberships').execute();
   await db.deleteFrom('tenant_domains').execute();
@@ -138,6 +141,7 @@ export const canConnectDatabase = async (): Promise<boolean> => {
     const db = createDbClient(config.databaseUrl);
     await ensureTenantSettingsWhatsappColumn(db);
     await ensureTenantMembershipRevokedAtColumn(db);
+    await db.selectFrom('store_configs').select('id').limit(1).execute();
     await db.selectFrom('tenants').select('id').limit(1).execute();
     await db.destroy();
     return true;
