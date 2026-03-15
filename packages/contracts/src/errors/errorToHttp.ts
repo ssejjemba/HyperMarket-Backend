@@ -51,6 +51,8 @@ const codeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.AuthSessionRevoked]: 401,
   [ErrorCode.AuthTenantMembershipMissing]: 403,
   [ErrorCode.AuthTenantMembershipRevoked]: 403,
+  [ErrorCode.AuthProviderAuthFailed]: 502,
+  [ErrorCode.AuthProviderRateLimited]: 429,
   [ErrorCode.AuthProviderUnavailable]: 503,
   [ErrorCode.AuthDbFailure]: 500
 };

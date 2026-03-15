@@ -26,3 +26,15 @@ if (process.env.REDIS_URL === undefined) {
 if (process.env.JWT_SECRET === undefined) {
   process.env.JWT_SECRET = 'test-secret';
 }
+
+if (process.env.TWILIO_ACCOUNT_SID === undefined) {
+  process.env.TWILIO_ACCOUNT_SID = 'ACtestaccountsid000000000000000000';
+}
+
+if (process.env.TWILIO_AUTH_TOKEN === undefined) {
+  process.env.TWILIO_AUTH_TOKEN = 'test-twilio-auth-token';
+}
+
+if (process.env.TWILIO_VERIFY_SERVICE_SID === undefined) {
+  process.env.TWILIO_VERIFY_SERVICE_SID = 'VAtestservicesid000000000000000000';
+}

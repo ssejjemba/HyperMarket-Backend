@@ -36,6 +36,8 @@ export enum ErrorCode {
   AuthSessionRevoked = 'auth_session_revoked',
   AuthTenantMembershipMissing = 'auth_tenant_membership_missing',
   AuthTenantMembershipRevoked = 'auth_tenant_membership_revoked',
+  AuthProviderAuthFailed = 'auth_provider_auth_failed',
+  AuthProviderRateLimited = 'auth_provider_rate_limited',
   AuthProviderUnavailable = 'auth_provider_unavailable',
   AuthDbFailure = 'auth_db_failure'
 }

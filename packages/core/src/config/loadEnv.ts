@@ -6,6 +6,9 @@ const envSchema = z.object({
   REDIS_URL: z.string().min(1, { message: 'Required' }).url({ message: 'Must be a valid URL' }),
   JWT_SECRET: z.string().min(1, { message: 'Required' }),
   JWT_ISSUER: z.string().min(1).optional(),
+  TWILIO_ACCOUNT_SID: z.string().min(1, { message: 'Required' }),
+  TWILIO_AUTH_TOKEN: z.string().min(1, { message: 'Required' }),
+  TWILIO_VERIFY_SERVICE_SID: z.string().min(1, { message: 'Required' }),
   OTP_SECRET: z.string().min(1).optional(),
   OTP_TTL_SECONDS: z
     .string()
@@ -65,6 +68,9 @@ export type AppConfig = {
   logLevel: NonNullable<EnvSchema['LOG_LEVEL']>;
   jwtSecret: EnvSchema['JWT_SECRET'];
   jwtIssuer?: EnvSchema['JWT_ISSUER'];
+  twilioAccountSid: EnvSchema['TWILIO_ACCOUNT_SID'];
+  twilioAuthToken: EnvSchema['TWILIO_AUTH_TOKEN'];
+  twilioVerifyServiceSid: EnvSchema['TWILIO_VERIFY_SERVICE_SID'];
   otpSecret: string;
   otpTtlSeconds: number;
   sessionTtlSeconds: number;
@@ -89,6 +95,9 @@ export const loadEnv = (): AppConfig => {
     logLevel,
     jwtSecret: result.data.JWT_SECRET,
     jwtIssuer: result.data.JWT_ISSUER,
+    twilioAccountSid: result.data.TWILIO_ACCOUNT_SID,
+    twilioAuthToken: result.data.TWILIO_AUTH_TOKEN,
+    twilioVerifyServiceSid: result.data.TWILIO_VERIFY_SERVICE_SID,
     otpSecret,
     otpTtlSeconds: result.data.OTP_TTL_SECONDS,
     sessionTtlSeconds: result.data.SESSION_TTL_SECONDS,

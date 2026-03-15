@@ -84,6 +84,17 @@ export { UgandaPhonePolicy } from './phone/UgandaPhonePolicy';
 export { OtpChallenge } from './otp/domain/OtpChallenge';
 export type { OtpChallengeProps, OtpChallengeStatus } from './otp/domain/OtpChallenge';
 export { OtpChallengePolicy } from './otp/domain/OtpChallengePolicy';
+export { createTwilioVerifyClient } from './otp/integrations/TwilioVerifyClient';
+export type {
+  TwilioHttpClient,
+  TwilioVerifyChannel,
+  TwilioVerifyClient,
+  TwilioVerifyClientConfig,
+  StartVerificationInput,
+  StartVerificationResult,
+  CheckVerificationInput,
+  CheckVerificationResult
+} from './otp/integrations/TwilioVerifyClient';
 export { UserIdentity } from './user/domain/UserIdentity';
 export type { UserStatus } from './user/domain/UserIdentity';
 export type { UserRepository } from './user/persistence/UserRepository';

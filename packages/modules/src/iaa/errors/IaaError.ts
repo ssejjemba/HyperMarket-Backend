@@ -26,6 +26,8 @@ export type IaaErrorCode =
   | ErrorCode.AuthSessionRevoked
   | ErrorCode.AuthTenantMembershipMissing
   | ErrorCode.AuthTenantMembershipRevoked
+  | ErrorCode.AuthProviderAuthFailed
+  | ErrorCode.AuthProviderRateLimited
   | ErrorCode.AuthProviderUnavailable
   | ErrorCode.AuthDbFailure;
 
