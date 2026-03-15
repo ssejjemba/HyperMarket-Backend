@@ -4,7 +4,9 @@ import type { ModuleDeps } from '../types';
 import { registerIaaApiRoutes } from './api/routes';
 import { createTenancyMembershipAdapter } from './membership/TenancyMembershipAdapter';
 import { OtpChallengePolicy } from './otp/domain/OtpChallengePolicy';
-import { createOtpSenderDevAdapter } from './otp/integrations/OtpSenderDevAdapter';
+import { createLocalOtpVerificationProvider } from './otp/integrations/LocalOtpVerificationProvider';
+import { createTwilioOtpVerificationProvider } from './otp/integrations/TwilioOtpVerificationProvider';
+import { createTwilioVerifyClient } from './otp/integrations/TwilioVerifyClient';
 import { createOtpChallengeRepoPg } from './otp/persistence/OtpChallengeRepoPg';
 import { createOtpChallengeService } from './otp/OtpChallengeService';
 import { createRequestOtpUseCase } from './otp/application/RequestOtpUseCase';
@@ -32,13 +34,21 @@ export const registerIaaRoutes = async (
   const sessionRepo = createSessionRepoPg(deps.db);
   const membershipReader = createTenancyMembershipAdapter(deps.db);
 
-  const otpSender = createOtpSenderDevAdapter({ mode: 'dev', logger: deps.logger });
+  const verificationProvider =
+    deps.config.nodeEnv === 'development' || deps.config.enableDevRoutes
+      ? createLocalOtpVerificationProvider({ logger: deps.logger })
+      : createTwilioOtpVerificationProvider({
+          client: createTwilioVerifyClient({
+            accountSid: deps.config.twilioAccountSid,
+            authToken: deps.config.twilioAuthToken,
+            serviceSid: deps.config.twilioVerifyServiceSid
+          })
+        });
 
   const otpService = createOtpChallengeService({
     repo: otpRepo,
-    sender: otpSender,
+    verificationProvider,
     policy,
-    otpSecret: deps.config.otpSecret,
     logger: deps.logger
   });
 
@@ -84,11 +94,20 @@ export { UgandaPhonePolicy } from './phone/UgandaPhonePolicy';
 export { OtpChallenge } from './otp/domain/OtpChallenge';
 export type { OtpChallengeProps, OtpChallengeStatus } from './otp/domain/OtpChallenge';
 export { OtpChallengePolicy } from './otp/domain/OtpChallengePolicy';
+export { createLocalOtpVerificationProvider } from './otp/integrations/LocalOtpVerificationProvider';
+export type {
+  OtpVerificationProvider,
+  StartOtpVerificationInput,
+  StartOtpVerificationResult,
+  CheckOtpVerificationInput,
+  CheckOtpVerificationResult
+} from './otp/integrations/OtpVerificationProvider';
+export { createTwilioOtpVerificationProvider } from './otp/integrations/TwilioOtpVerificationProvider';
 export { createTwilioVerifyClient } from './otp/integrations/TwilioVerifyClient';
 export type {
+  TwilioVerifyClient,
   TwilioHttpClient,
   TwilioVerifyChannel,
-  TwilioVerifyClient,
   TwilioVerifyClientConfig,
   StartVerificationInput,
   StartVerificationResult,

@@ -10,8 +10,7 @@ import type { IaaApiDeps } from './api/routes';
 import { createTenancyMembershipAdapter } from './membership/TenancyMembershipAdapter';
 import type { MembershipReader } from './membership/MembershipReader';
 import { OtpChallengePolicy } from './otp/domain/OtpChallengePolicy';
-import type { OtpSender } from './otp/integrations/OtpSender';
-import { createOtpSenderDevAdapter } from './otp/integrations/OtpSenderDevAdapter';
+import type { OtpVerificationProvider } from './otp/integrations/OtpVerificationProvider';
 import { createOtpChallengeRepoPg } from './otp/persistence/OtpChallengeRepoPg';
 import { createOtpChallengeService } from './otp/OtpChallengeService';
 import { createRequestOtpUseCase } from './otp/application/RequestOtpUseCase';
@@ -30,7 +29,6 @@ import { createUserService } from './user/UserService';
 // ---------------------------------------------------------------------------
 
 export const TEST_JWT_SECRET = 'test-jwt-secret-minimum-32-chars!!';
-export const TEST_OTP_SECRET = 'test-otp-secret-minimum-32-chars!!';
 
 const silentLogger = pino({ level: 'silent' });
 
@@ -41,10 +39,9 @@ const silentLogger = pino({ level: 'silent' });
 export type IaaApiTestServerParams = {
   /** Kysely instance pointed at the test database. */
   db: Kysely<DatabaseSchema>;
-  /** Defaults to a test-mode stub that always returns SENT. */
-  otpSender?: OtpSender | undefined;
+  /** Defaults to a stub that approves the code "123456". */
+  verificationProvider?: OtpVerificationProvider | undefined;
   jwtSecret?: string | undefined;
-  otpSecret?: string | undefined;
   sessionTtlSeconds?: number | undefined;
   otpTtlSeconds?: number | undefined;
   resendCooldownSeconds?: number | undefined;
@@ -60,7 +57,6 @@ export type IaaApiTestServerParams = {
  */
 export const buildIaaApiTestServer = async (params: IaaApiTestServerParams) => {
   const jwtSecret = params.jwtSecret ?? TEST_JWT_SECRET;
-  const otpSecret = params.otpSecret ?? TEST_OTP_SECRET;
   const sessionTtlSeconds = params.sessionTtlSeconds ?? 3600;
   const otpTtlSeconds = params.otpTtlSeconds ?? 300;
   const resendCooldownSeconds = params.resendCooldownSeconds ?? 60;
@@ -76,8 +72,15 @@ export const buildIaaApiTestServer = async (params: IaaApiTestServerParams) => {
     rateLimitMaxChallengesPerPhone
   });
 
-  const sender =
-    params.otpSender ?? createOtpSenderDevAdapter({ mode: 'test', behavior: { outcome: 'sent' } });
+  const verificationProvider =
+    params.verificationProvider ??
+    ({
+      startVerification: async () => ({ provider: 'test' }),
+      checkVerification: async ({ code }) => ({
+        approved: code === '123456',
+        provider: 'test'
+      })
+    } satisfies OtpVerificationProvider);
 
   const otpRepo = createOtpChallengeRepoPg(params.db);
   const userRepo = createUserRepoPg(params.db);
@@ -86,9 +89,8 @@ export const buildIaaApiTestServer = async (params: IaaApiTestServerParams) => {
 
   const otpService = createOtpChallengeService({
     repo: otpRepo,
-    sender,
+    verificationProvider,
     policy,
-    otpSecret,
     logger: silentLogger
   });
 
@@ -118,7 +120,7 @@ export const buildIaaApiTestServer = async (params: IaaApiTestServerParams) => {
     membershipReader
   });
 
-  return { server, tokenSigner, otpRepo, otpSecret, sessionRepo };
+  return { server, tokenSigner, otpRepo, sessionRepo };
 };
 
 // ---------------------------------------------------------------------------

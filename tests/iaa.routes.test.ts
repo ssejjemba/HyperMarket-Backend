@@ -1,5 +1,3 @@
-import crypto from 'node:crypto';
-
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { ErrorCode } from '@hypermarket/contracts';
@@ -7,10 +5,10 @@ import { canConnectDatabase, createTestContext } from '@hypermarket/core/testkit
 import {
   buildIaaApiTestServer,
   buildIaaStubTestServer,
-  TEST_JWT_SECRET,
-  TEST_OTP_SECRET
+  TEST_JWT_SECRET
 } from '@hypermarket/modules/iaa/testkit';
-import { createTokenSigner } from '@hypermarket/modules/iaa';
+import { IaaError, createTokenSigner } from '@hypermarket/modules/iaa';
+import type { OtpVerificationProvider } from '@hypermarket/modules/iaa';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -31,17 +29,7 @@ const expectErrorEnvelope = (body: ErrorEnvelope, errorCode: string): void => {
   expect(body.message.length).toBeGreaterThan(0);
 };
 
-/**
- * Brute-force recover the 6-digit OTP from a stored HMAC-SHA256 digest.
- * Only feasible in tests where we control the secret.
- */
-const recoverCode = (codeHash: string, secret: string): string => {
-  for (let i = 100_000; i < 1_000_000; i++) {
-    const h = crypto.createHmac('sha256', secret).update(String(i)).digest('hex');
-    if (h === codeHash) return String(i);
-  }
-  throw new Error('Could not recover OTP code');
-};
+const VALID_CODE = '123456';
 
 // ---------------------------------------------------------------------------
 // Schema validation tests — no DB required
@@ -235,6 +223,11 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
     expect(body.challenge_id.length).toBeGreaterThan(0);
     expect(new Date(body.expires_at).getTime()).toBeGreaterThan(Date.now());
     expect(body.resend_after_seconds).toBeGreaterThan(0);
+
+    const challenge = await otpRepo.getChallengeById(body.challenge_id);
+    expect(challenge).not.toBeNull();
+    expect(challenge?.phoneE164).toBe('+256712990001');
+    expect(challenge?.codeHash).toBeNull();
   });
 
   it('POST /auth/otp/request with invalid E.164 returns 400 auth_invalid_phone_format', async () => {
@@ -258,7 +251,7 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
       payload: {
         challenge_id: '00000000-0000-0000-0000-000000000000',
         phone: '+256712990001',
-        code: '123456'
+        code: VALID_CODE
       }
     });
     expect(res.statusCode).toBe(404);
@@ -272,7 +265,7 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
       payload: {
         challenge_id: '00000000-0000-0000-0000-000000000000',
         phone: '0712990001',
-        code: '123456'
+        code: VALID_CODE
       }
     });
     expect(res.statusCode).toBe(400);
@@ -332,7 +325,7 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
     const res = await server.inject({
       method: 'POST',
       url: '/auth/otp/verify',
-      payload: { challenge_id, phone: '+256712990004', code: '123456' }
+      payload: { challenge_id, phone: '+256712990004', code: VALID_CODE }
     });
     expect(res.statusCode).toBe(422);
     expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.AuthChallengePhoneMismatch);
@@ -368,7 +361,7 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Full happy path: request → recover code → verify → session
+  // Full happy path: request → verify → session
   // -------------------------------------------------------------------------
 
   it('full OTP flow: request → verify → returns access_token and user_id', async () => {
@@ -383,15 +376,11 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
     expect(reqRes.statusCode).toBe(200);
     const { challenge_id } = reqRes.json<{ challenge_id: string }>();
 
-    // 2. Recover the OTP from the DB challenge hash
-    const challenge = await otpRepo.getChallengeById(challenge_id);
-    const code = recoverCode(challenge!.codeHash, TEST_OTP_SECRET);
-
-    // 3. Verify OTP
+    // 2. Verify OTP
     const verRes = await server.inject({
       method: 'POST',
       url: '/auth/otp/verify',
-      payload: { challenge_id, phone, code }
+      payload: { challenge_id, phone, code: VALID_CODE }
     });
     expect(verRes.statusCode).toBe(200);
     const verBody = verRes.json<{
@@ -406,7 +395,7 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
     expect(typeof verBody.user_id).toBe('string');
     expect(Array.isArray(verBody.memberships)).toBe(true);
 
-    // 4. Use the token on /auth/session
+    // 3. Use the token on /auth/session
     const sessRes = await server.inject({
       method: 'GET',
       url: '/auth/session',
@@ -466,13 +455,10 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
       payload: { phone }
     });
     const { challenge_id } = reqRes.json<{ challenge_id: string }>();
-    const challenge = await otpRepo.getChallengeById(challenge_id);
-    const code = recoverCode(challenge!.codeHash, TEST_OTP_SECRET);
-
     const res = await server.inject({
       method: 'POST',
       url: '/auth/otp/verify',
-      payload: { challenge_id, phone, code }
+      payload: { challenge_id, phone, code: VALID_CODE }
     });
 
     expect(res.statusCode).toBe(200);
@@ -496,21 +482,18 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
       payload: { phone }
     });
     const { challenge_id } = reqRes.json<{ challenge_id: string }>();
-    const challenge = await otpRepo.getChallengeById(challenge_id);
-    const code = recoverCode(challenge!.codeHash, TEST_OTP_SECRET);
-
     // First verify — success
     await server.inject({
       method: 'POST',
       url: '/auth/otp/verify',
-      payload: { challenge_id, phone, code }
+      payload: { challenge_id, phone, code: VALID_CODE }
     });
 
     // Second verify — should fail with consumed
     const res = await server.inject({
       method: 'POST',
       url: '/auth/otp/verify',
-      payload: { challenge_id, phone, code }
+      payload: { challenge_id, phone, code: VALID_CODE }
     });
     expect(res.statusCode).toBe(409);
     expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.AuthChallengeConsumed);
@@ -525,13 +508,10 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
       payload: { phone }
     });
     const { challenge_id } = requestRes.json<{ challenge_id: string }>();
-    const challenge = await otpRepo.getChallengeById(challenge_id);
-    const code = recoverCode(challenge!.codeHash, TEST_OTP_SECRET);
-
     const verifyRes = await server.inject({
       method: 'POST',
       url: '/auth/otp/verify',
-      payload: { challenge_id, phone, code }
+      payload: { challenge_id, phone, code: VALID_CODE }
     });
     expect(verifyRes.statusCode).toBe(200);
 
@@ -546,5 +526,38 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
     });
     expect(sessionRes.statusCode).toBe(401);
     expectErrorEnvelope(sessionRes.json<ErrorEnvelope>(), ErrorCode.AuthSessionRevoked);
+  });
+
+  it('POST /auth/otp/request returns 503 auth_provider_unavailable when the provider is down', async () => {
+    await server.close();
+
+    const providerDown: OtpVerificationProvider = {
+      startVerification: async () => {
+        throw new IaaError({
+          code: ErrorCode.AuthProviderUnavailable,
+          message: 'OTP provider is unavailable'
+        });
+      },
+      checkVerification: async () => ({ approved: false, provider: 'test' })
+    };
+
+    const built = await buildIaaApiTestServer({
+      db: ctx.db,
+      verificationProvider: providerDown
+    });
+    server = built.server;
+    otpRepo = built.otpRepo;
+    sessionRepo = built.sessionRepo;
+    tokenSignerReal = built.tokenSigner;
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/request',
+      payload: { phone: '+256712990011' }
+    });
+
+    expect(res.statusCode).toBe(503);
+    expectErrorEnvelope(res.json<ErrorEnvelope>(), ErrorCode.AuthProviderUnavailable);
   });
 });

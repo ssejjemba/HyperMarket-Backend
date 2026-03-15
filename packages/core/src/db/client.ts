@@ -69,7 +69,7 @@ export type DatabaseSchema = {
   auth_otps: {
     id: string;
     phone_e164: string;
-    code_hash: string;
+    code_hash: string | null;
     expires_at: Date;
     attempt_count: number;
     max_attempts: number;

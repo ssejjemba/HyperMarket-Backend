@@ -2,7 +2,7 @@ import type { OtpChallenge } from '../domain/OtpChallenge';
 
 export type CreateChallengeInput = {
   phoneE164: string;
-  codeHash: string;
+  codeHash: string | null;
   expiresAt: Date;
   maxAttempts: number;
   lastSentAt: Date;

@@ -4,12 +4,12 @@ import { ErrorCode } from '@hypermarket/contracts';
 import { canConnectDatabase, createTestContext } from '@hypermarket/core/testkit';
 import { IaaError } from '@hypermarket/modules/iaa';
 import { createOtpChallengeRepoPg } from '@hypermarket/modules/iaa/persistence';
-import { createOtpSenderDevAdapter } from '@hypermarket/modules/iaa/otp-sender';
 import { createOtpChallengeService } from '@hypermarket/modules/iaa/otp-service';
 import { OtpChallengePolicy } from '@hypermarket/modules/iaa';
 import { PhoneNumber } from '@hypermarket/modules/iaa';
 
 import type { OtpChallengeService } from '@hypermarket/modules/iaa/otp-service';
+import type { OtpVerificationProvider } from '@hypermarket/modules/iaa';
 import type { OtpChallengeRepository } from '@hypermarket/modules/iaa/persistence';
 
 // ---------------------------------------------------------------------------
@@ -24,8 +24,8 @@ const suite = dbAvailable ? describe : describe.skip;
 // ---------------------------------------------------------------------------
 
 const PHONE = PhoneNumber.parse('+256712345678');
-const OTP_SECRET = 'test-secret-do-not-use-in-prod';
 const CTX = { requestId: 'req-test', traceId: 'trace-test' };
+const VALID_CODE = '123456';
 
 const POLICY = new OtpChallengePolicy({
   challengeTtlSeconds: 300,
@@ -48,20 +48,6 @@ const silentLogger = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Extract the plain OTP code by reversing the HMAC.
- * Since we control the secret in tests, we brute-force the 6-digit space.
- * Returns the code string if found, throws if not.
- */
-import crypto from 'node:crypto';
-const recoverCode = (codeHash: string, secret: string): string => {
-  for (let i = 100_000; i < 1_000_000; i++) {
-    const h = crypto.createHmac('sha256', secret).update(String(i)).digest('hex');
-    if (h === codeHash) return String(i);
-  }
-  throw new Error('Could not recover OTP code from hash — secret mismatch?');
-};
-
 const expectIaaError = (fn: () => Promise<unknown>, code: ErrorCode): Promise<void> =>
   fn().then(
     () => {
@@ -82,6 +68,17 @@ suite('OtpChallengeService — integration', () => {
   let repo: OtpChallengeRepository;
   let service: OtpChallengeService;
 
+  const makeProvider = (
+    overrides: Partial<OtpVerificationProvider> = {}
+  ): OtpVerificationProvider => ({
+    startVerification: async () => ({ provider: 'test' }),
+    checkVerification: async ({ code }) => ({
+      approved: code === VALID_CODE,
+      provider: 'test'
+    }),
+    ...overrides
+  });
+
   beforeEach(async () => {
     ctx = await createTestContext();
     repo = createOtpChallengeRepoPg(ctx.db);
@@ -89,12 +86,8 @@ suite('OtpChallengeService — integration', () => {
 
     service = createOtpChallengeService({
       repo,
-      sender: createOtpSenderDevAdapter({
-        mode: 'test',
-        behavior: { outcome: 'sent' }
-      }),
+      verificationProvider: makeProvider(),
       policy: POLICY,
-      otpSecret: OTP_SECRET,
       logger: silentLogger
     });
   });
@@ -114,15 +107,14 @@ suite('OtpChallengeService — integration', () => {
     expect(result.expiresAt).toBeInstanceOf(Date);
     expect(result.expiresAt.getTime()).toBeGreaterThan(Date.now());
     expect(result.resendAfterSeconds).toBe(POLICY.resendCooldownSeconds);
+
+    const challenge = await repo.getChallengeById(result.challengeId);
+    expect(challenge?.codeHash).toBeNull();
   });
 
-  it('verifyChallenge succeeds with correct code and transitions to CONSUMED', async () => {
+  it('verifyChallenge succeeds with provider-approved code and transitions to CONSUMED', async () => {
     const { challengeId } = await service.requestChallenge(PHONE, CTX);
-
-    const challenge = await repo.getChallengeById(challengeId);
-    const code = recoverCode(challenge!.codeHash, OTP_SECRET);
-
-    const verifyResult = await service.verifyChallenge(challengeId, PHONE, code, CTX);
+    const verifyResult = await service.verifyChallenge(challengeId, PHONE, VALID_CODE, CTX);
     expect(verifyResult.phoneE164).toBe(PHONE.toE164());
 
     const consumed = await repo.getChallengeById(challengeId);
@@ -244,12 +236,15 @@ suite('OtpChallengeService — integration', () => {
   it('provider failure throws AUTH_PROVIDER_UNAVAILABLE and marks challenge SEND_FAILED', async () => {
     const failingService = createOtpChallengeService({
       repo,
-      sender: createOtpSenderDevAdapter({
-        mode: 'test',
-        behavior: { outcome: 'failed', failureCategory: 'provider_down' }
+      verificationProvider: makeProvider({
+        startVerification: async () => {
+          throw new IaaError({
+            code: ErrorCode.AuthProviderUnavailable,
+            message: 'Failed to send OTP. Please try again.'
+          });
+        }
       }),
       policy: POLICY,
-      otpSecret: OTP_SECRET,
       logger: silentLogger
     });
 
@@ -329,13 +324,10 @@ suite('OtpChallengeService — integration', () => {
 
   it('consuming a challenge twice throws AUTH_CHALLENGE_CONSUMED', async () => {
     const { challengeId } = await service.requestChallenge(PHONE, CTX);
-    const challenge = await repo.getChallengeById(challengeId);
-    const code = recoverCode(challenge!.codeHash, OTP_SECRET);
-
-    await service.verifyChallenge(challengeId, PHONE, code, CTX);
+    await service.verifyChallenge(challengeId, PHONE, VALID_CODE, CTX);
 
     await expectIaaError(
-      () => service.verifyChallenge(challengeId, PHONE, code, CTX),
+      () => service.verifyChallenge(challengeId, PHONE, VALID_CODE, CTX),
       ErrorCode.AuthChallengeConsumed
     );
   });

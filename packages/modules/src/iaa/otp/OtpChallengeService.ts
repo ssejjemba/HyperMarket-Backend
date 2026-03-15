@@ -1,13 +1,11 @@
-import crypto from 'node:crypto';
-
 import { ErrorCode } from '@hypermarket/contracts';
 import type { BaseLogger } from 'pino';
 
 import { IaaError } from '../errors/IaaError';
 import type { PhoneNumber } from '../phone/PhoneNumber';
 import type { OtpChallengePolicy } from './domain/OtpChallengePolicy';
+import type { OtpVerificationProvider } from './integrations/OtpVerificationProvider';
 import type { OtpChallengeRepository } from './persistence/OtpChallengeRepository';
-import type { OtpSender } from './integrations/OtpSender';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -34,25 +32,14 @@ export type VerifyChallengeResult = {
   phoneE164: string;
 };
 
-/**
- * Hash an OTP code with the application secret using HMAC-SHA256.
- * The raw code is never stored or logged — only this digest.
- */
-const hashCode = (code: string, secret: string): string =>
-  crypto.createHmac('sha256', secret).update(code).digest('hex');
-
-/** Generate a cryptographically random 6-digit OTP code. */
-const generateCode = (): string => String(crypto.randomInt(100_000, 1_000_000));
-
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
 
 export type OtpChallengeServiceDeps = {
   repo: OtpChallengeRepository;
-  sender: OtpSender;
+  verificationProvider: OtpVerificationProvider;
   policy: OtpChallengePolicy;
-  otpSecret: string;
   logger: BaseLogger;
 };
 
@@ -67,7 +54,7 @@ export type OtpChallengeService = {
 };
 
 export const createOtpChallengeService = (deps: OtpChallengeServiceDeps): OtpChallengeService => {
-  const { repo, sender, policy, otpSecret, logger } = deps;
+  const { repo, verificationProvider, policy, logger } = deps;
 
   // -------------------------------------------------------------------------
   // requestChallenge
@@ -101,14 +88,12 @@ export const createOtpChallengeService = (deps: OtpChallengeServiceDeps): OtpCha
       });
     }
 
-    // --- Generate code and persist ------------------------------------------
-    const code = generateCode();
-    const codeHash = hashCode(code, otpSecret);
+    // --- Persist lightweight challenge before provider call ------------------
     const expiresAt = new Date(now.getTime() + policy.challengeTtlSeconds * 1000);
 
     const challenge = await repo.createChallenge({
       phoneE164,
-      codeHash,
+      codeHash: null,
       expiresAt,
       maxAttempts: policy.maxAttempts,
       lastSentAt: now
@@ -125,14 +110,26 @@ export const createOtpChallengeService = (deps: OtpChallengeServiceDeps): OtpCha
     );
 
     // --- Send via provider ---------------------------------------------------
-    const delivery = await sender.sendOtp(phoneE164, code, {
-      requestId: ctx.requestId,
-      challengeId: challenge.id,
-      expiresAt: challenge.expiresAt,
-      traceId: ctx.traceId
-    });
+    try {
+      const delivery = await verificationProvider.startVerification({
+        requestId: ctx.requestId,
+        challengeId: challenge.id,
+        phoneE164,
+        expiresAt: challenge.expiresAt,
+        traceId: ctx.traceId
+      });
 
-    if (delivery.status === 'FAILED') {
+      logger.info(
+        {
+          event: 'otp.request.sent',
+          challengeId: challenge.id,
+          maskedPhone,
+          provider: delivery.provider,
+          requestId: ctx.requestId
+        },
+        'otp: OTP sent successfully'
+      );
+    } catch (error) {
       challenge.markSendFailed();
       await repo.updateChallenge(challenge);
 
@@ -141,28 +138,22 @@ export const createOtpChallengeService = (deps: OtpChallengeServiceDeps): OtpCha
           event: 'otp.request.send_failed',
           challengeId: challenge.id,
           maskedPhone,
-          failureCategory: delivery.failureCategory,
+          errorCode: IaaError.is(error) ? error.code : undefined,
           requestId: ctx.requestId
         },
         'otp: provider failed to send OTP'
       );
 
+      if (IaaError.is(error)) {
+        throw error;
+      }
+
       throw new IaaError({
         code: ErrorCode.AuthProviderUnavailable,
-        message: 'Failed to send OTP. Please try again.'
+        message: 'Failed to send OTP. Please try again.',
+        cause: error
       });
     }
-
-    logger.info(
-      {
-        event: 'otp.request.sent',
-        challengeId: challenge.id,
-        maskedPhone,
-        provider: delivery.provider,
-        requestId: ctx.requestId
-      },
-      'otp: OTP sent successfully'
-    );
 
     return {
       challengeId: challenge.id,
@@ -202,9 +193,15 @@ export const createOtpChallengeService = (deps: OtpChallengeServiceDeps): OtpCha
     // --- Phone match --------------------------------------------------------
     challenge.assertPhoneMatches(phoneE164);
 
-    // --- Hash comparison ----------------------------------------------------
-    const expectedHash = hashCode(otpCode, otpSecret);
-    if (challenge.codeHash !== expectedHash) {
+    // --- Provider verification ----------------------------------------------
+    const verification = await verificationProvider.checkVerification({
+      challengeId,
+      phoneE164,
+      code: otpCode,
+      requestId: ctx.requestId,
+      traceId: ctx.traceId
+    });
+    if (verification.approved === false) {
       challenge.recordFailedAttempt(now);
       await repo.updateChallenge(challenge);
 

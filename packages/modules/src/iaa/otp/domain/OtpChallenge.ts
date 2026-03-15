@@ -15,7 +15,7 @@ export type OtpChallengeStatus = 'ACTIVE' | 'CONSUMED' | 'LOCKED' | 'EXPIRED' | 
 export interface OtpChallengeProps {
   id: string;
   phoneE164: string;
-  codeHash: string;
+  codeHash: string | null;
   expiresAt: Date;
   attemptCount: number;
   maxAttempts: number;
@@ -37,7 +37,7 @@ export interface OtpChallengeProps {
 export class OtpChallenge {
   readonly id: string;
   readonly phoneE164: string;
-  readonly codeHash: string;
+  readonly codeHash: string | null;
   readonly expiresAt: Date;
   readonly maxAttempts: number;
   readonly createdAt: Date;
@@ -148,7 +148,7 @@ export class OtpChallenge {
 
   /**
    * Mark the challenge as successfully consumed.
-   * Caller must have already verified the code hash.
+   * Caller must have already verified the OTP with the provider.
    */
   consume(now: Date): void {
     this.assertActive(now);
