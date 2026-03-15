@@ -43,7 +43,7 @@ export type {
   MembershipStatus
 } from './domain/MembershipClaim';
 export { TenantSlug } from './domain/TenantSlug';
-export type { TenantResolver } from './TenantResolver';
+export type { ResolvedTenant, TenantResolutionCache, TenantResolver } from './TenantResolver';
 export { createCreateTenantUseCase } from './application';
 export type {
   CreateTenantInput as CreateTenantUseCaseInput,
@@ -80,4 +80,5 @@ export { createTenantDomainRepoPg } from './persistence/TenantDomainRepoPg';
 export { createTenantMembershipRepoPg } from './persistence/TenantMembershipRepoPg';
 export { createTenantSettingsRepoPg } from './persistence/TenantSettingsRepoPg';
 export { createMembershipReaderPg } from './persistence/TenancyMembershipReaderPg';
+export { createNoopTenantResolutionCache } from './persistence/NoopTenantResolutionCache';
 export { createTenantResolverPg } from './persistence/TenantResolverPg';

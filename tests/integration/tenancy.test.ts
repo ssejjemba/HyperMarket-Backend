@@ -8,6 +8,7 @@ import { loadEnv } from '../../packages/core/src/config/loadEnv';
 import { createDbClient } from '../../packages/core/src/db/index';
 import {
   createCreateTenantUseCase,
+  createTenantResolverPg,
   createTenantDomainRepoPg,
   createTenantMembershipRepoPg,
   createTenantRepoPg,
@@ -36,6 +37,9 @@ const run = async (): Promise<void> => {
   });
   const membershipRepo = createTenantMembershipRepoPg(db);
   const settingsRepo = createTenantSettingsRepoPg(db);
+  const resolver = createTenantResolverPg(db, {
+    platformRootDomain: config.platformRootDomain
+  });
   const createTenantUseCase = createCreateTenantUseCase({
     db,
     platformRootDomain: config.platformRootDomain
@@ -55,6 +59,10 @@ const run = async (): Promise<void> => {
   assert.ok(tenant);
   assert.equal(createResult.tenant.slug, slug);
   assert.equal(createResult.primaryDomain, domain);
+
+  const resolvedTenant = await resolver.resolveByDomain(domain.toUpperCase());
+  assert.equal(resolvedTenant.tenantId, createResult.tenant.id);
+  assert.equal(resolvedTenant.tenant.slug, slug);
 
   const resolvedTenantId = await domainRepo.findTenantIdByDomain(domain);
   assert.equal(resolvedTenantId, createResult.tenant.id);
@@ -86,6 +94,36 @@ const run = async (): Promise<void> => {
 
   const otherList = await tenantRepo.listForUser('00000000-0000-0000-0000-000000000002');
   assert.ok(otherList.every((item) => item.id !== createResult.tenant.id));
+
+  let missingThrown: unknown;
+  try {
+    await resolver.resolveByDomain(`missing-${stamp}.${config.platformRootDomain}`);
+  } catch (error) {
+    missingThrown = error;
+  }
+  assert.ok(missingThrown instanceof TenancyError);
+  assert.equal((missingThrown as TenancyError).code, ErrorCode.TenantDomainNotFound);
+
+  await db
+    .updateTable('tenants')
+    .set({ status: 'suspended' })
+    .where('id', '=', createResult.tenant.id)
+    .execute();
+
+  let suspendedThrown: unknown;
+  try {
+    await resolver.resolveByDomain(domain);
+  } catch (error) {
+    suspendedThrown = error;
+  }
+  assert.ok(suspendedThrown instanceof TenancyError);
+  assert.equal((suspendedThrown as TenancyError).code, ErrorCode.TenantSuspended);
+
+  await db
+    .updateTable('tenants')
+    .set({ status: 'active' })
+    .where('id', '=', createResult.tenant.id)
+    .execute();
 
   const beforeCounts = {
     tenants: await db.selectFrom('tenants').select('id').execute(),
