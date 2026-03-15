@@ -103,11 +103,13 @@ export { createTenancyMembershipAdapter } from './membership/TenancyMembershipAd
 export { createTokenSigner } from './session/TokenSigner';
 export type { TokenSigner, TokenClaims } from './session/TokenSigner';
 export { createSessionService } from './session/SessionService';
+export { createSessionRepoPg } from './session/persistence/SessionRepoPg';
 export type {
   SessionService,
   IssueSessionResult,
   ValidateSessionResult
 } from './session/SessionService';
+export type { SessionRecord, SessionRepository } from './session/persistence/SessionRepository';
 export type { IaaLogEvent } from './observability/IaaLogEvent';
 export { logIaaEvent } from './observability/IaaLogEvent';
 export type { IaaMetrics, InMemoryIaaMetrics } from './observability/iaaMetrics';

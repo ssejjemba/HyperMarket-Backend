@@ -80,7 +80,7 @@ export type DatabaseSchema = {
   sessions: {
     id: string;
     user_id: string;
-    token_id: string;
+    token_hash: string;
     expires_at: Date;
     created_at: Date;
     revoked_at: Date | null;
