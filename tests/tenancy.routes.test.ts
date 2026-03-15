@@ -609,6 +609,16 @@ flowSuite('TEN routes - create tenant', () => {
       expect(revokeRes.statusCode).toBe(403);
       expect(revokeRes.json<ErrorEnvelope>().error_code).toBe(ErrorCode.TenantAccessForbidden);
 
+      const roleRes = await server.inject({
+        method: 'PATCH',
+        url: `/tenants/${ctx.seed.tenantId}/memberships/${revokeTargetUserId}/role`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { role: 'manager' }
+      });
+
+      expect(roleRes.statusCode).toBe(403);
+      expect(roleRes.json<ErrorEnvelope>().error_code).toBe(ErrorCode.TenantAccessForbidden);
+
       await server.close();
     }
   );
@@ -808,6 +818,183 @@ flowSuite('TEN routes - create tenant', () => {
       .where('tenant_id', '=', ctx.seed.tenantId)
       .execute();
     expect(auditRows).toHaveLength(0);
+
+    await server.close();
+  });
+
+  it('demoting the last active owner fails loudly', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessToken(ctx);
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'PATCH',
+      url: `/tenants/${ctx.seed.tenantId}/memberships/${ctx.seed.userId}/role`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { role: 'manager' }
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.TenantLastOwnerRoleChangeForbidden);
+
+    await server.close();
+  });
+
+  it('role changes succeed and write an audit event', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessToken(ctx);
+    const targetUserId = randomUUID();
+    const targetPhone = `+256712${targetUserId.replace(/-/g, '').slice(0, 6)}`;
+    await ctx.db
+      .insertInto('users')
+      .values({
+        id: targetUserId,
+        phone_e164: targetPhone,
+        email: null,
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .execute();
+    await ctx.db
+      .insertInto('tenant_memberships')
+      .values({
+        id: randomUUID(),
+        tenant_id: ctx.seed.tenantId,
+        user_id: targetUserId,
+        role: 'staff',
+        status: 'active',
+        created_at: new Date(),
+        revoked_at: null
+      })
+      .execute();
+
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'PATCH',
+      url: `/tenants/${ctx.seed.tenantId}/memberships/${targetUserId}/role`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { role: 'manager' }
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{
+      membership: {
+        user_id: string;
+        role: string;
+        status: string;
+        created_at: string;
+        revoked_at: string | null;
+      };
+    }>();
+    expect(body.membership).toMatchObject({
+      user_id: targetUserId,
+      role: 'manager',
+      status: 'active'
+    });
+
+    const storedMembership = await ctx.db
+      .selectFrom('tenant_memberships')
+      .select(['role', 'status'])
+      .where('tenant_id', '=', ctx.seed.tenantId)
+      .where('user_id', '=', targetUserId)
+      .executeTakeFirst();
+    expect(storedMembership).toMatchObject({
+      role: 'manager',
+      status: 'active'
+    });
+
+    const auditRow = await ctx.db
+      .selectFrom('audit_events')
+      .select([
+        'action',
+        'tenant_id',
+        'actor_user_id',
+        'target_type',
+        'target_id',
+        'before',
+        'after'
+      ])
+      .where('action', '=', 'tenant.membership.role_changed')
+      .where('tenant_id', '=', ctx.seed.tenantId)
+      .orderBy('created_at', 'desc')
+      .executeTakeFirst();
+    expect(auditRow).toMatchObject({
+      action: 'tenant.membership.role_changed',
+      tenant_id: ctx.seed.tenantId,
+      actor_user_id: ctx.seed.userId,
+      target_type: 'tenant_membership',
+      target_id: `${ctx.seed.tenantId}:${targetUserId}`
+    });
+    expect(auditRow?.before).toMatchObject({
+      tenant_id: ctx.seed.tenantId,
+      user_id: targetUserId,
+      role: 'staff',
+      status: 'active'
+    });
+    expect(auditRow?.after).toMatchObject({
+      tenant_id: ctx.seed.tenantId,
+      user_id: targetUserId,
+      role: 'manager',
+      status: 'active'
+    });
+
+    await server.close();
+  });
+
+  it('invalid role changes fail with tenant_membership_role_invalid', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessToken(ctx);
+    const targetUserId = randomUUID();
+    const targetPhone = `+256712${targetUserId.replace(/-/g, '').slice(0, 6)}`;
+    await ctx.db
+      .insertInto('users')
+      .values({
+        id: targetUserId,
+        phone_e164: targetPhone,
+        email: null,
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .execute();
+    await ctx.db
+      .insertInto('tenant_memberships')
+      .values({
+        id: randomUUID(),
+        tenant_id: ctx.seed.tenantId,
+        user_id: targetUserId,
+        role: 'staff',
+        status: 'active',
+        created_at: new Date(),
+        revoked_at: null
+      })
+      .execute();
+
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'PATCH',
+      url: `/tenants/${ctx.seed.tenantId}/memberships/${targetUserId}/role`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { role: 'invalid-role' }
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.TenantMembershipRoleInvalid);
 
     await server.close();
   });

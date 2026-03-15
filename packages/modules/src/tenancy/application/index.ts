@@ -5,6 +5,7 @@ export { createGetTenantSettingsUseCase } from './GetTenantSettingsUseCase';
 export { createListTenantMembershipsUseCase } from './ListTenantMembershipsUseCase';
 export { createRevokeTenantMembershipUseCase } from './RevokeTenantMembershipUseCase';
 export { createListTenantsUseCase } from './ListTenantsUseCase';
+export { createUpdateTenantMembershipRoleUseCase } from './UpdateTenantMembershipRoleUseCase';
 export { createUpdateTenantSettingsUseCase } from './UpdateTenantSettingsUseCase';
 export type {
   CreateTenantMembershipInput,
@@ -18,6 +19,12 @@ export type {
   RevokeTenantMembershipUseCase,
   RevokeTenantMembershipUseCaseDeps
 } from './RevokeTenantMembershipUseCase';
+export type {
+  UpdateTenantMembershipRoleInput,
+  UpdateTenantMembershipRoleOutput,
+  UpdateTenantMembershipRoleUseCase,
+  UpdateTenantMembershipRoleUseCaseDeps
+} from './UpdateTenantMembershipRoleUseCase';
 export type {
   CreateTenantInput,
   CreateTenantOutput,

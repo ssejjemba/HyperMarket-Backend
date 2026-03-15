@@ -12,6 +12,7 @@ import type {
   ListTenantMembershipsUseCase,
   RevokeTenantMembershipUseCase,
   ListTenantsUseCase,
+  UpdateTenantMembershipRoleUseCase,
   UpdateTenantSettingsUseCase
 } from '../application';
 import type { MembershipReader } from '../MembershipReader';
@@ -21,8 +22,8 @@ import { makeGetTenantHandler } from './controllers/getTenantController';
 import { makeGetTenantSettingsHandler } from './controllers/getTenantSettingsController';
 import { makeListTenantMembershipsHandler } from './controllers/listTenantMembershipsController';
 import { makeListTenantsHandler } from './controllers/listTenantsController';
-import { makeNotImplementedTenantHandler } from './controllers/notImplementedTenantController';
 import { makeRevokeTenantMembershipHandler } from './controllers/revokeTenantMembershipController';
+import { makeUpdateTenantMembershipRoleHandler } from './controllers/updateTenantMembershipRoleController';
 import { makeUpdateTenantSettingsHandler } from './controllers/updateTenantSettingsController';
 
 export type TenancyApiDeps = {
@@ -34,6 +35,7 @@ export type TenancyApiDeps = {
   listTenantMembershipsUseCase: ListTenantMembershipsUseCase;
   listTenantsUseCase: ListTenantsUseCase;
   revokeTenantMembershipUseCase: RevokeTenantMembershipUseCase;
+  updateTenantMembershipRoleUseCase: UpdateTenantMembershipRoleUseCase;
   updateTenantSettingsUseCase: UpdateTenantSettingsUseCase;
   sessionService: SessionService;
   membershipReader: MembershipReader;
@@ -108,9 +110,6 @@ export const registerTenancyApiRoutes = async (
   server.patch(
     '/tenants/:tenantId/memberships/:userId/role',
     { preHandler: tenantOwnerGuard },
-    makeNotImplementedTenantHandler(
-      deps.logger,
-      'tenancy.update_tenant_membership_role.not_implemented'
-    )
+    makeUpdateTenantMembershipRoleHandler(deps.updateTenantMembershipRoleUseCase)
   );
 };
