@@ -9,6 +9,7 @@ import {
   PublishingError,
   createConfigValidator,
   createPublishConfigUseCase,
+  createRevalidationPlanner,
   createRollbackConfigUseCase,
   createStoreConfigRepoPg
 } from '../../packages/modules/src/publishing';
@@ -32,11 +33,13 @@ const run = async (): Promise<void> => {
   const configValidator = createConfigValidator(createTemplateRegistry());
   const publishConfigUseCase = createPublishConfigUseCase({
     db,
-    configValidator
+    configValidator,
+    revalidationPlanner: createRevalidationPlanner()
   });
   const rollbackConfigUseCase = createRollbackConfigUseCase({
     db,
-    configValidator
+    configValidator,
+    revalidationPlanner: createRevalidationPlanner()
   });
   const stamp = Date.now().toString();
   const suffix = stamp.slice(-12).padStart(12, '0');
@@ -360,7 +363,8 @@ const run = async (): Promise<void> => {
   assert.deepEqual(outboxEvent.payload, {
     tenant_id: otherTenantId,
     config_id: publishDraft.id,
-    previous_config_id: draftTwo.id
+    previous_config_id: draftTwo.id,
+    targets: ['/', '/sitemap.xml', '/robots.txt']
   });
 
   const invalidPublishConfigId = `60000000-0000-0000-0000-${suffix}`;
@@ -440,7 +444,8 @@ const run = async (): Promise<void> => {
   assert.deepEqual(rollbackOutboxEvent.payload, {
     tenant_id: otherTenantId,
     config_id: draftTwo.id,
-    previous_config_id: publishDraft.id
+    previous_config_id: publishDraft.id,
+    targets: ['/', '/sitemap.xml', '/robots.txt']
   });
 
   let invalidRollbackError: unknown;

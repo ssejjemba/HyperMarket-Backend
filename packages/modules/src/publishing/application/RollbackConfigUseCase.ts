@@ -11,6 +11,7 @@ import { ErrorCode } from '@hypermarket/contracts';
 import type { ValidationReport } from '../domain';
 import { PublishingError } from '../errors/PublishingError';
 import { createStoreConfigRepoPg } from '../persistence';
+import type { RevalidationPlanner } from './RevalidationPlanner';
 import { toAuditRequestId } from './auditRequestId';
 
 export type RollbackConfigInput = {
@@ -35,6 +36,7 @@ export type RollbackConfigUseCaseDeps = {
   configValidator: {
     validate(templateId: string, templateVersion: string, payload: unknown): ValidationReport;
   };
+  revalidationPlanner: RevalidationPlanner;
 };
 
 const toAuditPayload = (config: {
@@ -107,6 +109,8 @@ export const createRollbackConfigUseCase = (
           });
         }
 
+        const revalidationPlan = deps.revalidationPlanner.planForTenant(input.tenantId);
+
         if (activeConfig !== null) {
           await trx
             .updateTable('store_configs')
@@ -167,7 +171,8 @@ export const createRollbackConfigUseCase = (
           payload: {
             tenant_id: input.tenantId,
             config_id: targetConfig.id,
-            previous_config_id: activeConfig?.id ?? null
+            previous_config_id: activeConfig?.id ?? null,
+            targets: revalidationPlan.targets
           }
         });
 

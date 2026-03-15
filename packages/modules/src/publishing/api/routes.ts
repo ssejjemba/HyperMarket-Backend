@@ -14,9 +14,11 @@ import {
   createGetStoreConfigUseCase,
   createListStoreConfigsUseCase,
   createPublishConfigUseCase,
+  createRevalidationPlanner,
   createRollbackConfigUseCase,
   createUpdateStoreConfigUseCase,
-  type ConfigValidator
+  type ConfigValidator,
+  type RevalidationPlanner
 } from '../application';
 import { makeCreateStoreConfigHandler } from './controllers/createStoreConfigController';
 import { makeGetStoreConfigHandler } from './controllers/getStoreConfigController';
@@ -31,6 +33,7 @@ export type PublishingApiDeps = {
   sessionService: SessionService;
   membershipReader: MembershipReader;
   configValidator: ConfigValidator;
+  revalidationPlanner?: RevalidationPlanner;
 };
 
 export const registerPublishingApiRoutes = async (
@@ -50,13 +53,16 @@ export const registerPublishingApiRoutes = async (
     db: deps.db,
     configValidator: deps.configValidator
   });
+  const revalidationPlanner = deps.revalidationPlanner ?? createRevalidationPlanner();
   const publishConfigUseCase = createPublishConfigUseCase({
     db: deps.db,
-    configValidator: deps.configValidator
+    configValidator: deps.configValidator,
+    revalidationPlanner
   });
   const rollbackConfigUseCase = createRollbackConfigUseCase({
     db: deps.db,
-    configValidator: deps.configValidator
+    configValidator: deps.configValidator,
+    revalidationPlanner
   });
 
   const tenantGuard = requireTenantMembership({

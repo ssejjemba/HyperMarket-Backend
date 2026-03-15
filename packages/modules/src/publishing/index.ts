@@ -6,7 +6,7 @@ import { createTokenSigner } from '../iaa/session/TokenSigner';
 import { createMembershipReaderPg } from '../tenancy/persistence/TenancyMembershipReaderPg';
 import { createTemplateRegistry } from '../templates';
 import type { ModuleDeps } from '../types';
-import { createConfigValidator } from './application';
+import { createConfigValidator, createRevalidationPlanner } from './application';
 import { registerPublishingApiRoutes } from './api/routes';
 
 export const registerPublishingRoutes = async (
@@ -27,19 +27,23 @@ export const registerPublishingRoutes = async (
   const membershipReader = createMembershipReaderPg(deps.db);
   const templateRegistry = createTemplateRegistry();
   const configValidator = createConfigValidator(templateRegistry);
+  const revalidationPlanner = createRevalidationPlanner();
 
   await registerPublishingApiRoutes(server, {
     db: deps.db,
     logger: deps.logger,
     sessionService,
     membershipReader,
-    configValidator
+    configValidator,
+    revalidationPlanner
   });
 };
 
 export { registerPublishingApiRoutes } from './api/routes';
 export { createConfigValidator } from './application';
 export type { ConfigValidator } from './application';
+export { createRevalidationPlanner } from './application';
+export type { RevalidationPlan, RevalidationPlanner } from './application';
 export { createPublishConfigUseCase } from './application';
 export type { PublishConfigInput, PublishConfigOutput, PublishConfigUseCase } from './application';
 export { createRollbackConfigUseCase } from './application';
