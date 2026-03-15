@@ -12,6 +12,7 @@
     "@hypermarket/core": "workspace:*",
     "@hypermarket/contracts": "workspace:*",
     "fastify": "^4.28.1",
+    "ioredis": "^5.4.1",
     "jose": "^5.6.0",
     "kysely": "^0.28.11",
     "pino": "^10.3.1",

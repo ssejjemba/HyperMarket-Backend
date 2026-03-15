@@ -220,8 +220,12 @@ describe('OtpChallengePolicy — canResend', () => {
     challengeTtlSeconds: 300,
     resendCooldownSeconds: 60,
     maxAttempts: 5,
-    rateLimitWindowSeconds: 3600,
-    rateLimitMaxChallengesPerPhone: 5
+    phoneRateLimitBurstWindowSeconds: 600,
+    phoneRateLimitBurstMaxChallenges: 3,
+    phoneRateLimitDailyWindowSeconds: 86_400,
+    phoneRateLimitDailyMaxChallenges: 10,
+    ipRateLimitWindowSeconds: 300,
+    ipRateLimitMaxChallenges: 20
   });
 
   it('returns true when cooldown has elapsed', () => {
@@ -247,7 +251,13 @@ describe('OtpChallengePolicy — canResend', () => {
     expect(policy.challengeTtlSeconds).toBe(300);
     expect(policy.resendCooldownSeconds).toBe(60);
     expect(policy.maxAttempts).toBe(5);
-    expect(policy.rateLimitWindowSeconds).toBe(3600);
-    expect(policy.rateLimitMaxChallengesPerPhone).toBe(5);
+    expect(policy.phoneRateLimitBurstWindowSeconds).toBe(600);
+    expect(policy.phoneRateLimitBurstMaxChallenges).toBe(3);
+    expect(policy.phoneRateLimitDailyWindowSeconds).toBe(86_400);
+    expect(policy.phoneRateLimitDailyMaxChallenges).toBe(10);
+    expect(policy.ipRateLimitWindowSeconds).toBe(300);
+    expect(policy.ipRateLimitMaxChallenges).toBe(20);
+    expect(policy.rateLimitWindowSeconds).toBe(600);
+    expect(policy.rateLimitMaxChallengesPerPhone).toBe(3);
   });
 });

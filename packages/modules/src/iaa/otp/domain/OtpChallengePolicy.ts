@@ -10,19 +10,42 @@ export class OtpChallengePolicy {
   readonly maxAttempts: number;
   readonly rateLimitWindowSeconds: number;
   readonly rateLimitMaxChallengesPerPhone: number;
+  readonly phoneRateLimitBurstWindowSeconds: number;
+  readonly phoneRateLimitBurstMaxChallenges: number;
+  readonly phoneRateLimitDailyWindowSeconds: number;
+  readonly phoneRateLimitDailyMaxChallenges: number;
+  readonly ipRateLimitWindowSeconds: number;
+  readonly ipRateLimitMaxChallenges: number;
 
   constructor(params: {
     challengeTtlSeconds: number;
     resendCooldownSeconds: number;
     maxAttempts: number;
-    rateLimitWindowSeconds: number;
-    rateLimitMaxChallengesPerPhone: number;
+    rateLimitWindowSeconds?: number;
+    rateLimitMaxChallengesPerPhone?: number;
+    phoneRateLimitBurstWindowSeconds?: number;
+    phoneRateLimitBurstMaxChallenges?: number;
+    phoneRateLimitDailyWindowSeconds?: number;
+    phoneRateLimitDailyMaxChallenges?: number;
+    ipRateLimitWindowSeconds?: number;
+    ipRateLimitMaxChallenges?: number;
   }) {
     this.challengeTtlSeconds = params.challengeTtlSeconds;
     this.resendCooldownSeconds = params.resendCooldownSeconds;
     this.maxAttempts = params.maxAttempts;
-    this.rateLimitWindowSeconds = params.rateLimitWindowSeconds;
-    this.rateLimitMaxChallengesPerPhone = params.rateLimitMaxChallengesPerPhone;
+
+    this.phoneRateLimitBurstWindowSeconds =
+      params.phoneRateLimitBurstWindowSeconds ?? params.rateLimitWindowSeconds ?? 600;
+    this.phoneRateLimitBurstMaxChallenges =
+      params.phoneRateLimitBurstMaxChallenges ?? params.rateLimitMaxChallengesPerPhone ?? 3;
+    this.phoneRateLimitDailyWindowSeconds = params.phoneRateLimitDailyWindowSeconds ?? 86_400;
+    this.phoneRateLimitDailyMaxChallenges = params.phoneRateLimitDailyMaxChallenges ?? 10;
+    this.ipRateLimitWindowSeconds = params.ipRateLimitWindowSeconds ?? 600;
+    this.ipRateLimitMaxChallenges = params.ipRateLimitMaxChallenges ?? 20;
+
+    // Backwards-compatible aliases for older tests and call sites.
+    this.rateLimitWindowSeconds = this.phoneRateLimitBurstWindowSeconds;
+    this.rateLimitMaxChallengesPerPhone = this.phoneRateLimitBurstMaxChallenges;
   }
 
   /**

@@ -33,7 +33,8 @@ export const makeRequestOtpHandler =
     const result = await useCase.execute({
       phoneRaw: parsed.data.phone,
       requestId: request.id,
-      traceId: (request.headers['x-trace-id'] as string | undefined) ?? undefined
+      traceId: (request.headers['x-trace-id'] as string | undefined) ?? undefined,
+      ipAddress: request.ip
     });
 
     return {

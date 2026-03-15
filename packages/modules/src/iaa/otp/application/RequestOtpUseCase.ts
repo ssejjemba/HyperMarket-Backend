@@ -16,6 +16,7 @@ export type RequestOtpInput = {
   phoneRaw: string;
   requestId: string;
   traceId?: string | undefined;
+  ipAddress?: string | undefined;
 };
 
 export type RequestOtpOutput = {
@@ -48,7 +49,7 @@ export const createRequestOtpUseCase = (deps: RequestOtpUseCaseDeps): RequestOtp
 
   return {
     async execute(input: RequestOtpInput): Promise<RequestOtpOutput> {
-      const { phoneRaw, requestId, traceId } = input;
+      const { phoneRaw, requestId, traceId, ipAddress } = input;
 
       logIaaEvent(
         logger,
@@ -68,7 +69,7 @@ export const createRequestOtpUseCase = (deps: RequestOtpUseCaseDeps): RequestOtp
       const phone_masked = phone.toMasked();
 
       try {
-        const result = await otpService.requestChallenge(phone, { requestId, traceId });
+        const result = await otpService.requestChallenge(phone, { requestId, traceId, ipAddress });
 
         logIaaEvent(
           logger,

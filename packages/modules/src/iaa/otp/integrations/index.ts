@@ -1,3 +1,6 @@
+export type { OtpRequestRateLimiter, RateLimitDecision } from './OtpRequestRateLimiter';
+export { createRedisOtpRequestRateLimiter } from './RedisOtpRequestRateLimiter';
+export type { RedisLike } from './RedisOtpRequestRateLimiter';
 export type {
   OtpVerificationProvider,
   StartOtpVerificationInput,

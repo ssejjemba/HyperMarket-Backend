@@ -10,6 +10,7 @@ import type { IaaApiDeps } from './api/routes';
 import { createTenancyMembershipAdapter } from './membership/TenancyMembershipAdapter';
 import type { MembershipReader } from './membership/MembershipReader';
 import { OtpChallengePolicy } from './otp/domain/OtpChallengePolicy';
+import type { OtpRequestRateLimiter } from './otp/integrations/OtpRequestRateLimiter';
 import type { OtpVerificationProvider } from './otp/integrations/OtpVerificationProvider';
 import { createOtpChallengeRepoPg } from './otp/persistence/OtpChallengeRepoPg';
 import { createOtpChallengeService } from './otp/OtpChallengeService';
@@ -43,6 +44,7 @@ export type IaaApiTestServerParams = {
   db: Kysely<DatabaseSchema>;
   /** Defaults to a stub that approves the code "123456". */
   verificationProvider?: OtpVerificationProvider | undefined;
+  rateLimiter?: OtpRequestRateLimiter | undefined;
   jwtSecret?: string | undefined;
   sessionTtlSeconds?: number | undefined;
   otpTtlSeconds?: number | undefined;
@@ -70,8 +72,12 @@ export const buildIaaApiTestServer = async (params: IaaApiTestServerParams) => {
     challengeTtlSeconds: otpTtlSeconds,
     resendCooldownSeconds,
     maxAttempts,
-    rateLimitWindowSeconds,
-    rateLimitMaxChallengesPerPhone
+    phoneRateLimitBurstWindowSeconds: rateLimitWindowSeconds,
+    phoneRateLimitBurstMaxChallenges: rateLimitMaxChallengesPerPhone,
+    phoneRateLimitDailyWindowSeconds: 86_400,
+    phoneRateLimitDailyMaxChallenges: 10,
+    ipRateLimitWindowSeconds: 600,
+    ipRateLimitMaxChallenges: 20
   });
 
   const verificationProvider =
@@ -83,6 +89,12 @@ export const buildIaaApiTestServer = async (params: IaaApiTestServerParams) => {
         provider: 'test'
       })
     } satisfies OtpVerificationProvider);
+  const rateLimiter =
+    params.rateLimiter ??
+    ({
+      checkPhone: async () => ({ allowed: true }),
+      checkIp: async () => ({ allowed: true })
+    } satisfies OtpRequestRateLimiter);
 
   const otpRepo = createOtpChallengeRepoPg(params.db);
   const userRepo = createUserRepoPg(params.db);
@@ -92,6 +104,7 @@ export const buildIaaApiTestServer = async (params: IaaApiTestServerParams) => {
   const otpService = createOtpChallengeService({
     repo: otpRepo,
     verificationProvider,
+    rateLimiter,
     policy,
     logger: silentLogger
   });

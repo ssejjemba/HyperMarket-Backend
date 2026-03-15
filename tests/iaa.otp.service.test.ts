@@ -9,7 +9,7 @@ import { OtpChallengePolicy } from '@hypermarket/modules/iaa';
 import { PhoneNumber } from '@hypermarket/modules/iaa';
 
 import type { OtpChallengeService } from '@hypermarket/modules/iaa/otp-service';
-import type { OtpVerificationProvider } from '@hypermarket/modules/iaa';
+import type { OtpRequestRateLimiter, OtpVerificationProvider } from '@hypermarket/modules/iaa';
 import type { OtpChallengeRepository } from '@hypermarket/modules/iaa/persistence';
 
 // ---------------------------------------------------------------------------
@@ -79,6 +79,14 @@ suite('OtpChallengeService — integration', () => {
     ...overrides
   });
 
+  const makeRateLimiter = (
+    overrides: Partial<OtpRequestRateLimiter> = {}
+  ): OtpRequestRateLimiter => ({
+    checkPhone: async () => ({ allowed: true }),
+    checkIp: async () => ({ allowed: true }),
+    ...overrides
+  });
+
   beforeEach(async () => {
     ctx = await createTestContext();
     repo = createOtpChallengeRepoPg(ctx.db);
@@ -87,6 +95,7 @@ suite('OtpChallengeService — integration', () => {
     service = createOtpChallengeService({
       repo,
       verificationProvider: makeProvider(),
+      rateLimiter: makeRateLimiter(),
       policy: POLICY,
       logger: silentLogger
     });
@@ -244,6 +253,7 @@ suite('OtpChallengeService — integration', () => {
           });
         }
       }),
+      rateLimiter: makeRateLimiter(),
       policy: POLICY,
       logger: silentLogger
     });
@@ -283,39 +293,71 @@ suite('OtpChallengeService — integration', () => {
   // Request rate limiting
   // -------------------------------------------------------------------------
 
-  it('repeated requests exceeding the per-phone limit throw AUTH_OTP_RATE_LIMITED_PHONE', async () => {
-    for (let i = 0; i < POLICY.rateLimitMaxChallengesPerPhone; i++) {
-      await service.requestChallenge(PHONE, CTX);
-    }
+  it('phone rate limits throw AUTH_OTP_RATE_LIMITED_PHONE', async () => {
+    const limitedService = createOtpChallengeService({
+      repo,
+      verificationProvider: makeProvider(),
+      rateLimiter: makeRateLimiter({
+        checkPhone: async () => ({ allowed: false, retryAfterSeconds: 600 })
+      }),
+      policy: POLICY,
+      logger: silentLogger
+    });
 
     await expectIaaError(
-      () => service.requestChallenge(PHONE, CTX),
+      () => limitedService.requestChallenge(PHONE, CTX),
       ErrorCode.AuthOtpRateLimitedPhone
     );
   });
 
-  it('rate-limited requests include retry_after_seconds and do not write a new challenge', async () => {
-    for (let i = 0; i < POLICY.rateLimitMaxChallengesPerPhone; i++) {
-      await service.requestChallenge(PHONE, CTX);
-    }
-
+  it('phone rate limits include retry_after_seconds and do not write a new challenge', async () => {
     const before = await repo.countRecentChallengesForPhone(PHONE.toE164(), new Date(0));
+    const limitedService = createOtpChallengeService({
+      repo,
+      verificationProvider: makeProvider(),
+      rateLimiter: makeRateLimiter({
+        checkPhone: async () => ({ allowed: false, retryAfterSeconds: 600 })
+      }),
+      policy: POLICY,
+      logger: silentLogger
+    });
 
     let thrown: unknown;
     try {
-      await service.requestChallenge(PHONE, CTX);
+      await limitedService.requestChallenge(PHONE, CTX);
     } catch (error) {
       thrown = error;
     }
 
     expect(thrown).toBeInstanceOf(IaaError);
     expect((thrown as IaaError).code).toBe(ErrorCode.AuthOtpRateLimitedPhone);
-    expect((thrown as IaaError).details?.['retry_after_seconds']).toBe(
-      POLICY.rateLimitWindowSeconds
-    );
+    expect((thrown as IaaError).details?.['retry_after_seconds']).toBe(600);
 
     const after = await repo.countRecentChallengesForPhone(PHONE.toE164(), new Date(0));
     expect(after).toBe(before);
+  });
+
+  it('ip rate limits throw AUTH_OTP_RATE_LIMITED_IP with retry_after_seconds', async () => {
+    const limitedService = createOtpChallengeService({
+      repo,
+      verificationProvider: makeProvider(),
+      rateLimiter: makeRateLimiter({
+        checkIp: async () => ({ allowed: false, retryAfterSeconds: 120 })
+      }),
+      policy: POLICY,
+      logger: silentLogger
+    });
+
+    let thrown: unknown;
+    try {
+      await limitedService.requestChallenge(PHONE, { ...CTX, ipAddress: '127.0.0.1' });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(IaaError);
+    expect((thrown as IaaError).code).toBe(ErrorCode.AuthOtpRateLimitedIp);
+    expect((thrown as IaaError).details?.['retry_after_seconds']).toBe(120);
   });
 
   // -------------------------------------------------------------------------

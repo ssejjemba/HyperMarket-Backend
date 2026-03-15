@@ -4,6 +4,7 @@ import type { BaseLogger } from 'pino';
 import { IaaError } from '../errors/IaaError';
 import type { PhoneNumber } from '../phone/PhoneNumber';
 import type { OtpChallengePolicy } from './domain/OtpChallengePolicy';
+import type { OtpRequestRateLimiter } from './integrations/OtpRequestRateLimiter';
 import type { OtpVerificationProvider } from './integrations/OtpVerificationProvider';
 import type { OtpChallengeRepository } from './persistence/OtpChallengeRepository';
 
@@ -14,6 +15,7 @@ import type { OtpChallengeRepository } from './persistence/OtpChallengeRepositor
 export type OtpRequestContext = {
   requestId: string;
   traceId?: string | undefined;
+  ipAddress?: string | undefined;
 };
 
 export type OtpVerifyContext = {
@@ -39,6 +41,7 @@ export type VerifyChallengeResult = {
 export type OtpChallengeServiceDeps = {
   repo: OtpChallengeRepository;
   verificationProvider: OtpVerificationProvider;
+  rateLimiter: OtpRequestRateLimiter;
   policy: OtpChallengePolicy;
   logger: BaseLogger;
 };
@@ -54,7 +57,7 @@ export type OtpChallengeService = {
 };
 
 export const createOtpChallengeService = (deps: OtpChallengeServiceDeps): OtpChallengeService => {
-  const { repo, verificationProvider, policy, logger } = deps;
+  const { repo, verificationProvider, rateLimiter, policy, logger } = deps;
 
   // -------------------------------------------------------------------------
   // requestChallenge
@@ -66,25 +69,44 @@ export const createOtpChallengeService = (deps: OtpChallengeServiceDeps): OtpCha
   ): Promise<RequestChallengeResult> => {
     const phoneE164 = phone.toE164();
     const maskedPhone = phone.toMasked();
+    const ipAddress = ctx.ipAddress ?? 'unknown';
     const now = new Date();
 
-    // --- Rate-limit guard (per phone, rolling window) -----------------------
-    const windowStart = new Date(now.getTime() - policy.rateLimitWindowSeconds * 1000);
-    const recentCount = await repo.countRecentChallengesForPhone(phoneE164, windowStart);
-    if (recentCount >= policy.rateLimitMaxChallengesPerPhone) {
+    // --- Rate-limit guard (Redis-backed phone + IP counters) ----------------
+    const phoneLimit = await rateLimiter.checkPhone(phoneE164);
+    if (phoneLimit.allowed === false) {
       logger.warn(
         {
           event: 'otp.request.rate_limited',
           maskedPhone,
           requestId: ctx.requestId,
-          retryAfterSeconds: policy.rateLimitWindowSeconds
+          retryAfterSeconds: phoneLimit.retryAfterSeconds
         },
         'otp: request rate limited for phone'
       );
       throw new IaaError({
         code: ErrorCode.AuthOtpRateLimitedPhone,
         message: 'Too many OTP requests for this number. Please try again later.',
-        details: { retry_after_seconds: policy.rateLimitWindowSeconds }
+        details: { retry_after_seconds: phoneLimit.retryAfterSeconds }
+      });
+    }
+
+    const ipLimit = await rateLimiter.checkIp(ipAddress);
+    if (ipLimit.allowed === false) {
+      logger.warn(
+        {
+          event: 'otp.request.rate_limited_ip',
+          maskedPhone,
+          ipAddress,
+          requestId: ctx.requestId,
+          retryAfterSeconds: ipLimit.retryAfterSeconds
+        },
+        'otp: request rate limited for ip'
+      );
+      throw new IaaError({
+        code: ErrorCode.AuthOtpRateLimitedIp,
+        message: 'Too many OTP requests from this network. Please try again later.',
+        details: { retry_after_seconds: ipLimit.retryAfterSeconds }
       });
     }
 

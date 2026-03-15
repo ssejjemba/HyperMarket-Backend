@@ -5,6 +5,7 @@ import { registerIaaApiRoutes } from './api/routes';
 import { createTenancyMembershipAdapter } from './membership/TenancyMembershipAdapter';
 import { OtpChallengePolicy } from './otp/domain/OtpChallengePolicy';
 import { createLocalOtpVerificationProvider } from './otp/integrations/LocalOtpVerificationProvider';
+import { createRedisOtpRequestRateLimiter } from './otp/integrations/RedisOtpRequestRateLimiter';
 import { createTwilioOtpVerificationProvider } from './otp/integrations/TwilioOtpVerificationProvider';
 import { createTwilioVerifyClient } from './otp/integrations/TwilioVerifyClient';
 import { createOtpChallengeRepoPg } from './otp/persistence/OtpChallengeRepoPg';
@@ -27,8 +28,12 @@ export const registerIaaRoutes = async (
     challengeTtlSeconds: deps.config.otpTtlSeconds,
     resendCooldownSeconds: 60,
     maxAttempts: 5,
-    rateLimitWindowSeconds: 3600,
-    rateLimitMaxChallengesPerPhone: 5
+    phoneRateLimitBurstWindowSeconds: 600,
+    phoneRateLimitBurstMaxChallenges: 3,
+    phoneRateLimitDailyWindowSeconds: 86_400,
+    phoneRateLimitDailyMaxChallenges: 10,
+    ipRateLimitWindowSeconds: 600,
+    ipRateLimitMaxChallenges: 20
   });
 
   const otpRepo = createOtpChallengeRepoPg(deps.db);
@@ -46,10 +51,15 @@ export const registerIaaRoutes = async (
             serviceSid: deps.config.twilioVerifyServiceSid
           })
         });
+  const rateLimiter = createRedisOtpRequestRateLimiter({
+    redisUrl: deps.config.redisUrl,
+    policy
+  });
 
   const otpService = createOtpChallengeService({
     repo: otpRepo,
     verificationProvider,
+    rateLimiter,
     policy,
     logger: deps.logger
   });
@@ -109,6 +119,12 @@ export { OtpChallenge } from './otp/domain/OtpChallenge';
 export type { OtpChallengeProps, OtpChallengeStatus } from './otp/domain/OtpChallenge';
 export { OtpChallengePolicy } from './otp/domain/OtpChallengePolicy';
 export { createLocalOtpVerificationProvider } from './otp/integrations/LocalOtpVerificationProvider';
+export type {
+  OtpRequestRateLimiter,
+  RateLimitDecision
+} from './otp/integrations/OtpRequestRateLimiter';
+export { createRedisOtpRequestRateLimiter } from './otp/integrations/RedisOtpRequestRateLimiter';
+export type { RedisLike } from './otp/integrations/RedisOtpRequestRateLimiter';
 export type {
   OtpVerificationProvider,
   StartOtpVerificationInput,

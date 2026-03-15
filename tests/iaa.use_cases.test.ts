@@ -148,10 +148,16 @@ describe('RequestOtpUseCase', () => {
     const otpService = makeOtpService();
     const uc = createRequestOtpUseCase({ otpService, logger: silentLogger });
 
-    await uc.execute({ phoneRaw: '+256712345678', requestId: 'r1', traceId: 't-abc' });
+    await uc.execute({
+      phoneRaw: '+256712345678',
+      requestId: 'r1',
+      traceId: 't-abc',
+      ipAddress: '127.0.0.1'
+    });
 
     const [, ctx] = (otpService.requestChallenge as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(ctx.traceId).toBe('t-abc');
+    expect(ctx.ipAddress).toBe('127.0.0.1');
   });
 
   it('does not depend on Fastify types (smoke: use case is constructable without Fastify)', () => {
