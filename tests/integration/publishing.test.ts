@@ -5,7 +5,13 @@ import { fileURLToPath } from 'node:url';
 import { config as loadDotenv } from 'dotenv';
 
 import { createDbClient, sql } from '../../packages/core/src/db/index';
-import { PublishingError, createStoreConfigRepoPg } from '../../packages/modules/src/publishing';
+import {
+  PublishingError,
+  createConfigValidator,
+  createPublishConfigUseCase,
+  createStoreConfigRepoPg
+} from '../../packages/modules/src/publishing';
+import { createTemplateRegistry } from '../../packages/modules/src/templates';
 import { ErrorCode } from '../../packages/contracts/src/errors/errorCodes';
 
 const currentFile = fileURLToPath(import.meta.url);
@@ -22,6 +28,11 @@ if (databaseUrl === undefined || databaseUrl.length === 0) {
 const run = async (): Promise<void> => {
   const db = createDbClient(databaseUrl);
   const storeConfigRepo = createStoreConfigRepoPg(db);
+  const configValidator = createConfigValidator(createTemplateRegistry());
+  const publishConfigUseCase = createPublishConfigUseCase({
+    db,
+    configValidator
+  });
   const stamp = Date.now().toString();
   const suffix = stamp.slice(-12).padStart(12, '0');
   const tenantId = `10000000-0000-0000-0000-${suffix}`;
@@ -254,6 +265,11 @@ const run = async (): Promise<void> => {
     .set({ status: 'active' })
     .where('id', '=', draftTwo.id)
     .execute();
+  await db
+    .updateTable('tenants')
+    .set({ active_config_id: draftTwo.id })
+    .where('id', '=', otherTenantId)
+    .execute();
 
   let nonDraftUpdateError: unknown;
   try {
@@ -270,6 +286,102 @@ const run = async (): Promise<void> => {
 
   assert.ok(nonDraftUpdateError instanceof PublishingError);
   assert.equal(nonDraftUpdateError.code, ErrorCode.ConfigNotDraft);
+
+  const publishDraft = await storeConfigRepo.createDraftConfig({
+    tenantId: otherTenantId,
+    templateId: 'basic-commerce',
+    templateVersion: 'v1',
+    configPayload: {
+      brand_name: 'Publish Draft',
+      hero_title: 'Fresh products for Kampala',
+      hero_subtitle: 'Fast ordering and same-day delivery for local customers.',
+      primary_color: '#0B6E4F',
+      cta_label: 'Shop now'
+    },
+    validationReport: {
+      isValid: true,
+      errors: []
+    },
+    createdByUserId: userId
+  });
+
+  const publishResult = await publishConfigUseCase.execute({
+    tenantId: otherTenantId,
+    configId: publishDraft.id,
+    actorUserId: userId,
+    requestId: `publish-${stamp}`
+  });
+
+  assert.equal(publishResult.activeConfigId, publishDraft.id);
+
+  const publishedTenant = await db
+    .selectFrom('tenants')
+    .select('active_config_id')
+    .where('id', '=', otherTenantId)
+    .executeTakeFirst();
+  assert.equal(publishedTenant?.active_config_id, publishDraft.id);
+
+  const publishedHistory = await db
+    .selectFrom('publish_history')
+    .select(['action', 'from_config_id', 'to_config_id', 'result'])
+    .where('tenant_id', '=', otherTenantId)
+    .where('to_config_id', '=', publishDraft.id)
+    .executeTakeFirst();
+  assert.deepEqual(publishedHistory, {
+    action: 'publish',
+    from_config_id: draftTwo.id,
+    to_config_id: publishDraft.id,
+    result: 'success'
+  });
+
+  const outboxEvent = await db
+    .selectFrom('outbox_events')
+    .select(['event_type', 'tenant_id', 'actor_user_id', 'payload'])
+    .where('tenant_id', '=', otherTenantId)
+    .where('event_type', '=', 'Publish.Completed')
+    .executeTakeFirst();
+  assert.ok(outboxEvent);
+  assert.equal(outboxEvent.event_type, 'Publish.Completed');
+  assert.equal(outboxEvent.tenant_id, otherTenantId);
+  assert.equal(outboxEvent.actor_user_id, userId);
+  assert.deepEqual(outboxEvent.payload, {
+    tenant_id: otherTenantId,
+    config_id: publishDraft.id,
+    previous_config_id: draftTwo.id
+  });
+
+  const invalidPublishConfigId = `60000000-0000-0000-0000-${suffix}`;
+  await db
+    .insertInto('store_configs')
+    .values({
+      id: invalidPublishConfigId,
+      tenant_id: otherTenantId,
+      status: 'draft',
+      template_id: 'basic-commerce',
+      template_version: 'v1',
+      config_version: 4,
+      config_payload: {
+        hero_title: 'Fresh products for Kampala'
+      },
+      validation_report: null,
+      created_by_user_id: userId,
+      created_at: new Date()
+    })
+    .execute();
+
+  let invalidPublishError: unknown;
+  try {
+    await publishConfigUseCase.execute({
+      tenantId: otherTenantId,
+      configId: invalidPublishConfigId,
+      actorUserId: userId
+    });
+  } catch (error) {
+    invalidPublishError = error;
+  }
+
+  assert.ok(invalidPublishError instanceof PublishingError);
+  assert.equal(invalidPublishError.code, ErrorCode.PublishValidationFailed);
 
   await db.destroy();
 };
