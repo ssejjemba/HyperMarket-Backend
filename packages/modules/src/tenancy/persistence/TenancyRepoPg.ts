@@ -2,20 +2,32 @@ import { sql, type Kysely, type Transaction } from 'kysely';
 
 import type { DatabaseSchema } from '@hypermarket/core';
 
+import { DomainName } from '../domain/DomainName';
 import type { Tenant, TenantMembership, TenantSettings } from '../domain/Tenant';
-import type { CreateTenantInput, TenancyRepository } from './TenancyRepository';
+import { TenantSlug } from '../domain/TenantSlug';
+import type {
+  CreateTenantInput,
+  CreateTenancyRepositoryOptions,
+  TenancyRepository
+} from './TenancyRepository';
 
-export const createTenancyRepository = (db: Kysely<DatabaseSchema>): TenancyRepository => {
+export const createTenancyRepository = (
+  db: Kysely<DatabaseSchema>,
+  options: CreateTenancyRepositoryOptions = {}
+): TenancyRepository => {
   const createTenant = async (
     trx: Transaction<DatabaseSchema>,
     input: CreateTenantInput
   ): Promise<Tenant> => {
+    const slug = TenantSlug.parse(input.slug);
+    const domain = DomainName.parseSubdomain(input.domain, slug, options.platformRootDomain ?? '');
+
     const tenantRow = await trx
       .insertInto('tenants')
       .values({
         id: sql`gen_random_uuid()` as unknown as string,
         business_name: input.name,
-        slug: input.slug,
+        slug: slug.toString(),
         status: 'active',
         default_currency: 'UGX',
         active_config_id: null,
@@ -51,7 +63,7 @@ export const createTenancyRepository = (db: Kysely<DatabaseSchema>): TenancyRepo
       .values({
         id: sql`gen_random_uuid()` as unknown as string,
         tenant_id: tenantRow.id,
-        domain: input.domain,
+        domain: domain.toString(),
         domain_type: 'subdomain',
         verification_status: 'verified',
         is_primary: true,

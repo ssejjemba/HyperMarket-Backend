@@ -6,6 +6,7 @@ import { config as loadDotenv } from 'dotenv';
 import type { Transaction } from 'kysely';
 
 import type { DatabaseSchema } from '../../packages/core/src/db/client';
+import { loadEnv } from '../../packages/core/src/config/loadEnv';
 import { createDbClient } from '../../packages/core/src/db/index';
 import { createTenancyRepository } from '../../packages/modules/src/tenancy/index';
 
@@ -21,12 +22,15 @@ if (databaseUrl === undefined || databaseUrl.length === 0) {
 }
 
 const run = async (): Promise<void> => {
+  const config = loadEnv();
   const db = createDbClient(databaseUrl);
-  const repo = createTenancyRepository(db);
+  const repo = createTenancyRepository(db, {
+    platformRootDomain: config.platformRootDomain
+  });
 
   const stamp = Date.now();
   const slug = `test-tenant-${stamp}`;
-  const domain = `tenant-${stamp}.example.com`;
+  const domain = `${slug}.${config.platformRootDomain}`;
   const ownerUserId = '00000000-0000-0000-0000-000000000001';
 
   const tenant = await db.transaction().execute(async (trx: Transaction<DatabaseSchema>) => {
@@ -54,7 +58,7 @@ const run = async (): Promise<void> => {
           name: 'Duplicate Slug Tenant',
           slug,
           ownerUserId,
-          domain: `other-${stamp}.example.com`
+          domain: `other-${stamp}.${config.platformRootDomain}`
         })
       ),
     /tenant/i

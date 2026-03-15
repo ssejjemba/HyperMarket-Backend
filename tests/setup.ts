@@ -38,3 +38,7 @@ if (process.env.TWILIO_AUTH_TOKEN === undefined) {
 if (process.env.TWILIO_VERIFY_SERVICE_SID === undefined) {
   process.env.TWILIO_VERIFY_SERVICE_SID = 'VAtestservicesid000000000000000000';
 }
+
+if (process.env.PLATFORM_ROOT_DOMAIN === undefined) {
+  process.env.PLATFORM_ROOT_DOMAIN = 'platform.ug';
+}

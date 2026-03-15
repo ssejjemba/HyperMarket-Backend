@@ -11,6 +11,10 @@ export type CreateTenantInput = {
   domain: string;
 };
 
+export type CreateTenancyRepositoryOptions = {
+  platformRootDomain?: string;
+};
+
 export interface TenancyRepository {
   createTenant(trx: Transaction<DatabaseSchema>, input: CreateTenantInput): Promise<Tenant>;
   listTenantsForUser(userId: string): Promise<Tenant[]>;

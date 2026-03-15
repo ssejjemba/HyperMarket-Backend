@@ -23,6 +23,7 @@ const TEST_CONFIG: AppConfig = {
   twilioAccountSid: 'ACtestaccountsid000000000000000000',
   twilioAuthToken: 'test-twilio-auth-token',
   twilioVerifyServiceSid: 'VAtestservicesid000000000000000000',
+  platformRootDomain: 'platform.ug',
   otpSecret: 'test-otp-secret-minimum-32-characters',
   otpTtlSeconds: 300,
   sessionTtlSeconds: 3600,

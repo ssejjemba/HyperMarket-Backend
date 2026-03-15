@@ -9,6 +9,7 @@ const envSchema = z.object({
   TWILIO_ACCOUNT_SID: z.string().min(1, { message: 'Required' }),
   TWILIO_AUTH_TOKEN: z.string().min(1, { message: 'Required' }),
   TWILIO_VERIFY_SERVICE_SID: z.string().min(1, { message: 'Required' }),
+  PLATFORM_ROOT_DOMAIN: z.string().min(1, { message: 'Required' }),
   OTP_SECRET: z.string().min(1).optional(),
   OTP_TTL_SECONDS: z
     .string()
@@ -71,6 +72,7 @@ export type AppConfig = {
   twilioAccountSid: EnvSchema['TWILIO_ACCOUNT_SID'];
   twilioAuthToken: EnvSchema['TWILIO_AUTH_TOKEN'];
   twilioVerifyServiceSid: EnvSchema['TWILIO_VERIFY_SERVICE_SID'];
+  platformRootDomain: EnvSchema['PLATFORM_ROOT_DOMAIN'];
   otpSecret: string;
   otpTtlSeconds: number;
   sessionTtlSeconds: number;
@@ -98,6 +100,7 @@ export const loadEnv = (): AppConfig => {
     twilioAccountSid: result.data.TWILIO_ACCOUNT_SID,
     twilioAuthToken: result.data.TWILIO_AUTH_TOKEN,
     twilioVerifyServiceSid: result.data.TWILIO_VERIFY_SERVICE_SID,
+    platformRootDomain: result.data.PLATFORM_ROOT_DOMAIN,
     otpSecret,
     otpTtlSeconds: result.data.OTP_TTL_SECONDS,
     sessionTtlSeconds: result.data.SESSION_TTL_SECONDS,

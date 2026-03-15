@@ -19,7 +19,9 @@ const requireAdmin = (headers: Record<string, string | string[] | undefined>) =>
 };
 
 export const registerRoutes = async (server: FastifyInstance, deps: ModuleDeps): Promise<void> => {
-  const repo = createTenancyRepository(deps.db);
+  const repo = createTenancyRepository(deps.db, {
+    platformRootDomain: deps.config.platformRootDomain
+  });
 
   server.post('/admin/tenants', async (request) => {
     requireAdmin(request.headers as Record<string, string | string[] | undefined>);
