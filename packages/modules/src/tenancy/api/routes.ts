@@ -1,10 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import type { BaseLogger } from 'pino';
 
+import type { SessionService } from '../../iaa/session/SessionService';
+import type { CreateTenantUseCase } from '../application';
+import { makeCreateTenantHandler } from './controllers/createTenantController';
 import { makeNotImplementedTenantHandler } from './controllers/notImplementedTenantController';
 
 export type TenancyApiDeps = {
   logger: BaseLogger;
+  createTenantUseCase: CreateTenantUseCase;
+  sessionService: SessionService;
 };
 
 export const registerTenancyApiRoutes = async (
@@ -13,10 +18,7 @@ export const registerTenancyApiRoutes = async (
 ): Promise<void> => {
   deps.logger.info({ module: 'tenancy' }, 'registering TEN routes');
 
-  server.post(
-    '/tenants',
-    makeNotImplementedTenantHandler(deps.logger, 'tenancy.create_tenant.not_implemented')
-  );
+  server.post('/tenants', makeCreateTenantHandler(deps.createTenantUseCase, deps.sessionService));
 
   server.get(
     '/tenants',

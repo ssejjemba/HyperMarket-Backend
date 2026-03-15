@@ -34,8 +34,12 @@ export type CreateTenantInput = {
 };
 
 export type CreateTenantOutput = {
-  tenantId: string;
-  slug: string;
+  tenant: {
+    id: string;
+    businessName: string;
+    slug: string;
+    status: 'active' | 'suspended' | 'archived';
+  };
   primaryDomain: string;
 };
 
@@ -106,9 +110,21 @@ export const createCreateTenantUseCase = (deps: CreateTenantUseCaseDeps): Create
         });
       });
 
+      const createdTenant = await createTenantRepoPg(deps.db).findBySlug(slug.toString());
+      if (createdTenant === null) {
+        throw new TenancyError({
+          code: ErrorCode.TenantNotFound,
+          message: 'Tenant not found after creation'
+        });
+      }
+
       return {
-        tenantId: (await createTenantRepoPg(deps.db).findBySlug(slug.toString()))!.id,
-        slug: slug.toString(),
+        tenant: {
+          id: createdTenant.id,
+          businessName: createdTenant.name,
+          slug: createdTenant.slug,
+          status: createdTenant.status
+        },
         primaryDomain
       };
     }

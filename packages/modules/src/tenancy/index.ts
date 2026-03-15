@@ -1,13 +1,37 @@
 import type { FastifyInstance } from 'fastify';
 
 import type { ModuleDeps } from '../types';
+import { createSessionRepoPg } from '../iaa/session/persistence/SessionRepoPg';
+import { createSessionService } from '../iaa/session/SessionService';
+import { createTokenSigner } from '../iaa/session/TokenSigner';
+import { createCreateTenantUseCase } from './application';
 import { registerTenancyApiRoutes } from './api/routes';
 
 export const registerTenancyRoutes = async (
   server: FastifyInstance,
   deps: ModuleDeps
 ): Promise<void> => {
-  await registerTenancyApiRoutes(server, { logger: deps.logger });
+  const sessionRepo = createSessionRepoPg(deps.db);
+  const tokenSigner = createTokenSigner({
+    secret: deps.config.jwtSecret,
+    ttlSeconds: deps.config.sessionTtlSeconds,
+    issuer: deps.config.jwtIssuer
+  });
+  const sessionService = createSessionService({
+    signer: tokenSigner,
+    repo: sessionRepo,
+    ttlSeconds: deps.config.sessionTtlSeconds
+  });
+  const createTenantUseCase = createCreateTenantUseCase({
+    db: deps.db,
+    platformRootDomain: deps.config.platformRootDomain
+  });
+
+  await registerTenancyApiRoutes(server, {
+    logger: deps.logger,
+    createTenantUseCase,
+    sessionService
+  });
 };
 
 export { TenancyError } from './errors/TenancyError';

@@ -51,41 +51,41 @@ const run = async (): Promise<void> => {
     ownerUserId,
     requestId: `tenant-create-${stamp}`
   });
-  const tenant = await tenantRepo.findById(createResult.tenantId);
+  const tenant = await tenantRepo.findById(createResult.tenant.id);
   assert.ok(tenant);
-  assert.equal(createResult.slug, slug);
+  assert.equal(createResult.tenant.slug, slug);
   assert.equal(createResult.primaryDomain, domain);
 
   const resolvedTenantId = await domainRepo.findTenantIdByDomain(domain);
-  assert.equal(resolvedTenantId, createResult.tenantId);
+  assert.equal(resolvedTenantId, createResult.tenant.id);
 
   const list = await tenantRepo.listForUser(ownerUserId);
-  assert.ok(list.some((item) => item.id === createResult.tenantId));
+  assert.ok(list.some((item) => item.id === createResult.tenant.id));
 
   const memberships = await membershipRepo.listMemberships(ownerUserId);
   assert.ok(
     memberships.some(
-      (item) => item.tenantId === createResult.tenantId && item.userId === ownerUserId
+      (item) => item.tenantId === createResult.tenant.id && item.userId === ownerUserId
     )
   );
 
-  const listedDomains = await domainRepo.listDomains(createResult.tenantId);
+  const listedDomains = await domainRepo.listDomains(createResult.tenant.id);
   assert.ok(listedDomains.some((item) => item.domain === domain));
 
-  const storedSettings = await settingsRepo.getSettings(createResult.tenantId);
-  assert.equal(storedSettings.tenantId, createResult.tenantId);
+  const storedSettings = await settingsRepo.getSettings(createResult.tenant.id);
+  assert.equal(storedSettings.tenantId, createResult.tenant.id);
   assert.deepEqual(storedSettings.socialLinks, {});
 
   const auditRows = await db
     .selectFrom('audit_events')
     .select(['action', 'target_id'])
     .where('action', '=', 'tenant.created')
-    .where('target_id', '=', createResult.tenantId)
+    .where('target_id', '=', createResult.tenant.id)
     .execute();
   assert.equal(auditRows.length, 1);
 
   const otherList = await tenantRepo.listForUser('00000000-0000-0000-0000-000000000002');
-  assert.ok(otherList.every((item) => item.id !== createResult.tenantId));
+  assert.ok(otherList.every((item) => item.id !== createResult.tenant.id));
 
   const beforeCounts = {
     tenants: await db.selectFrom('tenants').select('id').execute(),
