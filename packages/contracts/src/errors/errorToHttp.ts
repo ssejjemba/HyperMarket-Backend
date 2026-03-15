@@ -45,6 +45,11 @@ const codeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.TenantMembershipNotFound]: 404,
   [ErrorCode.TenantMembershipRevoked]: 403,
   [ErrorCode.TenantMembershipRoleInvalid]: 400,
+  [ErrorCode.TenantMemberSelfRevokeForbidden]: 403,
+  [ErrorCode.TenantLastOwnerRevokeForbidden]: 409,
+  [ErrorCode.TenantLastOwnerRoleChangeForbidden]: 409,
+  [ErrorCode.TenantMemberTargetNotFound]: 404,
+  [ErrorCode.TenantMemberAlreadyRevoked]: 409,
   [ErrorCode.TenantAccessForbidden]: 403,
   [ErrorCode.TenantDbFailure]: 500,
 

@@ -30,6 +30,11 @@ export enum ErrorCode {
   TenantMembershipNotFound = 'tenant_membership_not_found',
   TenantMembershipRevoked = 'tenant_membership_revoked',
   TenantMembershipRoleInvalid = 'tenant_membership_role_invalid',
+  TenantMemberSelfRevokeForbidden = 'tenant_member_self_revoke_forbidden',
+  TenantLastOwnerRevokeForbidden = 'tenant_last_owner_revoke_forbidden',
+  TenantLastOwnerRoleChangeForbidden = 'tenant_last_owner_role_change_forbidden',
+  TenantMemberTargetNotFound = 'tenant_member_target_not_found',
+  TenantMemberAlreadyRevoked = 'tenant_member_already_revoked',
   TenantAccessForbidden = 'tenant_access_forbidden',
   TenantDbFailure = 'tenant_db_failure',
 

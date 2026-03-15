@@ -18,6 +18,11 @@ const expectedStatuses: [TenancyErrorCode, number][] = [
   [ErrorCode.TenantMembershipNotFound, 404],
   [ErrorCode.TenantMembershipRevoked, 403],
   [ErrorCode.TenantMembershipRoleInvalid, 400],
+  [ErrorCode.TenantMemberSelfRevokeForbidden, 403],
+  [ErrorCode.TenantLastOwnerRevokeForbidden, 409],
+  [ErrorCode.TenantLastOwnerRoleChangeForbidden, 409],
+  [ErrorCode.TenantMemberTargetNotFound, 404],
+  [ErrorCode.TenantMemberAlreadyRevoked, 409],
   [ErrorCode.TenantAccessForbidden, 403],
   [ErrorCode.TenantDbFailure, 500]
 ];
@@ -29,8 +34,8 @@ describe('TEN error codes - HTTP status mapping', () => {
     expect(status).toBe(expectedStatus);
   });
 
-  it('mapping is exhaustive - all 15 TEN codes are covered', () => {
-    expect(expectedStatuses).toHaveLength(15);
+  it('mapping is exhaustive - all 20 TEN codes are covered', () => {
+    expect(expectedStatuses).toHaveLength(20);
   });
 });
 

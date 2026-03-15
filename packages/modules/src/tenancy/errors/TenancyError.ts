@@ -15,6 +15,11 @@ export type TenancyErrorCode =
   | ErrorCode.TenantMembershipNotFound
   | ErrorCode.TenantMembershipRevoked
   | ErrorCode.TenantMembershipRoleInvalid
+  | ErrorCode.TenantMemberSelfRevokeForbidden
+  | ErrorCode.TenantLastOwnerRevokeForbidden
+  | ErrorCode.TenantLastOwnerRoleChangeForbidden
+  | ErrorCode.TenantMemberTargetNotFound
+  | ErrorCode.TenantMemberAlreadyRevoked
   | ErrorCode.TenantAccessForbidden
   | ErrorCode.TenantDbFailure;
 
