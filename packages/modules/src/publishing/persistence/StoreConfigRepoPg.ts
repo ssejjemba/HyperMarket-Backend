@@ -1,4 +1,4 @@
-import { sql, type Kysely } from 'kysely';
+import { sql, type Kysely, type Transaction } from 'kysely';
 
 import { ErrorCode } from '@hypermarket/contracts';
 import type { DatabaseSchema } from '@hypermarket/core';
@@ -7,6 +7,7 @@ import type { ValidationReport } from '../domain';
 import { PublishingError } from '../errors/PublishingError';
 import type { StoreConfig, StoreConfigRepository } from './StoreConfigRepository';
 
+type Db = Kysely<DatabaseSchema> | Transaction<DatabaseSchema>;
 type StoreConfigRow = DatabaseSchema['store_configs'];
 
 const mapStoreConfig = (row: StoreConfigRow): StoreConfig => ({
@@ -22,9 +23,9 @@ const mapStoreConfig = (row: StoreConfigRow): StoreConfig => ({
   createdAt: row.created_at
 });
 
-export const createStoreConfigRepoPg = (db: Kysely<DatabaseSchema>): StoreConfigRepository => ({
+export const createStoreConfigRepoPg = (db: Db): StoreConfigRepository => ({
   createDraftConfig: async (input) =>
-    db.transaction().execute(async (trx) => {
+    withStoreConfigTx(db, async (trx) => {
       await trx
         .selectFrom('tenants')
         .select('id')
@@ -80,7 +81,7 @@ export const createStoreConfigRepoPg = (db: Kysely<DatabaseSchema>): StoreConfig
     return rows.map((row) => mapStoreConfig(row));
   },
   updateDraftConfig: async (input) =>
-    db.transaction().execute(async (trx) => {
+    withStoreConfigTx(db, async (trx) => {
       const existing = await trx
         .selectFrom('store_configs')
         .selectAll()
@@ -134,3 +135,14 @@ export const createStoreConfigRepoPg = (db: Kysely<DatabaseSchema>): StoreConfig
     return row === undefined ? null : mapStoreConfig(row);
   }
 });
+
+const withStoreConfigTx = async <T>(
+  db: Db,
+  fn: (trx: Transaction<DatabaseSchema>) => Promise<T>
+): Promise<T> => {
+  if (db.isTransaction) {
+    return fn(db);
+  }
+
+  return db.transaction().execute(async (trx) => fn(trx));
+};

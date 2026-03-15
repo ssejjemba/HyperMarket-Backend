@@ -29,6 +29,7 @@ export const registerPublishingRoutes = async (
   const configValidator = createConfigValidator(templateRegistry);
 
   await registerPublishingApiRoutes(server, {
+    db: deps.db,
     logger: deps.logger,
     sessionService,
     membershipReader,

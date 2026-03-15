@@ -103,24 +103,173 @@ flowSuite('PUB routes scaffold - membership guarded placeholders', () => {
     }
   });
 
+  it('creates a draft config successfully', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessTokenForUser(ctx, {
+      id: ctx.seed.userId,
+      phoneE164: ctx.seed.userPhone
+    });
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/configs`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        template_id: 'basic-commerce',
+        template_version: 'v1'
+      }
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      config: {
+        tenant_id: ctx.seed.tenantId,
+        status: 'draft',
+        template_id: 'basic-commerce',
+        template_version: 'v1',
+        config_version: 1,
+        validation_report: {
+          isValid: true,
+          errors: []
+        },
+        created_by_user_id: ctx.seed.userId
+      }
+    });
+
+    const auditRow = await ctx.db
+      .selectFrom('audit_events')
+      .select(['action', 'target_type'])
+      .where('action', '=', 'config.draft.created')
+      .executeTakeFirst();
+
+    expect(auditRow).toEqual({
+      action: 'config.draft.created',
+      target_type: 'store_config'
+    });
+
+    await server.close();
+  });
+
+  it('returns config_invalid_payload with validation details', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessTokenForUser(ctx, {
+      id: ctx.seed.userId,
+      phoneE164: ctx.seed.userPhone
+    });
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/configs`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        template_id: 'basic-commerce',
+        template_version: 'v1',
+        config_payload: {
+          hero_title: 'Fresh products for Kampala',
+          hero_subtitle: 'Fast ordering and same-day delivery for local customers.',
+          primary_color: '#0B6E4F',
+          cta_label: 'Shop now'
+        }
+      }
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({
+      request_id: expect.any(String),
+      error_code: ErrorCode.ConfigInvalidPayload,
+      message: 'Config payload is invalid',
+      details: {
+        template_id: 'basic-commerce',
+        template_version: 'v1',
+        errors: [
+          {
+            path: '/brand_name',
+            code: 'invalid_type',
+            message: 'Required'
+          }
+        ]
+      }
+    });
+
+    await server.close();
+  });
+
+  it('rejects updates for non-draft configs', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessTokenForUser(ctx, {
+      id: ctx.seed.userId,
+      phoneE164: ctx.seed.userPhone
+    });
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const created = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/configs`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        template_id: 'basic-commerce',
+        template_version: 'v1'
+      }
+    });
+    const configId = created.json<{ config: { id: string } }>().config.id;
+
+    await ctx.db
+      .updateTable('store_configs')
+      .set({ status: 'active' })
+      .where('id', '=', configId)
+      .execute();
+
+    const res = await server.inject({
+      method: 'PATCH',
+      url: `/tenants/${ctx.seed.tenantId}/configs/${configId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        config_payload: {
+          brand_name: 'Updated Shop',
+          hero_title: 'Fresh products for Kampala',
+          hero_subtitle: 'Fast ordering and same-day delivery for local customers.',
+          primary_color: '#0B6E4F',
+          cta_label: 'Shop now'
+        }
+      }
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toMatchObject({
+      request_id: expect.any(String),
+      error_code: ErrorCode.ConfigNotDraft,
+      message: 'Only draft configs can be updated'
+    });
+
+    await server.close();
+  });
+
   it.each([
-    ['POST', `/tenants/__TENANT__/configs`, { template_id: 'basic', template_version: 'v1' }],
-    ['GET', `/tenants/__TENANT__/configs`, undefined],
-    ['GET', `/tenants/__TENANT__/configs/__CONFIG__`, undefined],
-    ['PATCH', `/tenants/__TENANT__/configs/__CONFIG__`, { config_payload: {} }],
     ['POST', `/tenants/__TENANT__/publish`, { config_id: '00000000-0000-0000-0000-000000000003' }],
     ['POST', `/tenants/__TENANT__/rollback`, { config_id: '00000000-0000-0000-0000-000000000003' }]
   ])(
-    'returns not_implemented for authenticated tenant members on %s %s',
+    'still returns not_implemented for authenticated tenant members on %s %s',
     async (method, rawUrl, payload) => {
       ctx = await createTestContext();
       const token = await issueAccessTokenForUser(ctx, {
         id: ctx.seed.userId,
         phoneE164: ctx.seed.userPhone
       });
-      const url = rawUrl
-        .replace('__TENANT__', ctx.seed.tenantId)
-        .replace('__CONFIG__', '00000000-0000-0000-0000-000000000002');
+      const url = rawUrl.replace('__TENANT__', ctx.seed.tenantId);
       const server = buildServer({
         config: { ...ctx.config, nodeEnv: 'test' },
         devRoutesMode: 'disabled'
