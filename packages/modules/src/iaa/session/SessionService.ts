@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { ErrorCode } from '@hypermarket/contracts';
 
 import { IaaError } from '../errors/IaaError';
@@ -53,7 +55,7 @@ export const createSessionService = (deps: SessionServiceDeps): SessionService =
     async issueSession(user: UserIdentity): Promise<IssueSessionResult> {
       try {
         const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
-        const session = await repo.createSession(user.id, '', expiresAt);
+        const session = await repo.createSession(user.id, randomUUID(), expiresAt);
         const { token, expiresAt: signedExpiresAt } = await signer.sign(
           user.id,
           session.id,

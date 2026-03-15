@@ -187,6 +187,8 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
   beforeEach(async () => {
     ctx = await createTestContext();
     await ctx.db.deleteFrom('auth_otps').execute();
+    await ctx.db.deleteFrom('sessions').execute();
+    await ctx.db.deleteFrom('audit_events').execute();
     await ctx.db.deleteFrom('users').where('phone_e164', 'like', '+25671299%').execute();
 
     const built = await buildIaaApiTestServer({ db: ctx.db });
@@ -526,6 +528,116 @@ flowSuite('IAA routes — OTP flows (real DB)', () => {
     });
     expect(sessionRes.statusCode).toBe(401);
     expectErrorEnvelope(sessionRes.json<ErrorEnvelope>(), ErrorCode.AuthSessionRevoked);
+  });
+
+  it('POST /auth/logout revokes the current session and writes an audit event', async () => {
+    const phone = '+256712990012';
+
+    const requestRes = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/request',
+      payload: { phone }
+    });
+    const { challenge_id } = requestRes.json<{ challenge_id: string }>();
+
+    const verifyRes = await server.inject({
+      method: 'POST',
+      url: '/auth/otp/verify',
+      payload: { challenge_id, phone, code: VALID_CODE }
+    });
+    expect(verifyRes.statusCode).toBe(200);
+
+    const accessToken = verifyRes.json<{ access_token: string }>().access_token;
+
+    const logoutRes = await server.inject({
+      method: 'POST',
+      url: '/auth/logout',
+      headers: { authorization: `Bearer ${accessToken}` }
+    });
+    expect(logoutRes.statusCode).toBe(200);
+    expect(logoutRes.json()).toEqual({ success: true });
+
+    const sessionRes = await server.inject({
+      method: 'GET',
+      url: '/auth/session',
+      headers: { authorization: `Bearer ${accessToken}` }
+    });
+    expect(sessionRes.statusCode).toBe(401);
+    expectErrorEnvelope(sessionRes.json<ErrorEnvelope>(), ErrorCode.AuthSessionRevoked);
+
+    const auditRows = await ctx.db
+      .selectFrom('audit_events')
+      .select(['action', 'target_id'])
+      .where('action', '=', 'auth.session.revoked')
+      .orderBy('created_at', 'desc')
+      .execute();
+
+    expect(auditRows.length).toBeGreaterThan(0);
+  });
+
+  it('POST /auth/logout-all revokes all sessions for the user and writes an audit event', async () => {
+    const phone = '+256712990013';
+
+    const issueSession = async (): Promise<string> => {
+      const requestRes = await server.inject({
+        method: 'POST',
+        url: '/auth/otp/request',
+        payload: { phone }
+      });
+      const { challenge_id } = requestRes.json<{ challenge_id: string }>();
+
+      const verifyRes = await server.inject({
+        method: 'POST',
+        url: '/auth/otp/verify',
+        payload: { challenge_id, phone, code: VALID_CODE }
+      });
+
+      expect(verifyRes.statusCode).toBe(200);
+      return verifyRes.json<{ access_token: string }>().access_token;
+    };
+
+    const firstToken = await issueSession();
+    const secondToken = await issueSession();
+
+    const logoutAllRes = await server.inject({
+      method: 'POST',
+      url: '/auth/logout-all',
+      headers: { authorization: `Bearer ${firstToken}` }
+    });
+    expect(logoutAllRes.statusCode).toBe(200);
+    expect(logoutAllRes.json()).toEqual({ success: true });
+
+    const firstSessionRes = await server.inject({
+      method: 'GET',
+      url: '/auth/session',
+      headers: { authorization: `Bearer ${firstToken}` }
+    });
+    expect(firstSessionRes.statusCode).toBe(401);
+    expectErrorEnvelope(firstSessionRes.json<ErrorEnvelope>(), ErrorCode.AuthSessionRevoked);
+
+    const secondSessionRes = await server.inject({
+      method: 'GET',
+      url: '/auth/session',
+      headers: { authorization: `Bearer ${secondToken}` }
+    });
+    expect(secondSessionRes.statusCode).toBe(401);
+    expectErrorEnvelope(secondSessionRes.json<ErrorEnvelope>(), ErrorCode.AuthSessionRevoked);
+
+    const revokedSessions = await ctx.db
+      .selectFrom('sessions')
+      .select(['id', 'revoked_at'])
+      .where('revoked_at', 'is not', null)
+      .execute();
+    expect(revokedSessions.length).toBeGreaterThanOrEqual(2);
+
+    const auditRows = await ctx.db
+      .selectFrom('audit_events')
+      .select(['action', 'target_id'])
+      .where('action', '=', 'auth.session.revoked_all')
+      .orderBy('created_at', 'desc')
+      .execute();
+
+    expect(auditRows.length).toBeGreaterThan(0);
   });
 
   it('POST /auth/otp/request returns 503 auth_provider_unavailable when the provider is down', async () => {

@@ -17,6 +17,8 @@ import { createRequestOtpUseCase } from './otp/application/RequestOtpUseCase';
 import type { RequestOtpUseCase } from './otp/application/RequestOtpUseCase';
 import { createVerifyOtpUseCase } from './otp/application/VerifyOtpUseCase';
 import type { VerifyOtpUseCase } from './otp/application/VerifyOtpUseCase';
+import { createLogoutAllUseCase } from './session/application/LogoutAllUseCase';
+import { createLogoutUseCase } from './session/application/LogoutUseCase';
 import { createSessionService } from './session/SessionService';
 import type { SessionService } from './session/SessionService';
 import { createSessionRepoPg } from './session/persistence/SessionRepoPg';
@@ -102,6 +104,16 @@ export const buildIaaApiTestServer = async (params: IaaApiTestServerParams) => {
     repo: sessionRepo,
     ttlSeconds: sessionTtlSeconds
   });
+  const logoutUseCase = createLogoutUseCase({
+    db: params.db,
+    sessionService,
+    membershipReader
+  });
+  const logoutAllUseCase = createLogoutAllUseCase({
+    db: params.db,
+    sessionService,
+    membershipReader
+  });
 
   const requestOtpUseCase = createRequestOtpUseCase({ otpService, logger: silentLogger });
   const verifyOtpUseCase = createVerifyOtpUseCase({
@@ -116,6 +128,8 @@ export const buildIaaApiTestServer = async (params: IaaApiTestServerParams) => {
     logger: silentLogger,
     requestOtpUseCase,
     verifyOtpUseCase,
+    logoutUseCase,
+    logoutAllUseCase,
     sessionService,
     membershipReader
   });
@@ -167,6 +181,16 @@ export const buildIaaStubTestServer = async (
     assertMembership: () =>
       Promise.reject(new AppError({ code: ErrorCode.NotImplemented, message: 'stub' }))
   };
+  const logoutUseCase =
+    overrides.logoutUseCase ??
+    ({
+      execute: async () => undefined
+    } as IaaApiDeps['logoutUseCase']);
+  const logoutAllUseCase =
+    overrides.logoutAllUseCase ??
+    ({
+      execute: async () => undefined
+    } as IaaApiDeps['logoutAllUseCase']);
 
   const stubNotImplemented = (): never => {
     throw new AppError({ code: ErrorCode.NotImplemented, message: 'Not implemented' });
@@ -183,6 +207,8 @@ export const buildIaaStubTestServer = async (
     logger: overrides.logger ?? silentLogger,
     requestOtpUseCase,
     verifyOtpUseCase,
+    logoutUseCase,
+    logoutAllUseCase,
     sessionService,
     membershipReader
   });

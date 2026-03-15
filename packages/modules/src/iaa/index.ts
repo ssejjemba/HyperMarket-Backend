@@ -11,6 +11,8 @@ import { createOtpChallengeRepoPg } from './otp/persistence/OtpChallengeRepoPg';
 import { createOtpChallengeService } from './otp/OtpChallengeService';
 import { createRequestOtpUseCase } from './otp/application/RequestOtpUseCase';
 import { createVerifyOtpUseCase } from './otp/application/VerifyOtpUseCase';
+import { createLogoutAllUseCase } from './session/application/LogoutAllUseCase';
+import { createLogoutUseCase } from './session/application/LogoutUseCase';
 import { createSessionService } from './session/SessionService';
 import { createSessionRepoPg } from './session/persistence/SessionRepoPg';
 import { createTokenSigner } from './session/TokenSigner';
@@ -64,6 +66,16 @@ export const registerIaaRoutes = async (
     repo: sessionRepo,
     ttlSeconds: deps.config.sessionTtlSeconds
   });
+  const logoutUseCase = createLogoutUseCase({
+    db: deps.db,
+    sessionService,
+    membershipReader
+  });
+  const logoutAllUseCase = createLogoutAllUseCase({
+    db: deps.db,
+    sessionService,
+    membershipReader
+  });
 
   const requestOtpUseCase = createRequestOtpUseCase({
     otpService,
@@ -81,6 +93,8 @@ export const registerIaaRoutes = async (
     logger: deps.logger,
     requestOtpUseCase,
     verifyOtpUseCase,
+    logoutUseCase,
+    logoutAllUseCase,
     sessionService,
     membershipReader
   });
@@ -138,6 +152,10 @@ export type { MembershipReader } from './membership/MembershipReader';
 export { createTenancyMembershipAdapter } from './membership/TenancyMembershipAdapter';
 export { createTokenSigner } from './session/TokenSigner';
 export type { TokenSigner, TokenClaims } from './session/TokenSigner';
+export { createLogoutUseCase } from './session/application/LogoutUseCase';
+export type { LogoutUseCase, LogoutInput } from './session/application/LogoutUseCase';
+export { createLogoutAllUseCase } from './session/application/LogoutAllUseCase';
+export type { LogoutAllUseCase, LogoutAllInput } from './session/application/LogoutAllUseCase';
 export { createSessionService } from './session/SessionService';
 export { createSessionRepoPg } from './session/persistence/SessionRepoPg';
 export type {

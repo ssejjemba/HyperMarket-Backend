@@ -1,8 +1,10 @@
-import { sql, type Kysely } from 'kysely';
+import { sql, type Kysely, type Transaction } from 'kysely';
 
 import type { DatabaseSchema } from '@hypermarket/core';
 
 import type { SessionRecord, SessionRepository } from './SessionRepository';
+
+type DbExecutor = Kysely<DatabaseSchema> | Transaction<DatabaseSchema>;
 
 const rowToSession = (row: DatabaseSchema['sessions']): SessionRecord => ({
   id: row.id,
@@ -13,7 +15,7 @@ const rowToSession = (row: DatabaseSchema['sessions']): SessionRecord => ({
   createdAt: row.created_at
 });
 
-export const createSessionRepoPg = (db: Kysely<DatabaseSchema>): SessionRepository => ({
+export const createSessionRepoPg = (db: DbExecutor): SessionRepository => ({
   async createSession(userId: string, tokenHash: string, expiresAt: Date): Promise<SessionRecord> {
     const row = await db
       .insertInto('sessions')

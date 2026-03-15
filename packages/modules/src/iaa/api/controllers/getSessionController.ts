@@ -3,6 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import type { MembershipReader } from '../../membership/MembershipReader';
 import type { IaaMetrics } from '../../observability/iaaMetrics';
 import type { SessionService } from '../../session/SessionService';
+import { extractBearerToken } from './extractBearerToken';
 
 // ---------------------------------------------------------------------------
 // Response shape
@@ -26,12 +27,7 @@ export type GetSessionResponse = {
 export const makeGetSessionHandler =
   (sessionService: SessionService, membershipReader: MembershipReader, metrics?: IaaMetrics) =>
   async (request: FastifyRequest): Promise<GetSessionResponse> => {
-    // Extract Bearer token — never log it.
-    const authHeader = request.headers.authorization;
-    const token =
-      authHeader !== undefined && authHeader.startsWith('Bearer ')
-        ? authHeader.slice(7)
-        : undefined;
+    const token = extractBearerToken(request);
 
     try {
       // validateSession throws AUTH_MISSING_TOKEN / AUTH_INVALID_TOKEN / AUTH_SESSION_EXPIRED.
