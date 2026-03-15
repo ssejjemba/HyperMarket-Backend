@@ -33,9 +33,7 @@ export const up = async (knex: Knex): Promise<void> => {
       table.text('token_hash').notNullable().defaultTo('');
     });
     await knex(SESSIONS_TABLE).update({ token_hash: '' });
-    await knex.schema.alterTable(SESSIONS_TABLE, (table) => {
-      table.dropDefault('token_hash');
-    });
+    await knex.raw(`ALTER TABLE ${SESSIONS_TABLE} ALTER COLUMN token_hash DROP DEFAULT`);
   }
 
   await knex.raw(`

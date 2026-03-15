@@ -14,7 +14,7 @@ export type SessionPayload = {
 export type SessionRecord = {
   id: string;
   userId: string;
-  tokenId: string;
+  tokenHash: string;
   expiresAt: Date;
 };
 
@@ -33,7 +33,7 @@ export const createSessionService = (db: Kysely<DatabaseSchema>, config: Session
     userId: string,
     phone: string
   ): Promise<{ token: string; session: SessionRecord }> => {
-    const tokenId = crypto.randomUUID();
+    const tokenHash = crypto.randomUUID();
     const now = Math.floor(Date.now() / 1000);
     const exp = now + config.ttlSeconds;
 
@@ -42,7 +42,7 @@ export const createSessionService = (db: Kysely<DatabaseSchema>, config: Session
       .setSubject(userId)
       .setIssuedAt(now)
       .setExpirationTime(exp)
-      .setJti(tokenId)
+      .setJti(tokenHash)
       .setIssuer(config.jwtIssuer ?? 'hypermarket')
       .sign(toSecret(config.jwtSecret));
 
@@ -53,12 +53,12 @@ export const createSessionService = (db: Kysely<DatabaseSchema>, config: Session
       .values({
         id: sql`gen_random_uuid()` as unknown as string,
         user_id: userId,
-        token_id: tokenId,
+        token_hash: tokenHash,
         expires_at: expiresAt,
         created_at: sql`now()`,
         revoked_at: null
       })
-      .returning(['id', 'user_id', 'token_id', 'expires_at'])
+      .returning(['id', 'user_id', 'token_hash', 'expires_at'])
       .executeTakeFirstOrThrow();
 
     return {
@@ -66,7 +66,7 @@ export const createSessionService = (db: Kysely<DatabaseSchema>, config: Session
       session: {
         id: row.id,
         userId: row.user_id,
-        tokenId: row.token_id,
+        tokenHash: row.token_hash,
         expiresAt: row.expires_at
       }
     };
