@@ -62,6 +62,7 @@ export const createTenantRepoPg = (db: Kysely<DatabaseSchema>): TenantRepository
         'tenants.updated_at'
       ])
       .where('tenant_memberships.user_id', '=', userId)
+      .where('tenant_memberships.status', '=', 'active')
       .execute();
 
     return rows.map((row) => mapTenantRow(row));

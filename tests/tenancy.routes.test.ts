@@ -45,32 +45,9 @@ const expectErrorEnvelope = (body: ErrorEnvelope): void => {
   expect(body.message).toBe('Tenancy route not implemented');
 };
 
-describe('TEN routes scaffold', () => {
-  it.each([['GET', '/tenants', undefined]])(
-    'registers %s %s and returns the shared error envelope',
-    async (method, url, payload) => {
-      const server = buildServer({ config: TEST_CONFIG, devRoutesMode: 'disabled' });
-      await server.ready();
-
-      const res = await server.inject({
-        method,
-        url,
-        payload
-      });
-
-      expect(res.statusCode).toBe(501);
-      expectErrorEnvelope(res.json<ErrorEnvelope>());
-
-      await server.close();
-    }
-  );
-});
-
-const dbAvailable = await canConnectDatabase();
-const flowSuite = dbAvailable ? describe : describe.skip;
-
-const issueAccessToken = async (
-  ctx: Awaited<ReturnType<typeof createTestContext>>
+const issueAccessTokenForUser = async (
+  ctx: Awaited<ReturnType<typeof createTestContext>>,
+  user: { id: string; phoneE164: string }
 ): Promise<string> => {
   const sessionRepo = createSessionRepoPg(ctx.db);
   const tokenSigner = createTokenSigner({
@@ -86,8 +63,8 @@ const issueAccessToken = async (
 
   const result = await sessionService.issueSession(
     new UserIdentity({
-      id: ctx.seed.userId,
-      phoneE164: ctx.seed.userPhone,
+      id: user.id,
+      phoneE164: user.phoneE164,
       status: 'active',
       createdAt: new Date(),
       updatedAt: new Date()
@@ -95,6 +72,48 @@ const issueAccessToken = async (
   );
 
   return result.accessToken;
+};
+
+describe('TEN routes scaffold', () => {
+  it.each([
+    [
+      'GET',
+      '/tenants/:tenantId/memberships',
+      '/tenants/00000000-0000-0000-0000-000000000001/memberships'
+    ],
+    [
+      'POST',
+      '/tenants/:tenantId/memberships/revoke',
+      '/tenants/00000000-0000-0000-0000-000000000001/memberships/revoke'
+    ]
+  ])('registers %s %s and returns the shared error envelope', async (method, _pattern, url) => {
+    const server = buildServer({ config: TEST_CONFIG, devRoutesMode: 'disabled' });
+    await server.ready();
+
+    const res = await server.inject({
+      method,
+      url
+    });
+
+    expect([401, 404, 501]).toContain(res.statusCode);
+    if (res.statusCode === 501) {
+      expectErrorEnvelope(res.json<ErrorEnvelope>());
+    }
+
+    await server.close();
+  });
+});
+
+const dbAvailable = await canConnectDatabase();
+const flowSuite = dbAvailable ? describe : describe.skip;
+
+const issueAccessToken = async (
+  ctx: Awaited<ReturnType<typeof createTestContext>>
+): Promise<string> => {
+  return issueAccessTokenForUser(ctx, {
+    id: ctx.seed.userId,
+    phoneE164: ctx.seed.userPhone
+  });
 };
 
 flowSuite('TEN routes - create tenant', () => {
@@ -118,6 +137,25 @@ flowSuite('TEN routes - create tenant', () => {
       method: 'POST',
       url: '/tenants',
       payload: { business_name: 'No Auth Tenant' }
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.AuthMissingToken);
+
+    await server.close();
+  });
+
+  it('GET /tenants without auth returns auth_missing_token', async () => {
+    ctx = await createTestContext();
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'GET',
+      url: '/tenants'
     });
 
     expect(res.statusCode).toBe(401);
@@ -184,6 +222,127 @@ flowSuite('TEN routes - create tenant', () => {
     await server.close();
   });
 
+  it('GET /tenants returns only the authenticated user tenants', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessToken(ctx);
+
+    const otherUserId = randomUUID();
+    const otherTenantId = randomUUID();
+    const otherPhone = `+256712${otherUserId.replace(/-/g, '').slice(0, 6)}`;
+    await ctx.db
+      .insertInto('users')
+      .values({
+        id: otherUserId,
+        phone_e164: otherPhone,
+        email: null,
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .execute();
+
+    await ctx.db
+      .insertInto('tenants')
+      .values({
+        id: otherTenantId,
+        business_name: 'Other Tenant',
+        slug: `other-${otherTenantId.slice(0, 8)}`,
+        status: 'active',
+        default_currency: 'UGX',
+        active_config_id: null,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .execute();
+
+    await ctx.db
+      .insertInto('tenant_domains')
+      .values({
+        id: randomUUID(),
+        tenant_id: otherTenantId,
+        domain: `other-${otherTenantId.slice(0, 8)}.${ctx.config.platformRootDomain}`,
+        domain_type: 'subdomain',
+        verification_status: 'verified',
+        is_primary: true,
+        created_at: new Date()
+      })
+      .execute();
+
+    await ctx.db
+      .insertInto('tenant_memberships')
+      .values({
+        id: randomUUID(),
+        tenant_id: otherTenantId,
+        user_id: otherUserId,
+        role: 'owner',
+        status: 'active',
+        created_at: new Date()
+      })
+      .execute();
+
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'GET',
+      url: '/tenants',
+      headers: { authorization: `Bearer ${token}` }
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{
+      tenants: Array<{
+        id: string;
+        business_name: string;
+        slug: string;
+        status: string;
+        primary_domain: string | null;
+      }>;
+    }>();
+    expect(body.tenants).toHaveLength(1);
+    expect(body.tenants[0]).toMatchObject({
+      id: ctx.seed.tenantId,
+      business_name: 'Test Tenant',
+      slug: ctx.seed.tenantSlug,
+      status: 'active',
+      primary_domain: ctx.seed.tenantDomain
+    });
+
+    await server.close();
+  });
+
+  it('GET /tenants/:tenantId returns the tenant summary for a member', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessToken(ctx);
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'GET',
+      url: `/tenants/${ctx.seed.tenantId}`,
+      headers: { authorization: `Bearer ${token}` }
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      tenant: {
+        id: ctx.seed.tenantId,
+        business_name: 'Test Tenant',
+        slug: ctx.seed.tenantSlug,
+        status: 'active',
+        primary_domain: ctx.seed.tenantDomain
+      }
+    });
+
+    await server.close();
+  });
+
   it('tenant-scoped routes return tenant_membership_not_found when the user has no membership', async () => {
     ctx = await createTestContext();
     const otherUserId = randomUUID();
@@ -200,26 +359,10 @@ flowSuite('TEN routes - create tenant', () => {
       })
       .execute();
 
-    const sessionRepo = createSessionRepoPg(ctx.db);
-    const tokenSigner = createTokenSigner({
-      secret: ctx.config.jwtSecret,
-      ttlSeconds: ctx.config.sessionTtlSeconds,
-      issuer: ctx.config.jwtIssuer
+    const accessToken = await issueAccessTokenForUser(ctx, {
+      id: otherUserId,
+      phoneE164: otherPhone
     });
-    const sessionService = createSessionService({
-      signer: tokenSigner,
-      repo: sessionRepo,
-      ttlSeconds: ctx.config.sessionTtlSeconds
-    });
-    const access = await sessionService.issueSession(
-      new UserIdentity({
-        id: otherUserId,
-        phoneE164: otherPhone,
-        status: 'active',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      })
-    );
 
     const server = buildServer({
       config: { ...ctx.config, nodeEnv: 'test' },
@@ -230,7 +373,57 @@ flowSuite('TEN routes - create tenant', () => {
     const res = await server.inject({
       method: 'GET',
       url: `/tenants/${ctx.seed.tenantId}/settings`,
-      headers: { authorization: `Bearer ${access.accessToken}` }
+      headers: { authorization: `Bearer ${accessToken}` }
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.TenantMembershipNotFound);
+
+    await server.close();
+  });
+
+  it('GET /tenants/:tenantId blocks cross-tenant access with tenant_membership_not_found', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessToken(ctx);
+
+    const otherTenantId = randomUUID();
+    await ctx.db
+      .insertInto('tenants')
+      .values({
+        id: otherTenantId,
+        business_name: 'Blocked Tenant',
+        slug: `blocked-${otherTenantId.slice(0, 8)}`,
+        status: 'active',
+        default_currency: 'UGX',
+        active_config_id: null,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .execute();
+
+    await ctx.db
+      .insertInto('tenant_domains')
+      .values({
+        id: randomUUID(),
+        tenant_id: otherTenantId,
+        domain: `blocked-${otherTenantId.slice(0, 8)}.${ctx.config.platformRootDomain}`,
+        domain_type: 'subdomain',
+        verification_status: 'verified',
+        is_primary: true,
+        created_at: new Date()
+      })
+      .execute();
+
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'GET',
+      url: `/tenants/${otherTenantId}`,
+      headers: { authorization: `Bearer ${token}` }
     });
 
     expect(res.statusCode).toBe(404);

@@ -6,11 +6,15 @@ import { createSessionService } from '../iaa/session/SessionService';
 import { createTokenSigner } from '../iaa/session/TokenSigner';
 import {
   createCreateTenantUseCase,
+  createGetTenantUseCase,
   createGetTenantSettingsUseCase,
+  createListTenantsUseCase,
   createUpdateTenantSettingsUseCase
 } from './application';
 import { registerTenancyApiRoutes } from './api/routes';
+import { createTenantDomainRepoPg } from './persistence/TenantDomainRepoPg';
 import { createMembershipReaderPg } from './persistence/TenancyMembershipReaderPg';
+import { createTenantRepoPg } from './persistence/TenantRepoPg';
 import { createTenantSettingsRepoPg } from './persistence/TenantSettingsRepoPg';
 
 export const registerTenancyRoutes = async (
@@ -32,6 +36,18 @@ export const registerTenancyRoutes = async (
     db: deps.db,
     platformRootDomain: deps.config.platformRootDomain
   });
+  const tenantRepo = createTenantRepoPg(deps.db);
+  const domainRepo = createTenantDomainRepoPg(deps.db, {
+    platformRootDomain: deps.config.platformRootDomain
+  });
+  const listTenantsUseCase = createListTenantsUseCase({
+    tenantRepo,
+    domainRepo
+  });
+  const getTenantUseCase = createGetTenantUseCase({
+    tenantRepo,
+    domainRepo
+  });
   const getTenantSettingsUseCase = createGetTenantSettingsUseCase({
     settingsRepo: createTenantSettingsRepoPg(deps.db)
   });
@@ -43,7 +59,9 @@ export const registerTenancyRoutes = async (
   await registerTenancyApiRoutes(server, {
     logger: deps.logger,
     createTenantUseCase,
+    getTenantUseCase,
     getTenantSettingsUseCase,
+    listTenantsUseCase,
     updateTenantSettingsUseCase,
     sessionService,
     membershipReader
@@ -66,8 +84,13 @@ export type {
   CreateTenantOutput,
   CreateTenantUseCase,
   CreateTenantUseCaseDeps,
+  GetTenantUseCase,
+  GetTenantUseCaseDeps,
   GetTenantSettingsUseCase,
   GetTenantSettingsUseCaseDeps,
+  ListTenantsUseCase,
+  ListTenantsUseCaseDeps,
+  TenantSummary,
   UpdateTenantSettingsInput,
   UpdateTenantSettingsUseCase,
   UpdateTenantSettingsUseCaseDeps
