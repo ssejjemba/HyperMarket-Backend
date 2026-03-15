@@ -36,6 +36,14 @@ export type IaaLogEvent = {
   membership_count?: number | undefined;
   /** Remaining OTP attempts after a failed code check. */
   remaining_attempts?: number | undefined;
+  /** Provider identifier for downstream OTP verification calls. */
+  provider?: string | undefined;
+  /** Provider failure category used for metrics/alerting. */
+  failure_category?: string | undefined;
+  /** Retry delay advertised to clients on rate-limits. */
+  retry_after_seconds?: number | undefined;
+  /** Request source IP, when safe and useful for abuse detection logs. */
+  ip_address?: string | undefined;
 };
 
 // ---------------------------------------------------------------------------

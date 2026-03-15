@@ -9,6 +9,7 @@ import { registerIaaApiRoutes } from './api/routes';
 import type { IaaApiDeps } from './api/routes';
 import { createTenancyMembershipAdapter } from './membership/TenancyMembershipAdapter';
 import type { MembershipReader } from './membership/MembershipReader';
+import { createNoopIaaMetrics } from './observability/iaaMetrics';
 import { OtpChallengePolicy } from './otp/domain/OtpChallengePolicy';
 import type { OtpRequestRateLimiter } from './otp/integrations/OtpRequestRateLimiter';
 import type { OtpVerificationProvider } from './otp/integrations/OtpVerificationProvider';
@@ -100,13 +101,15 @@ export const buildIaaApiTestServer = async (params: IaaApiTestServerParams) => {
   const userRepo = createUserRepoPg(params.db);
   const sessionRepo = createSessionRepoPg(params.db);
   const membershipReader = createTenancyMembershipAdapter(params.db);
+  const metrics = createNoopIaaMetrics();
 
   const otpService = createOtpChallengeService({
     repo: otpRepo,
     verificationProvider,
     rateLimiter,
     policy,
-    logger: silentLogger
+    logger: silentLogger,
+    metrics
   });
 
   const userService = createUserService({ repo: userRepo });
@@ -144,7 +147,8 @@ export const buildIaaApiTestServer = async (params: IaaApiTestServerParams) => {
     logoutUseCase,
     logoutAllUseCase,
     sessionService,
-    membershipReader
+    membershipReader,
+    metrics
   });
 
   return { server, tokenSigner, otpRepo, sessionRepo };

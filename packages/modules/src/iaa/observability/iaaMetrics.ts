@@ -17,6 +17,11 @@ export type SessionValidateLabels = {
   error_code?: string | undefined;
 };
 
+export type ProviderCallLabels = {
+  outcome: 'success' | 'failure';
+  failure_category?: 'auth' | 'invalid_number' | 'provider_down' | 'rate_limited' | 'timeout';
+};
+
 /**
  * All IAA metric counters.
  * Implementations inject the actual counter backend (Prometheus, StatsD, etc.).
@@ -27,6 +32,8 @@ export type IaaMetrics = {
   otpRequestTotal(labels: OtpRequestLabels): void;
   /** Incremented once per OTP verify use-case execution (success or failure). */
   otpVerifyTotal(labels: OtpVerifyLabels): void;
+  /** Incremented once per provider start/check call. */
+  providerCallsTotal(labels: ProviderCallLabels): void;
   /** Incremented once per /auth/session validation (success or failure). */
   sessionValidateTotal(labels: SessionValidateLabels): void;
 };
@@ -39,6 +46,7 @@ export type IaaMetrics = {
 export const createNoopIaaMetrics = (): IaaMetrics => ({
   otpRequestTotal: () => undefined,
   otpVerifyTotal: () => undefined,
+  providerCallsTotal: () => undefined,
   sessionValidateTotal: () => undefined
 });
 
@@ -51,6 +59,8 @@ export type InMemoryIaaMetrics = IaaMetrics & {
   readonly otpRequestCalls: OtpRequestLabels[];
   /** All label sets passed to `otpVerifyTotal`. */
   readonly otpVerifyCalls: OtpVerifyLabels[];
+  /** All label sets passed to `providerCallsTotal`. */
+  readonly providerCallCalls: ProviderCallLabels[];
   /** All label sets passed to `sessionValidateTotal`. */
   readonly sessionValidateCalls: SessionValidateLabels[];
 };
@@ -58,14 +68,17 @@ export type InMemoryIaaMetrics = IaaMetrics & {
 export const createInMemoryIaaMetrics = (): InMemoryIaaMetrics => {
   const otpRequestCalls: OtpRequestLabels[] = [];
   const otpVerifyCalls: OtpVerifyLabels[] = [];
+  const providerCallCalls: ProviderCallLabels[] = [];
   const sessionValidateCalls: SessionValidateLabels[] = [];
 
   return {
     otpRequestCalls,
     otpVerifyCalls,
+    providerCallCalls,
     sessionValidateCalls,
     otpRequestTotal: (labels) => void otpRequestCalls.push(labels),
     otpVerifyTotal: (labels) => void otpVerifyCalls.push(labels),
+    providerCallsTotal: (labels) => void providerCallCalls.push(labels),
     sessionValidateTotal: (labels) => void sessionValidateCalls.push(labels)
   };
 };

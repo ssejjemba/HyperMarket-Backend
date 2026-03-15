@@ -16,17 +16,23 @@ import {
   IaaError,
   UserIdentity,
   createRequestOtpUseCase,
-  createVerifyOtpUseCase
+  createVerifyOtpUseCase,
+  OtpChallengePolicy,
+  PhoneNumber,
+  type OtpRequestRateLimiter,
+  type OtpVerificationProvider
 } from '@hypermarket/modules/iaa';
 import type {
   OtpChallengeService,
   RequestChallengeResult,
   VerifyChallengeResult
 } from '@hypermarket/modules/iaa/otp-service';
+import { createOtpChallengeService } from '@hypermarket/modules/iaa/otp-service';
 import type { SessionService, IssueSessionResult } from '@hypermarket/modules/iaa';
 import type { UserService } from '@hypermarket/modules/iaa';
 import type { MembershipReader } from '@hypermarket/modules/iaa';
 import { createInMemoryIaaMetrics } from '@hypermarket/modules/iaa/observability';
+import type { OtpChallengeRepository } from '@hypermarket/modules/iaa/persistence';
 
 // ---------------------------------------------------------------------------
 // Pino sink helper — captures log records as parsed JSON objects
@@ -64,6 +70,18 @@ const makeUser = (id = 'user-obs-001') =>
   });
 
 const futureDate = () => new Date(Date.now() + 300_000);
+const OBS_PHONE = PhoneNumber.parse('+256712345678');
+const OBS_POLICY = new OtpChallengePolicy({
+  challengeTtlSeconds: 300,
+  resendCooldownSeconds: 60,
+  maxAttempts: 3,
+  phoneRateLimitBurstWindowSeconds: 600,
+  phoneRateLimitBurstMaxChallenges: 3,
+  phoneRateLimitDailyWindowSeconds: 86_400,
+  phoneRateLimitDailyMaxChallenges: 10,
+  ipRateLimitWindowSeconds: 300,
+  ipRateLimitMaxChallenges: 20
+});
 
 // ---------------------------------------------------------------------------
 // Mock factories
@@ -98,6 +116,43 @@ const makeSessionService = (overrides?: Partial<SessionService>): SessionService
 const makeMembershipReader = (overrides?: Partial<MembershipReader>): MembershipReader => ({
   listMemberships: vi.fn().mockResolvedValue([]),
   assertMembership: vi.fn().mockResolvedValue(undefined),
+  ...overrides
+});
+
+const makeOtpRepo = (): OtpChallengeRepository => ({
+  createChallenge: vi.fn().mockResolvedValue({
+    id: 'ch-obs-001',
+    phoneE164: '+256712345678',
+    codeHash: null,
+    expiresAt: futureDate(),
+    attemptCount: 0,
+    maxAttempts: 3,
+    status: 'ACTIVE',
+    createdAt: new Date(),
+    lastSentAt: new Date(),
+    isExpired: () => false,
+    assertActive: () => undefined,
+    assertPhoneMatches: () => undefined,
+    recordFailedAttempt: () => undefined,
+    consume: () => undefined,
+    recordSent: () => undefined,
+    markSendFailed: () => undefined
+  }),
+  getChallengeById: vi.fn(),
+  updateChallenge: vi.fn(),
+  countRecentChallengesForPhone: vi.fn().mockResolvedValue(0)
+});
+
+const makeRateLimiter = (): OtpRequestRateLimiter => ({
+  checkPhone: vi.fn().mockResolvedValue({ allowed: true }),
+  checkIp: vi.fn().mockResolvedValue({ allowed: true })
+});
+
+const makeVerificationProvider = (
+  overrides?: Partial<OtpVerificationProvider>
+): OtpVerificationProvider => ({
+  startVerification: vi.fn().mockResolvedValue({ provider: 'twilio' }),
+  checkVerification: vi.fn().mockResolvedValue({ approved: true, provider: 'twilio' }),
   ...overrides
 });
 
@@ -143,11 +198,12 @@ describe('RequestOtpUseCase — structured logging', () => {
     const { logger, records } = createLogSink();
     const useCase = createRequestOtpUseCase({
       otpService: makeOtpService({
-        requestChallenge: vi
-          .fn()
-          .mockRejectedValue(
-            new IaaError({ code: ErrorCode.AuthRateLimitExceeded, message: 'Rate limit hit' })
-          )
+        requestChallenge: vi.fn().mockRejectedValue(
+          new IaaError({
+            code: ErrorCode.AuthOtpRateLimitedPhone,
+            message: 'Rate limit hit'
+          })
+        )
       }),
       logger
     });
@@ -160,7 +216,7 @@ describe('RequestOtpUseCase — structured logging', () => {
     expect(failRecord).toBeDefined();
     expect(failRecord?.['module']).toBe('iaa');
     expect(failRecord?.['outcome']).toBe('failure');
-    expect(failRecord?.['error_code']).toBe(ErrorCode.AuthRateLimitExceeded);
+    expect(failRecord?.['error_code']).toBe(ErrorCode.AuthOtpRateLimitedPhone);
   });
 
   it('never logs raw phone number', async () => {
@@ -200,11 +256,12 @@ describe('RequestOtpUseCase — metrics', () => {
     const metrics = createInMemoryIaaMetrics();
     const useCase = createRequestOtpUseCase({
       otpService: makeOtpService({
-        requestChallenge: vi
-          .fn()
-          .mockRejectedValue(
-            new IaaError({ code: ErrorCode.AuthRateLimitExceeded, message: 'Rate limit' })
-          )
+        requestChallenge: vi.fn().mockRejectedValue(
+          new IaaError({
+            code: ErrorCode.AuthOtpRateLimitedPhone,
+            message: 'Rate limit'
+          })
+        )
       }),
       logger: pino({ level: 'silent' }),
       metrics
@@ -217,7 +274,7 @@ describe('RequestOtpUseCase — metrics', () => {
     expect(metrics.otpRequestCalls).toHaveLength(1);
     expect(metrics.otpRequestCalls[0]).toEqual({
       outcome: 'failure',
-      error_code: ErrorCode.AuthRateLimitExceeded
+      error_code: ErrorCode.AuthOtpRateLimitedPhone
     });
   });
 });
@@ -365,6 +422,75 @@ describe('VerifyOtpUseCase — metrics', () => {
     expect(metrics.otpVerifyCalls[0]).toEqual({
       outcome: 'failure',
       error_code: ErrorCode.AuthChallengeExpired
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OtpChallengeService — provider metrics and structured logs
+// ---------------------------------------------------------------------------
+
+describe('OtpChallengeService — provider observability', () => {
+  it('increments provider_calls_total success and logs structured provider request keys', async () => {
+    const { logger, records } = createLogSink();
+    const metrics = createInMemoryIaaMetrics();
+    const service = createOtpChallengeService({
+      repo: makeOtpRepo(),
+      verificationProvider: makeVerificationProvider(),
+      rateLimiter: makeRateLimiter(),
+      policy: OBS_POLICY,
+      logger,
+      metrics
+    });
+
+    await service.requestChallenge(OBS_PHONE, {
+      requestId: 'req-provider-1',
+      traceId: 'trace-provider-1',
+      ipAddress: '127.0.0.1'
+    });
+
+    expect(metrics.providerCallCalls).toContainEqual({ outcome: 'success' });
+
+    const record = records.find((entry) => entry['event_name'] === 'otp_provider_request_success');
+    expect(record).toBeDefined();
+    expect(record?.['module']).toBe('iaa');
+    expect(record?.['provider']).toBe('twilio');
+    expect(record?.['phone_masked']).toMatch(/^\+\*+\d{4}$/);
+
+    const raw = JSON.stringify(records);
+    expect(raw).not.toContain('+256712345678');
+    expect(raw).not.toContain('123456');
+  });
+
+  it('increments provider_calls_total failure with failure_category on provider errors', async () => {
+    const metrics = createInMemoryIaaMetrics();
+    const service = createOtpChallengeService({
+      repo: makeOtpRepo(),
+      verificationProvider: makeVerificationProvider({
+        startVerification: vi.fn().mockRejectedValue(
+          new IaaError({
+            code: ErrorCode.AuthProviderAuthFailed,
+            message: 'provider auth failed'
+          })
+        )
+      }),
+      rateLimiter: makeRateLimiter(),
+      policy: OBS_POLICY,
+      logger: pino({ level: 'silent' }),
+      metrics
+    });
+
+    await expect(
+      service.requestChallenge(OBS_PHONE, {
+        requestId: 'req-provider-2',
+        traceId: 'trace-provider-2',
+        ipAddress: '127.0.0.1'
+      })
+    ).rejects.toThrow();
+
+    expect(metrics.providerCallCalls).toContainEqual({
+      outcome: 'failure',
+      failure_category: 'auth'
     });
   });
 });

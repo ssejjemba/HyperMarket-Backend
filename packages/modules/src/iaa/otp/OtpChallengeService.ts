@@ -2,6 +2,8 @@ import { ErrorCode } from '@hypermarket/contracts';
 import type { BaseLogger } from 'pino';
 
 import { IaaError } from '../errors/IaaError';
+import { logIaaEvent } from '../observability/IaaLogEvent';
+import type { IaaMetrics, ProviderCallLabels } from '../observability/iaaMetrics';
 import type { PhoneNumber } from '../phone/PhoneNumber';
 import type { OtpChallengePolicy } from './domain/OtpChallengePolicy';
 import type { OtpRequestRateLimiter } from './integrations/OtpRequestRateLimiter';
@@ -44,6 +46,7 @@ export type OtpChallengeServiceDeps = {
   rateLimiter: OtpRequestRateLimiter;
   policy: OtpChallengePolicy;
   logger: BaseLogger;
+  metrics?: IaaMetrics | undefined;
 };
 
 export type OtpChallengeService = {
@@ -57,7 +60,27 @@ export type OtpChallengeService = {
 };
 
 export const createOtpChallengeService = (deps: OtpChallengeServiceDeps): OtpChallengeService => {
-  const { repo, verificationProvider, rateLimiter, policy, logger } = deps;
+  const { repo, verificationProvider, rateLimiter, policy, logger, metrics } = deps;
+
+  const toProviderFailureCategory = (
+    error: unknown
+  ): Exclude<ProviderCallLabels['failure_category'], undefined> => {
+    if (!IaaError.is(error)) {
+      return 'provider_down';
+    }
+
+    switch (error.code) {
+      case ErrorCode.AuthProviderAuthFailed:
+        return 'auth';
+      case ErrorCode.AuthProviderRateLimited:
+        return 'rate_limited';
+      case ErrorCode.AuthInvalidPhoneFormat:
+        return 'invalid_number';
+      case ErrorCode.AuthProviderUnavailable:
+      default:
+        return 'provider_down';
+    }
+  };
 
   // -------------------------------------------------------------------------
   // requestChallenge
@@ -75,14 +98,20 @@ export const createOtpChallengeService = (deps: OtpChallengeServiceDeps): OtpCha
     // --- Rate-limit guard (Redis-backed phone + IP counters) ----------------
     const phoneLimit = await rateLimiter.checkPhone(phoneE164);
     if (phoneLimit.allowed === false) {
-      logger.warn(
+      logIaaEvent(
+        logger,
         {
-          event: 'otp.request.rate_limited',
-          maskedPhone,
-          requestId: ctx.requestId,
-          retryAfterSeconds: phoneLimit.retryAfterSeconds
+          module: 'iaa',
+          event_name: 'otp_request_rate_limited_phone',
+          request_id: ctx.requestId,
+          trace_id: ctx.traceId,
+          outcome: 'failure',
+          error_code: ErrorCode.AuthOtpRateLimitedPhone,
+          phone_masked: maskedPhone,
+          retry_after_seconds: phoneLimit.retryAfterSeconds
         },
-        'otp: request rate limited for phone'
+        'otp: request rate limited for phone',
+        'warn'
       );
       throw new IaaError({
         code: ErrorCode.AuthOtpRateLimitedPhone,
@@ -93,15 +122,21 @@ export const createOtpChallengeService = (deps: OtpChallengeServiceDeps): OtpCha
 
     const ipLimit = await rateLimiter.checkIp(ipAddress);
     if (ipLimit.allowed === false) {
-      logger.warn(
+      logIaaEvent(
+        logger,
         {
-          event: 'otp.request.rate_limited_ip',
-          maskedPhone,
-          ipAddress,
-          requestId: ctx.requestId,
-          retryAfterSeconds: ipLimit.retryAfterSeconds
+          module: 'iaa',
+          event_name: 'otp_request_rate_limited_ip',
+          request_id: ctx.requestId,
+          trace_id: ctx.traceId,
+          outcome: 'failure',
+          error_code: ErrorCode.AuthOtpRateLimitedIp,
+          phone_masked: maskedPhone,
+          ip_address: ipAddress,
+          retry_after_seconds: ipLimit.retryAfterSeconds
         },
-        'otp: request rate limited for ip'
+        'otp: request rate limited for ip',
+        'warn'
       );
       throw new IaaError({
         code: ErrorCode.AuthOtpRateLimitedIp,
@@ -121,14 +156,18 @@ export const createOtpChallengeService = (deps: OtpChallengeServiceDeps): OtpCha
       lastSentAt: now
     });
 
-    logger.info(
+    logIaaEvent(
+      logger,
       {
-        event: 'otp.request.created',
-        challengeId: challenge.id,
-        maskedPhone,
-        requestId: ctx.requestId
+        module: 'iaa',
+        event_name: 'otp_provider_request_start',
+        request_id: ctx.requestId,
+        trace_id: ctx.traceId,
+        challenge_id: challenge.id,
+        phone_masked: maskedPhone
       },
-      'otp: challenge created'
+      'otp: challenge created',
+      'debug'
     );
 
     // --- Send via provider ---------------------------------------------------
@@ -140,30 +179,43 @@ export const createOtpChallengeService = (deps: OtpChallengeServiceDeps): OtpCha
         expiresAt: challenge.expiresAt,
         traceId: ctx.traceId
       });
+      metrics?.providerCallsTotal({ outcome: 'success' });
 
-      logger.info(
+      logIaaEvent(
+        logger,
         {
-          event: 'otp.request.sent',
-          challengeId: challenge.id,
-          maskedPhone,
-          provider: delivery.provider,
-          requestId: ctx.requestId
+          module: 'iaa',
+          event_name: 'otp_provider_request_success',
+          request_id: ctx.requestId,
+          trace_id: ctx.traceId,
+          outcome: 'success',
+          challenge_id: challenge.id,
+          phone_masked: maskedPhone,
+          provider: delivery.provider
         },
         'otp: OTP sent successfully'
       );
     } catch (error) {
+      const failureCategory = toProviderFailureCategory(error);
+      metrics?.providerCallsTotal({ outcome: 'failure', failure_category: failureCategory });
       challenge.markSendFailed();
       await repo.updateChallenge(challenge);
 
-      logger.error(
+      logIaaEvent(
+        logger,
         {
-          event: 'otp.request.send_failed',
-          challengeId: challenge.id,
-          maskedPhone,
-          errorCode: IaaError.is(error) ? error.code : undefined,
-          requestId: ctx.requestId
+          module: 'iaa',
+          event_name: 'otp_provider_request_failure',
+          request_id: ctx.requestId,
+          trace_id: ctx.traceId,
+          outcome: 'failure',
+          error_code: IaaError.is(error) ? error.code : ErrorCode.AuthProviderUnavailable,
+          challenge_id: challenge.id,
+          phone_masked: maskedPhone,
+          failure_category: failureCategory
         },
-        'otp: provider failed to send OTP'
+        'otp: provider failed to send OTP',
+        'error'
       );
 
       if (IaaError.is(error)) {
@@ -207,7 +259,13 @@ export const createOtpChallengeService = (deps: OtpChallengeServiceDeps): OtpCha
       });
     }
 
-    const logBase = { challengeId, maskedPhone, requestId: ctx.requestId };
+    const logBase = {
+      module: 'iaa' as const,
+      challenge_id: challengeId,
+      phone_masked: maskedPhone,
+      request_id: ctx.requestId,
+      trace_id: ctx.traceId
+    };
 
     // --- State guards (assertActive throws the appropriate IaaError) ---------
     challenge.assertActive(now);
@@ -216,22 +274,51 @@ export const createOtpChallengeService = (deps: OtpChallengeServiceDeps): OtpCha
     challenge.assertPhoneMatches(phoneE164);
 
     // --- Provider verification ----------------------------------------------
-    const verification = await verificationProvider.checkVerification({
-      challengeId,
-      phoneE164,
-      code: otpCode,
-      requestId: ctx.requestId,
-      traceId: ctx.traceId
-    });
+    let verification;
+    try {
+      verification = await verificationProvider.checkVerification({
+        challengeId,
+        phoneE164,
+        code: otpCode,
+        requestId: ctx.requestId,
+        traceId: ctx.traceId
+      });
+      metrics?.providerCallsTotal({ outcome: 'success' });
+    } catch (error) {
+      const failureCategory = toProviderFailureCategory(error);
+      metrics?.providerCallsTotal({ outcome: 'failure', failure_category: failureCategory });
+      logIaaEvent(
+        logger,
+        {
+          ...logBase,
+          event_name: 'otp_provider_verify_failure',
+          outcome: 'failure',
+          error_code: IaaError.is(error) ? error.code : ErrorCode.AuthProviderUnavailable,
+          failure_category: failureCategory
+        },
+        'otp: provider failed during verify',
+        'error'
+      );
+      throw error;
+    }
     if (verification.approved === false) {
       challenge.recordFailedAttempt(now);
       await repo.updateChallenge(challenge);
 
       const remainingAttempts = challenge.maxAttempts - challenge.attemptCount;
 
-      logger.warn(
-        { ...logBase, event: 'otp.verify.invalid_code', remainingAttempts },
-        'otp: invalid OTP code'
+      logIaaEvent(
+        logger,
+        {
+          ...logBase,
+          event_name: 'otp_verify_invalid_code',
+          outcome: 'failure',
+          error_code: ErrorCode.AuthOtpInvalid,
+          remaining_attempts: remainingAttempts,
+          provider: verification.provider
+        },
+        'otp: invalid OTP code',
+        'warn'
       );
 
       throw new IaaError({
@@ -245,7 +332,16 @@ export const createOtpChallengeService = (deps: OtpChallengeServiceDeps): OtpCha
     challenge.consume(now);
     await repo.updateChallenge(challenge);
 
-    logger.info({ ...logBase, event: 'otp.verify.success' }, 'otp: challenge verified');
+    logIaaEvent(
+      logger,
+      {
+        ...logBase,
+        event_name: 'otp_verify_provider_success',
+        outcome: 'success',
+        provider: verification.provider
+      },
+      'otp: challenge verified'
+    );
 
     return { phoneE164 };
   };
