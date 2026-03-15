@@ -34,6 +34,14 @@ export default defineConfig({
         replacement: path.resolve(__dirname, 'packages/modules/src/tenancy/index.ts')
       },
       {
+        find: /^@hypermarket\/modules\/templates$/,
+        replacement: path.resolve(__dirname, 'packages/modules/src/templates/index.ts')
+      },
+      {
+        find: /^@hypermarket\/modules\/publishing$/,
+        replacement: path.resolve(__dirname, 'packages/modules/src/publishing/index.ts')
+      },
+      {
         find: /^@hypermarket\/modules\/iaa\/testkit$/,
         replacement: path.resolve(__dirname, 'packages/modules/src/iaa/testkit.ts')
       },

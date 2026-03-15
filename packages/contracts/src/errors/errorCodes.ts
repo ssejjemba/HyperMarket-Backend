@@ -16,6 +16,10 @@ export enum ErrorCode {
   DevOtpNotFound = 'dev_otp_not_found',
   DevForbidden = 'dev_forbidden',
 
+  // TMP (Templates) module codes
+  TemplateNotFound = 'template_not_found',
+  TemplateVersionNotFound = 'template_version_not_found',
+
   // TEN (Tenancy & Storefront Configuration) module codes
   TenantSlugInvalid = 'tenant_slug_invalid',
   TenantSlugTaken = 'tenant_slug_taken',
@@ -37,6 +41,18 @@ export enum ErrorCode {
   TenantMemberAlreadyRevoked = 'tenant_member_already_revoked',
   TenantAccessForbidden = 'tenant_access_forbidden',
   TenantDbFailure = 'tenant_db_failure',
+
+  // PUB (Publishing) module codes
+  ConfigInvalidPayload = 'config_invalid_payload',
+  ConfigSchemaMismatch = 'config_schema_mismatch',
+  ConfigNotFound = 'config_not_found',
+  ConfigNotOwnedByTenant = 'config_not_owned_by_tenant',
+  ConfigAlreadyActive = 'config_already_active',
+  ConfigNotDraft = 'config_not_draft',
+  ConfigVersionConflict = 'config_version_conflict',
+  PublishFailed = 'publish_failed',
+  RollbackFailed = 'rollback_failed',
+  RevalidationDispatchFailed = 'revalidation_dispatch_failed',
 
   // IAA (Identity and Access) module codes
   AuthInvalidPhoneFormat = 'auth_invalid_phone_format',

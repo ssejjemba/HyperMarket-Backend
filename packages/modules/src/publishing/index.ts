@@ -32,3 +32,5 @@ export const registerPublishingRoutes = async (
 };
 
 export { registerPublishingApiRoutes } from './api/routes';
+export { PublishingError } from './errors/PublishingError';
+export type { PublishingErrorCode } from './errors/PublishingError';

@@ -13,3 +13,5 @@ export const registerTemplateRoutes = async (
 };
 
 export { registerTemplateApiRoutes } from './api/routes';
+export { TemplateError } from './errors/TemplateError';
+export type { TemplateErrorCode } from './errors/TemplateError';

@@ -31,6 +31,10 @@ const codeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.DevOtpNotFound]: 404,
   [ErrorCode.DevForbidden]: 403,
 
+  // TMP codes
+  [ErrorCode.TemplateNotFound]: 404,
+  [ErrorCode.TemplateVersionNotFound]: 404,
+
   // TEN codes
   [ErrorCode.TenantSlugInvalid]: 400,
   [ErrorCode.TenantSlugTaken]: 409,
@@ -52,6 +56,18 @@ const codeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.TenantMemberAlreadyRevoked]: 409,
   [ErrorCode.TenantAccessForbidden]: 403,
   [ErrorCode.TenantDbFailure]: 500,
+
+  // PUB codes
+  [ErrorCode.ConfigInvalidPayload]: 400,
+  [ErrorCode.ConfigSchemaMismatch]: 400,
+  [ErrorCode.ConfigNotFound]: 404,
+  [ErrorCode.ConfigNotOwnedByTenant]: 404,
+  [ErrorCode.ConfigAlreadyActive]: 409,
+  [ErrorCode.ConfigNotDraft]: 409,
+  [ErrorCode.ConfigVersionConflict]: 409,
+  [ErrorCode.PublishFailed]: 500,
+  [ErrorCode.RollbackFailed]: 500,
+  [ErrorCode.RevalidationDispatchFailed]: 502,
 
   // IAA codes
   [ErrorCode.AuthInvalidPhoneFormat]: 400,
