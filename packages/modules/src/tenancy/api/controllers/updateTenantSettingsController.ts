@@ -33,7 +33,20 @@ export const makeUpdateTenantSettingsHandler =
     const settings = await useCase.execute({
       tenantId,
       actorUserId: userId,
-      patch: parsedBody,
+      patch: {
+        ...(parsedBody.contactName !== undefined ? { contactName: parsedBody.contactName } : {}),
+        ...(parsedBody.contactEmail !== undefined ? { contactEmail: parsedBody.contactEmail } : {}),
+        ...(parsedBody.contactPhoneE164 !== undefined
+          ? { contactPhoneE164: parsedBody.contactPhoneE164 }
+          : {}),
+        ...(parsedBody.contactWhatsappE164 !== undefined
+          ? { contactWhatsappE164: parsedBody.contactWhatsappE164 }
+          : {}),
+        ...(parsedBody.socialLinks !== undefined ? { socialLinks: parsedBody.socialLinks } : {}),
+        ...(parsedBody.businessHours !== undefined
+          ? { businessHours: parsedBody.businessHours }
+          : {})
+      },
       requestId: request.id
     });
 

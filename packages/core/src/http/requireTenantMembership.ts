@@ -14,12 +14,17 @@ export type TenantMembershipGuardDeps = {
 };
 
 const extractTenantId = (request: RequestLike): string | undefined => {
-  const paramTenantId = request.params?.['tenantId'];
+  const params =
+    request.params !== null && typeof request.params === 'object'
+      ? (request.params as Record<string, unknown>)
+      : undefined;
+
+  const paramTenantId = params?.['tenantId'];
   if (typeof paramTenantId === 'string' && paramTenantId.length > 0) {
     return paramTenantId;
   }
 
-  const snakeParamTenantId = request.params?.['tenant_id'];
+  const snakeParamTenantId = params?.['tenant_id'];
   if (typeof snakeParamTenantId === 'string' && snakeParamTenantId.length > 0) {
     return snakeParamTenantId;
   }
@@ -39,8 +44,9 @@ export const requireTenantMembership = (deps: TenantMembershipGuardDeps) => {
 
     request.auth = {
       ...(request.auth ?? {}),
-      userId: auth.userId,
-      sessionId: auth.sessionId
+      ...(auth.sessionId !== undefined
+        ? { userId: auth.userId, sessionId: auth.sessionId }
+        : { userId: auth.userId })
     };
 
     if (tenantId === undefined) {

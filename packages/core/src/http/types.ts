@@ -20,5 +20,5 @@ export type HeaderMap = Record<string, string | string[] | undefined>;
 
 export type RequestLike = {
   headers: HeaderMap;
-  params?: Record<string, unknown>;
+  params?: unknown;
 } & RequestAuthState;

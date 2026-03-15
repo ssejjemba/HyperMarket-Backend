@@ -3,6 +3,7 @@ import type { BaseLogger } from 'pino';
 
 import { requireTenantMembership, requireTenantOwner } from '@hypermarket/core/http';
 
+import { extractBearerToken } from '../../iaa/api/controllers/extractBearerToken';
 import type { SessionService } from '../../iaa/session/SessionService';
 import type {
   CreateTenantMembershipUseCase,
@@ -47,22 +48,12 @@ export const registerTenancyApiRoutes = async (
 ): Promise<void> => {
   deps.logger.info({ module: 'tenancy' }, 'registering TEN routes');
   const tenantGuard = requireTenantMembership({
-    getAuth: async (request) =>
-      deps.sessionService.validateSession(
-        request.headers.authorization?.startsWith('Bearer ') === true
-          ? request.headers.authorization.slice(7)
-          : undefined
-      ),
+    getAuth: async (request) => deps.sessionService.validateSession(extractBearerToken(request)),
     assertMembership: async (userId, tenantId) =>
       deps.membershipReader.assertMembership(userId, tenantId)
   });
   const tenantOwnerGuard = requireTenantOwner({
-    getAuth: async (request) =>
-      deps.sessionService.validateSession(
-        request.headers.authorization?.startsWith('Bearer ') === true
-          ? request.headers.authorization.slice(7)
-          : undefined
-      ),
+    getAuth: async (request) => deps.sessionService.validateSession(extractBearerToken(request)),
     assertMembership: async (userId, tenantId) =>
       deps.membershipReader.assertMembership(userId, tenantId)
   });
