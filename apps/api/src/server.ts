@@ -105,7 +105,8 @@ const resolveRootDir = (): string => {
 
 const loadConfig = (): AppConfig => {
   const rootDir = resolveRootDir();
-  loadDotenv({ path: path.join(rootDir, '.env') });
+  loadDotenv({ path: path.join(rootDir, '.env.example') });
+  loadDotenv({ path: path.join(rootDir, '.env'), override: true });
 
   try {
     return loadEnv();
