@@ -61,3 +61,17 @@ export const parseUpdateConfigRequest = (
 
   return parsed.data;
 };
+
+export const parseActivateConfigRequest = (
+  input: unknown
+): z.infer<typeof activateConfigRequestSchema> => {
+  const parsed = activateConfigRequestSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new AppError({
+      code: ErrorCode.ValidationFailed,
+      message: parsed.error.errors[0]?.message ?? 'Invalid activate config request'
+    });
+  }
+
+  return parsed.data;
+};

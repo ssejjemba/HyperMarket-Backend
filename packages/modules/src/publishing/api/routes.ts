@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { BaseLogger } from 'pino';
 
 import type { DatabaseSchema } from '@hypermarket/core';
-import { requireTenantMembership } from '@hypermarket/core/http';
+import { requireTenantMembership, requireTenantOwner } from '@hypermarket/core/http';
 import type { Kysely } from 'kysely';
 
 import { extractBearerToken } from '../../iaa/api/controllers/extractBearerToken';
@@ -13,13 +13,16 @@ import {
   createCreateDraftConfigUseCase,
   createGetStoreConfigUseCase,
   createListStoreConfigsUseCase,
+  createPublishConfigUseCase,
+  createRollbackConfigUseCase,
   createUpdateStoreConfigUseCase,
   type ConfigValidator
 } from '../application';
 import { makeCreateStoreConfigHandler } from './controllers/createStoreConfigController';
 import { makeGetStoreConfigHandler } from './controllers/getStoreConfigController';
 import { makeListStoreConfigsHandler } from './controllers/listStoreConfigsController';
-import { makeNotImplementedPublishingHandler } from './controllers/notImplementedPublishingController';
+import { makePublishConfigHandler } from './controllers/publishConfigController';
+import { makeRollbackConfigHandler } from './controllers/rollbackConfigController';
 import { makeUpdateStoreConfigHandler } from './controllers/updateStoreConfigController';
 
 export type PublishingApiDeps = {
@@ -47,8 +50,21 @@ export const registerPublishingApiRoutes = async (
     db: deps.db,
     configValidator: deps.configValidator
   });
+  const publishConfigUseCase = createPublishConfigUseCase({
+    db: deps.db,
+    configValidator: deps.configValidator
+  });
+  const rollbackConfigUseCase = createRollbackConfigUseCase({
+    db: deps.db,
+    configValidator: deps.configValidator
+  });
 
   const tenantGuard = requireTenantMembership({
+    getAuth: async (request) => deps.sessionService.validateSession(extractBearerToken(request)),
+    assertMembership: async (userId, tenantId) =>
+      deps.membershipReader.assertMembership(userId, tenantId)
+  });
+  const tenantOwnerGuard = requireTenantOwner({
     getAuth: async (request) => deps.sessionService.validateSession(extractBearerToken(request)),
     assertMembership: async (userId, tenantId) =>
       deps.membershipReader.assertMembership(userId, tenantId)
@@ -80,13 +96,13 @@ export const registerPublishingApiRoutes = async (
 
   server.post(
     '/tenants/:tenantId/publish',
-    { preHandler: tenantGuard },
-    makeNotImplementedPublishingHandler(deps.logger, 'publishing.publish.not_implemented')
+    { preHandler: tenantOwnerGuard },
+    makePublishConfigHandler(publishConfigUseCase)
   );
 
   server.post(
     '/tenants/:tenantId/rollback',
-    { preHandler: tenantGuard },
-    makeNotImplementedPublishingHandler(deps.logger, 'publishing.rollback.not_implemented')
+    { preHandler: tenantOwnerGuard },
+    makeRollbackConfigHandler(rollbackConfigUseCase)
   );
 };

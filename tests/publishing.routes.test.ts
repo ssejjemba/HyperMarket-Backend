@@ -7,16 +7,11 @@ import {
   UserIdentity,
   createSessionRepoPg,
   createSessionService,
-  createTokenSigner
+  createTokenSigner,
+  createUserRepoPg
 } from '@hypermarket/modules/iaa';
 
 import { buildServer } from '../apps/api/src/server';
-
-type ErrorEnvelope = {
-  request_id: string;
-  error_code: string;
-  message: string;
-};
 
 const TEST_CONFIG: AppConfig = {
   nodeEnv: 'test',
@@ -88,7 +83,7 @@ describe('PUB routes scaffold', () => {
 
     const res = await server.inject({ method, url });
 
-    expect([401, 404, 501]).toContain(res.statusCode);
+    expect([401, 403, 404, 501]).toContain(res.statusCode);
 
     await server.close();
   });
@@ -258,38 +253,262 @@ flowSuite('PUB routes scaffold - membership guarded placeholders', () => {
     await server.close();
   });
 
-  it.each([
-    ['POST', `/tenants/__TENANT__/publish`, { config_id: '00000000-0000-0000-0000-000000000003' }],
-    ['POST', `/tenants/__TENANT__/rollback`, { config_id: '00000000-0000-0000-0000-000000000003' }]
-  ])(
-    'still returns not_implemented for authenticated tenant members on %s %s',
-    async (method, rawUrl, payload) => {
-      ctx = await createTestContext();
-      const token = await issueAccessTokenForUser(ctx, {
-        id: ctx.seed.userId,
-        phoneE164: ctx.seed.userPhone
-      });
-      const url = rawUrl.replace('__TENANT__', ctx.seed.tenantId);
-      const server = buildServer({
-        config: { ...ctx.config, nodeEnv: 'test' },
-        devRoutesMode: 'disabled'
-      });
-      await server.ready();
+  it('blocks non-owner publish attempts', async () => {
+    ctx = await createTestContext();
+    const managerPhone = `+256799${Date.now().toString().slice(-6)}`;
+    const managerUser = await createUserRepoPg(ctx.db).createWithPhone(managerPhone);
+    await ctx.db
+      .insertInto('tenant_memberships')
+      .values({
+        id: crypto.randomUUID(),
+        tenant_id: ctx.seed.tenantId,
+        user_id: managerUser.id,
+        role: 'manager',
+        status: 'active',
+        created_at: new Date(),
+        revoked_at: null
+      })
+      .execute();
 
-      const res = await server.inject({
-        method,
-        url,
-        headers: { authorization: `Bearer ${token}` },
-        payload
-      });
+    const token = await issueAccessTokenForUser(ctx, {
+      id: managerUser.id,
+      phoneE164: managerPhone
+    });
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
 
-      expect(res.statusCode).toBe(501);
-      const body = res.json<ErrorEnvelope>();
-      expect(typeof body.request_id).toBe('string');
-      expect(body.error_code).toBe(ErrorCode.NotImplemented);
-      expect(body.message).toBe('Publishing route not implemented');
+    const res = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/publish`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        config_id: crypto.randomUUID()
+      }
+    });
 
-      await server.close();
-    }
-  );
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toMatchObject({
+      request_id: expect.any(String),
+      error_code: ErrorCode.TenantAccessForbidden,
+      message: 'Tenant owner access required'
+    });
+
+    await server.close();
+  });
+
+  it('publishes a valid draft config for tenant owners', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessTokenForUser(ctx, {
+      id: ctx.seed.userId,
+      phoneE164: ctx.seed.userPhone
+    });
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const created = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/configs`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        template_id: 'basic-commerce',
+        template_version: 'v1'
+      }
+    });
+    const configId = created.json<{ config: { id: string } }>().config.id;
+
+    const res = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/publish`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        config_id: configId
+      }
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      publish: {
+        config_id: configId,
+        active_config_id: configId,
+        previous_config_id: null
+      }
+    });
+
+    await server.close();
+  });
+
+  it('returns publish_validation_failed for invalid publish targets', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessTokenForUser(ctx, {
+      id: ctx.seed.userId,
+      phoneE164: ctx.seed.userPhone
+    });
+    const { id: configId } = await ctx.db
+      .insertInto('store_configs')
+      .values({
+        id: crypto.randomUUID(),
+        tenant_id: ctx.seed.tenantId,
+        status: 'draft',
+        template_id: 'basic-commerce',
+        template_version: 'v1',
+        config_version: 1,
+        config_payload: {
+          hero_title: 'Fresh products for Kampala'
+        },
+        validation_report: null,
+        created_by_user_id: ctx.seed.userId,
+        created_at: new Date()
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/publish`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        config_id: configId
+      }
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({
+      request_id: expect.any(String),
+      error_code: ErrorCode.PublishValidationFailed,
+      message: 'Config cannot be published because validation failed'
+    });
+
+    await server.close();
+  });
+
+  it('blocks non-owner rollback attempts', async () => {
+    ctx = await createTestContext();
+    const managerPhone = `+256798${Date.now().toString().slice(-6)}`;
+    const managerUser = await createUserRepoPg(ctx.db).createWithPhone(managerPhone);
+    await ctx.db
+      .insertInto('tenant_memberships')
+      .values({
+        id: crypto.randomUUID(),
+        tenant_id: ctx.seed.tenantId,
+        user_id: managerUser.id,
+        role: 'manager',
+        status: 'active',
+        created_at: new Date(),
+        revoked_at: null
+      })
+      .execute();
+
+    const token = await issueAccessTokenForUser(ctx, {
+      id: managerUser.id,
+      phoneE164: managerPhone
+    });
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const res = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/rollback`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        config_id: crypto.randomUUID()
+      }
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toMatchObject({
+      request_id: expect.any(String),
+      error_code: ErrorCode.TenantAccessForbidden,
+      message: 'Tenant owner access required'
+    });
+
+    await server.close();
+  });
+
+  it('rolls back to a previous valid config for tenant owners', async () => {
+    ctx = await createTestContext();
+    const token = await issueAccessTokenForUser(ctx, {
+      id: ctx.seed.userId,
+      phoneE164: ctx.seed.userPhone
+    });
+    const server = buildServer({
+      config: { ...ctx.config, nodeEnv: 'test' },
+      devRoutesMode: 'disabled'
+    });
+    await server.ready();
+
+    const firstDraft = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/configs`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        template_id: 'basic-commerce',
+        template_version: 'v1'
+      }
+    });
+    const firstConfigId = firstDraft.json<{ config: { id: string } }>().config.id;
+
+    const secondDraft = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/configs`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        template_id: 'basic-commerce',
+        template_version: 'v1',
+        config_payload: {
+          brand_name: 'HyperMart Express',
+          hero_title: 'Shop Kampala in minutes',
+          hero_subtitle: 'A faster storefront for repeat customers.',
+          primary_color: '#14532D',
+          cta_label: 'Browse deals'
+        }
+      }
+    });
+    const secondConfigId = secondDraft.json<{ config: { id: string } }>().config.id;
+
+    const publish = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/publish`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        config_id: secondConfigId
+      }
+    });
+
+    expect(publish.statusCode).toBe(200);
+
+    const rollback = await server.inject({
+      method: 'POST',
+      url: `/tenants/${ctx.seed.tenantId}/rollback`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        config_id: firstConfigId
+      }
+    });
+
+    expect(rollback.statusCode).toBe(200);
+    expect(rollback.json()).toEqual({
+      rollback: {
+        config_id: firstConfigId,
+        active_config_id: firstConfigId,
+        previous_config_id: secondConfigId
+      }
+    });
+
+    await server.close();
+  });
 });
