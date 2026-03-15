@@ -17,4 +17,13 @@ export type TenantMembership = {
   status: 'active' | 'revoked';
 };
 
-export type TenantSettings = Record<string, unknown>;
+export type TenantSettings = {
+  tenantId: string;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhoneE164: string | null;
+  socialLinks: Record<string, unknown>;
+  businessHours: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+};

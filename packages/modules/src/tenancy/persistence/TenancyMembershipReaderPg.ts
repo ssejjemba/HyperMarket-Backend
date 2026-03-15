@@ -4,17 +4,18 @@ import type { Kysely } from 'kysely';
 
 import type { MembershipReader } from '../MembershipReader';
 import type { TenantMembership } from '../domain/Tenant';
-import { createTenancyRepository } from './TenancyRepoPg';
+import { mapMembership } from './mappers';
+import { createTenantMembershipRepoPg } from './TenantMembershipRepoPg';
 
 export const createMembershipReaderPg = (db: Kysely<DatabaseSchema>): MembershipReader => {
-  const repo = createTenancyRepository(db);
+  const membershipRepo = createTenantMembershipRepoPg(db);
 
   return {
-    listMemberships(userId: string): Promise<TenantMembership[]> {
-      return repo.getMembershipsForUser(userId);
+    async listMemberships(userId: string): Promise<TenantMembership[]> {
+      return (await membershipRepo.listMemberships(userId)).map(mapMembership);
     },
     async assertMembership(userId: string, tenantId: string): Promise<TenantMembership> {
-      const membership = await repo.getMembership(userId, tenantId);
+      const membership = await membershipRepo.findMembership(tenantId, userId);
 
       if (membership === null) {
         throw new AppError({
@@ -30,7 +31,7 @@ export const createMembershipReaderPg = (db: Kysely<DatabaseSchema>): Membership
         });
       }
 
-      return membership;
+      return mapMembership(membership);
     }
   };
 };
