@@ -449,7 +449,7 @@ export const createPaymentUseCases = (deps: {
             request: {
               headers: {
                 'x-mock-momo-signature': signMockMomoWebhook({
-                  secret: deps.config.paymentMockWebhookSecret ?? 'test-pay-webhook-secret',
+                  secret: deps.config.flwWebhookSecretHash ?? 'test-pay-webhook-secret',
                   body
                 })
               },

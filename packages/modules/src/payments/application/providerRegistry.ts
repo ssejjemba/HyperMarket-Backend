@@ -11,7 +11,7 @@ export const createPaymentProviderRegistry = (config: AppConfigShape) => {
   providers.set(
     'mock_momo',
     createMockMomoProvider({
-      webhookSecret: config.paymentMockWebhookSecret ?? 'test-pay-webhook-secret'
+      webhookSecret: config.flwWebhookSecretHash ?? 'test-pay-webhook-secret'
     })
   );
 

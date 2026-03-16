@@ -117,6 +117,13 @@ const codeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.PaymentIdempotencyConflict]: 409,
   [ErrorCode.PaymentReconciliationFailed]: 502,
   [ErrorCode.PaymentDbFailure]: 500,
+  [ErrorCode.PaymentWebhookHashMissing]: 401,
+  [ErrorCode.PaymentWebhookHashMismatch]: 401,
+  [ErrorCode.PaymentProviderRejectedRequest]: 400,
+  [ErrorCode.PaymentProviderRateLimited]: 429,
+  [ErrorCode.PaymentProviderAuthFailed]: 502,
+  [ErrorCode.PaymentTransactionVerificationFailed]: 502,
+  [ErrorCode.PaymentTransactionMismatch]: 409,
 
   // IAA codes
   [ErrorCode.AuthInvalidPhoneFormat]: 400,

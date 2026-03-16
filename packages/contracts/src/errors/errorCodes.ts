@@ -102,6 +102,13 @@ export enum ErrorCode {
   PaymentIdempotencyConflict = 'payment_idempotency_conflict',
   PaymentReconciliationFailed = 'payment_reconciliation_failed',
   PaymentDbFailure = 'payment_db_failure',
+  PaymentWebhookHashMissing = 'payment_webhook_hash_missing',
+  PaymentWebhookHashMismatch = 'payment_webhook_hash_mismatch',
+  PaymentProviderRejectedRequest = 'payment_provider_rejected_request',
+  PaymentProviderRateLimited = 'payment_provider_rate_limited',
+  PaymentProviderAuthFailed = 'payment_provider_auth_failed',
+  PaymentTransactionVerificationFailed = 'payment_transaction_verification_failed',
+  PaymentTransactionMismatch = 'payment_transaction_mismatch',
 
   // IAA (Identity and Access) module codes
   AuthInvalidPhoneFormat = 'auth_invalid_phone_format',
