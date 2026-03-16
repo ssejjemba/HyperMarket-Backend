@@ -62,12 +62,11 @@ export const registerPaymentApiRoutes = async (
       tenantId,
       orderId: body.order_id,
       idempotencyKey: getIdempotencyKey(request.headers),
-      method: body.method,
+      method: 'mobile_money',
+      customerPhoneE164: body.customer_phone_e164,
+      customerEmail: body.email,
+      network: body.network,
       ...(body.provider !== undefined ? { provider: body.provider } : {}),
-      ...(body.customer_phone_e164 !== undefined
-        ? { customerPhoneE164: body.customer_phone_e164 }
-        : {}),
-      ...(body.return_url !== undefined ? { returnUrl: body.return_url } : {}),
       requestId: request.id
     });
 

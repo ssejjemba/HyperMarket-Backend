@@ -10,7 +10,14 @@ import { AppError, ErrorCode } from '@hypermarket/contracts';
 import type { Kysely } from 'kysely';
 
 import { OrderError, type OrderPaymentPort } from '../../orders';
-import { createPaymentRequestHash, CustomerPhone, type PaymentIntentStatus } from '../domain';
+import {
+  createFlutterwaveTxRef,
+  createPaymentRequestHash,
+  CustomerEmail,
+  CustomerPhone,
+  FlutterwaveNetwork,
+  type PaymentIntentStatus
+} from '../domain';
 import { PaymentError } from '../errors/PaymentError';
 import {
   signMockMomoWebhook,
@@ -80,9 +87,6 @@ const isOrderPayable = (status: string, checkoutMode: string): boolean =>
 
 const isFinalIntentStatus = (status: PaymentIntentStatus): boolean =>
   ['SUCCEEDED', 'FAILED', 'EXPIRED', 'CANCELLED', 'REFUNDED'].includes(status);
-
-const createdTxRefFallback = (tenantId: string, orderId: string): string =>
-  `legacy:${tenantId}:${orderId}`;
 
 export const createPaymentUseCases = (deps: {
   db: Kysely<DatabaseSchema>;
@@ -239,21 +243,31 @@ export const createPaymentUseCases = (deps: {
       method: PaymentMethod;
       provider?: string;
       customerPhoneE164?: string | null;
-      returnUrl?: string | null;
+      customerEmail?: string;
+      network?: string;
       requestId?: string;
     }) {
-      const providerName = input.provider ?? deps.config.paymentDefaultProvider ?? 'mock_momo';
+      const providerName = input.provider ?? deps.config.paymentDefaultProvider ?? 'flutterwave';
       const phone =
         input.customerPhoneE164 === undefined || input.customerPhoneE164 === null
           ? null
           : CustomerPhone.parse(input.customerPhoneE164).toE164();
+      const customerEmail =
+        providerName === 'flutterwave'
+          ? CustomerEmail.parse(input.customerEmail ?? '').toString()
+          : (input.customerEmail ?? '').trim().toLowerCase();
+      const network =
+        providerName === 'flutterwave'
+          ? FlutterwaveNetwork.parse(input.network ?? deps.config.flwDefaultNetwork).toString()
+          : (input.network ?? '').trim().toUpperCase();
       const requestHash = createPaymentRequestHash({
         tenantId: input.tenantId,
         orderId: input.orderId,
         method: input.method,
         provider: providerName,
         customerPhoneE164: phone,
-        ...(input.returnUrl !== undefined ? { returnUrl: input.returnUrl } : {})
+        customerEmail,
+        network
       });
 
       try {
@@ -304,7 +318,15 @@ export const createPaymentUseCases = (deps: {
             });
           }
 
+          if (providerName === 'flutterwave' && order.currency !== 'UGX') {
+            throw new PaymentError({
+              code: ErrorCode.PaymentProviderRejectedRequest,
+              message: 'Flutterwave mobile money supports UGX orders only'
+            });
+          }
+
           const provider = providers.getProvider(providerName);
+          const pendingTxRef = `pending:${begin.record.id}`;
           const created = await repo.createIntent({
             tenantId: input.tenantId,
             orderId: input.orderId,
@@ -313,16 +335,25 @@ export const createPaymentUseCases = (deps: {
             status: 'CREATED',
             amount: order.totalAmount,
             currency: order.currency,
-            txRef: createdTxRefFallback(input.tenantId, input.orderId),
-            customerEmail: '',
-            network: '',
+            txRef: pendingTxRef,
+            customerEmail,
+            network,
             ...(phone !== null ? { customerPhoneE164: phone } : {})
           });
+          const txRef =
+            provider.providerName === 'flutterwave'
+              ? createFlutterwaveTxRef({
+                  tenantId: input.tenantId,
+                  orderId: input.orderId,
+                  paymentIntentId: created.id
+                })
+              : created.txRef;
 
           const withPending = await repo.updateIntent({
             tenantId: input.tenantId,
             intentId: created.id,
-            status: 'PENDING_PROVIDER'
+            status: 'PENDING_PROVIDER',
+            txRef
           });
           if (withPending === null) {
             throw new PaymentError({
@@ -340,10 +371,17 @@ export const createPaymentUseCases = (deps: {
               amount: order.totalAmount,
               currency: order.currency,
               method: input.method,
+              txRef,
               customerPhoneE164: phone,
+              customerEmail,
+              network,
               webhookUrl: `/payments/webhooks/${provider.providerName}`
             });
           } catch (error) {
+            if (error instanceof PaymentError) {
+              throw error;
+            }
+
             throw new PaymentError({
               code: ErrorCode.PaymentProviderUnavailable,
               message: 'Payment provider create intent failed',
@@ -355,7 +393,9 @@ export const createPaymentUseCases = (deps: {
             tenantId: input.tenantId,
             intentId: created.id,
             status: mapProviderStatus(providerResult.status),
-            providerReference: providerResult.providerReference
+            txRef: providerResult.providerReference,
+            providerReference: providerResult.providerReference,
+            providerTransactionId: providerResult.providerTransactionId ?? null
           });
 
           if (finalIntent === null) {

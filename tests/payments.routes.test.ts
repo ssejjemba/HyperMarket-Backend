@@ -106,8 +106,12 @@ const ensurePaymentsTables = async (db: ReturnType<typeof createDbClient>): Prom
       status text not null,
       amount integer not null,
       currency text not null default 'UGX',
+      tx_ref text not null default '',
       provider_reference text null,
+      provider_transaction_id text null,
       customer_phone_e164 text null,
+      customer_email text not null default '',
+      network text not null default '',
       failure_code text null,
       failure_message text null,
       created_at timestamptz not null default now(),
@@ -129,6 +133,31 @@ const ensurePaymentsTables = async (db: ReturnType<typeof createDbClient>): Prom
   await sql`
     create unique index if not exists payment_provider_events_provider_provider_event_id_unique
     on payment_provider_events (provider, provider_event_id)
+  `.execute(db);
+  await sql`
+    alter table payment_intents
+    add column if not exists tx_ref text not null default ''
+  `.execute(db);
+  await sql`
+    alter table payment_intents
+    add column if not exists provider_transaction_id text null
+  `.execute(db);
+  await sql`
+    alter table payment_intents
+    add column if not exists customer_email text not null default ''
+  `.execute(db);
+  await sql`
+    alter table payment_intents
+    add column if not exists network text not null default ''
+  `.execute(db);
+  await sql`
+    update payment_intents
+    set tx_ref = concat('legacy:', id::text)
+    where tx_ref = ''
+  `.execute(db);
+  await sql`
+    create unique index if not exists payment_intents_provider_tx_ref_idx
+    on payment_intents (provider, tx_ref)
   `.execute(db);
 };
 
@@ -282,8 +311,10 @@ flowSuite('PAY routes', () => {
       },
       payload: {
         order_id: ctx.seed.orderId,
-        method: 'mobile_money',
-        customer_phone_e164: '+256712345678'
+        provider: 'mock_momo',
+        customer_phone_e164: '+256712345678',
+        network: 'MTN',
+        email: 'shopper@example.com'
       }
     });
 
@@ -304,8 +335,10 @@ flowSuite('PAY routes', () => {
       },
       payload: {
         order_id: ctx.seed.orderId,
-        method: 'mobile_money',
-        customer_phone_e164: '+256712345678'
+        provider: 'mock_momo',
+        customer_phone_e164: '+256712345678',
+        network: 'MTN',
+        email: 'shopper@example.com'
       }
     });
 
@@ -330,8 +363,10 @@ flowSuite('PAY routes', () => {
       },
       payload: {
         order_id: ctx.seed.orderId,
-        method: 'mobile_money',
-        customer_phone_e164: '+256712345678'
+        provider: 'mock_momo',
+        customer_phone_e164: '+256712345678',
+        network: 'MTN',
+        email: 'shopper@example.com'
       }
     });
 
@@ -343,8 +378,10 @@ flowSuite('PAY routes', () => {
       },
       payload: {
         order_id: ctx.seed.secondOrderId,
-        method: 'mobile_money',
-        customer_phone_e164: '+256712345678'
+        provider: 'mock_momo',
+        customer_phone_e164: '+256712345678',
+        network: 'MTN',
+        email: 'shopper@example.com'
       }
     });
 
@@ -391,8 +428,10 @@ flowSuite('PAY routes', () => {
       },
       payload: {
         order_id: ctx.seed.orderId,
-        method: 'mobile_money',
-        customer_phone_e164: '+256712345678'
+        provider: 'mock_momo',
+        customer_phone_e164: '+256712345678',
+        network: 'MTN',
+        email: 'shopper@example.com'
       }
     });
 
@@ -407,7 +446,7 @@ flowSuite('PAY routes', () => {
       occurred_at: '2026-03-16T00:00:00.000Z'
     };
     const signature = signMockMomoWebhook({
-      secret: TEST_CONFIG.paymentMockWebhookSecret,
+      secret: TEST_CONFIG.flwWebhookSecretHash as string,
       body
     });
 
