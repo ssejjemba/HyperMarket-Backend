@@ -105,6 +105,55 @@ export type DatabaseSchema = {
     failure_reason: string | null;
     created_at: Date;
   };
+  categories: {
+    id: string;
+    tenant_id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+    sort_order: number;
+    is_visible: boolean;
+    created_at: Date;
+    updated_at: Date;
+    deleted_at: Date | null;
+  };
+  products: {
+    id: string;
+    tenant_id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+    status: 'active' | 'draft' | 'archived';
+    primary_image_asset_id: string | null;
+    price_amount: number;
+    compare_at_price_amount: number | null;
+    currency: string;
+    track_inventory: boolean;
+    stock_quantity: number | null;
+    sku: string | null;
+    attributes: Record<string, unknown>;
+    created_at: Date;
+    updated_at: Date;
+    deleted_at: Date | null;
+  };
+  product_variants: {
+    id: string;
+    tenant_id: string;
+    product_id: string;
+    name: string;
+    sku: string | null;
+    price_amount: number | null;
+    stock_quantity: number | null;
+    options: Record<string, unknown>;
+    created_at: Date;
+    updated_at: Date;
+  };
+  product_categories: {
+    tenant_id: string;
+    product_id: string;
+    category_id: string;
+    created_at: Date;
+  };
   auth_otps: {
     id: string;
     phone_e164: string;

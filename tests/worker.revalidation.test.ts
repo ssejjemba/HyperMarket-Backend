@@ -160,4 +160,39 @@ describe('worker storefront revalidation client', () => {
     expect(JSON.stringify(info.mock.calls)).not.toContain('super-secret-token');
     expect(JSON.stringify(error.mock.calls)).not.toContain('super-secret-token');
   });
+
+  it('enqueues catalog outbox events as revalidation jobs', async () => {
+    const add = vi.fn().mockResolvedValue(undefined);
+    const event: OutboxRecord = {
+      id: 'outbox-cat-1',
+      eventType: 'Catalog.ProductUpserted',
+      tenantId: 'tenant-1',
+      correlationId: 'corr-1',
+      actorUserId: 'user-1',
+      payload: {
+        tenant_id: 'tenant-1',
+        product_id: 'product-1',
+        slug: 'fresh-milk',
+        targets: ['/', '/products', '/products/fresh-milk']
+      },
+      occurredAt: new Date(),
+      availableAt: new Date(),
+      attempts: 0
+    };
+
+    const queued = await enqueueStorefrontRevalidationJob({ add }, event);
+
+    expect(queued).toBe(true);
+    expect(add).toHaveBeenCalledWith(
+      STOREFRONT_REVALIDATION_QUEUE,
+      {
+        event_type: 'Catalog.ProductUpserted',
+        tenant_id: 'tenant-1',
+        config_id: undefined,
+        previous_config_id: undefined,
+        targets: ['/', '/products', '/products/fresh-milk']
+      },
+      expect.any(Object)
+    );
+  });
 });

@@ -54,6 +54,16 @@ export enum ErrorCode {
   RollbackFailed = 'rollback_failed',
   RevalidationDispatchFailed = 'revalidation_dispatch_failed',
 
+  // CAT (Catalog) module codes
+  CatalogProductNotFound = 'catalog_product_not_found',
+  CatalogCategoryNotFound = 'catalog_category_not_found',
+  CatalogSlugInvalid = 'catalog_slug_invalid',
+  CatalogSlugTaken = 'catalog_slug_taken',
+  CatalogPriceInvalid = 'catalog_price_invalid',
+  CatalogCurrencyNotSupported = 'catalog_currency_not_supported',
+  CatalogInventoryRuleViolation = 'catalog_inventory_rule_violation',
+  CatalogValidationFailed = 'catalog_validation_failed',
+
   // IAA (Identity and Access) module codes
   AuthInvalidPhoneFormat = 'auth_invalid_phone_format',
   AuthPhoneCountryNotSupported = 'auth_phone_country_not_supported',

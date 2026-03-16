@@ -36,6 +36,8 @@ const DEV_CONFIG: AppConfig = {
 };
 
 describe('dev OTP routes', () => {
+  const futureExpiry = (): Date => new Date(Date.now() + 60 * 60 * 1000);
+
   beforeEach(() => {
     otpSink.clear();
   });
@@ -51,7 +53,8 @@ describe('dev OTP routes', () => {
     });
     await server.ready();
 
-    otpSink.put('challenge-1', '123456', new Date('2026-03-15T10:00:00.000Z'));
+    const expiresAt = futureExpiry();
+    otpSink.put('challenge-1', '123456', expiresAt);
 
     const res = await server.inject({
       method: 'GET',
@@ -63,7 +66,7 @@ describe('dev OTP routes', () => {
     expect(res.json()).toEqual({
       challenge_id: 'challenge-1',
       otp_code: '123456',
-      expires_at: '2026-03-15T10:00:00.000Z'
+      expires_at: expiresAt.toISOString()
     });
 
     await server.close();
@@ -100,7 +103,7 @@ describe('dev OTP routes', () => {
     });
     await server.ready();
 
-    otpSink.put('challenge-3', '654321', new Date('2026-03-15T10:00:00.000Z'));
+    otpSink.put('challenge-3', '654321', futureExpiry());
 
     const res = await server.inject({
       method: 'GET',

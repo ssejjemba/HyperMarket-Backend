@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 
 import type { ModuleDeps, ModuleLogger } from './types';
 import { registerIaaRoutes } from './iaa/index';
+import { registerCatalogRoutes } from './catalog/index';
 import { registerPublishingRoutes } from './publishing/index';
 import { registerTenancyRoutes } from './tenancy/index';
 import { registerTemplateRoutes } from './templates/index';
@@ -17,6 +18,11 @@ export const registerModules = async (server: FastifyInstance, deps: ModuleDeps)
   });
 
   await registerTenancyRoutes(server, {
+    ...deps,
+    logger: moduleLogger
+  });
+
+  await registerCatalogRoutes(server, {
     ...deps,
     logger: moduleLogger
   });

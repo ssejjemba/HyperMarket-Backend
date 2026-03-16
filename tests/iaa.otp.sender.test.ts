@@ -10,12 +10,12 @@ import type { OtpSendCorrelation } from '@hypermarket/modules/iaa/otp-sender';
 
 const PHONE = '+256712345678';
 const CODE = '123456'; // never should appear in any log/result
-const CORRELATION: OtpSendCorrelation = {
+const createCorrelation = (): OtpSendCorrelation => ({
   requestId: 'req-aaa',
   challengeId: 'chall-bbb',
-  expiresAt: new Date('2026-03-15T12:00:00.000Z'),
+  expiresAt: new Date(Date.now() + 60 * 60 * 1000),
   traceId: 'trace-ccc'
-};
+});
 
 // ---------------------------------------------------------------------------
 // Test-mode adapter
@@ -28,7 +28,7 @@ describe('OtpSenderDevAdapter — test mode', () => {
       behavior: { outcome: 'sent' }
     });
 
-    const result = await adapter.sendOtp(PHONE, CODE, CORRELATION);
+    const result = await adapter.sendOtp(PHONE, CODE, createCorrelation());
 
     expect(result.status).toBe('SENT');
     expect(result.provider).toBe('dev');
@@ -40,7 +40,7 @@ describe('OtpSenderDevAdapter — test mode', () => {
       behavior: { outcome: 'sent', providerMessageId: 'msg-xyz' }
     });
 
-    const result = await adapter.sendOtp(PHONE, CODE, CORRELATION);
+    const result = await adapter.sendOtp(PHONE, CODE, createCorrelation());
 
     expect(result.status).toBe('SENT');
     expect(result.providerMessageId).toBe('msg-xyz');
@@ -52,7 +52,7 @@ describe('OtpSenderDevAdapter — test mode', () => {
       behavior: { outcome: 'failed', failureCategory: 'timeout' }
     });
 
-    const result = await adapter.sendOtp(PHONE, CODE, CORRELATION);
+    const result = await adapter.sendOtp(PHONE, CODE, createCorrelation());
 
     expect(result.status).toBe('FAILED');
     expect(result.failureCategory).toBe('timeout');
@@ -70,7 +70,7 @@ describe('OtpSenderDevAdapter — test mode', () => {
       behavior: { outcome: 'failed', failureCategory: category }
     });
 
-    const result = await adapter.sendOtp(PHONE, CODE, CORRELATION);
+    const result = await adapter.sendOtp(PHONE, CODE, createCorrelation());
     expect(result.failureCategory).toBe(category);
   });
 
@@ -80,8 +80,9 @@ describe('OtpSenderDevAdapter — test mode', () => {
       behavior: { outcome: 'sent', providerMessageId: 'id-1' }
     });
 
-    const a = await adapter.sendOtp(PHONE, CODE, CORRELATION);
-    const b = await adapter.sendOtp(PHONE, CODE, CORRELATION);
+    const correlation = createCorrelation();
+    const a = await adapter.sendOtp(PHONE, CODE, correlation);
+    const b = await adapter.sendOtp(PHONE, CODE, correlation);
 
     expect(a).toEqual(b);
   });
@@ -92,7 +93,7 @@ describe('OtpSenderDevAdapter — test mode', () => {
       behavior: { outcome: 'sent' }
     });
 
-    const result = await adapter.sendOtp(PHONE, CODE, CORRELATION);
+    const result = await adapter.sendOtp(PHONE, CODE, createCorrelation());
     const serialised = JSON.stringify(result);
 
     expect(serialised).not.toContain(CODE);
@@ -144,7 +145,7 @@ describe('OtpSenderDevAdapter — dev mode', () => {
     const { logger } = makeLogger();
     const adapter = createOtpSenderDevAdapter({ mode: 'dev', logger });
 
-    const result = await adapter.sendOtp(PHONE, CODE, CORRELATION);
+    const result = await adapter.sendOtp(PHONE, CODE, createCorrelation());
 
     expect(result.status).toBe('SENT');
     expect(result.provider).toBe('dev');
@@ -156,12 +157,13 @@ describe('OtpSenderDevAdapter — dev mode', () => {
 
     const { logger } = makeLogger();
     const adapter = createOtpSenderDevAdapter({ mode: 'dev', logger });
+    const correlation = createCorrelation();
 
-    await adapter.sendOtp(PHONE, CODE, CORRELATION);
+    await adapter.sendOtp(PHONE, CODE, correlation);
 
-    expect(otpSink.get(CORRELATION.challengeId)).toEqual({
+    expect(otpSink.get(correlation.challengeId)).toEqual({
       otpCode: CODE,
-      expiresAt: CORRELATION.expiresAt
+      expiresAt: correlation.expiresAt
     });
   });
 
@@ -171,12 +173,13 @@ describe('OtpSenderDevAdapter — dev mode', () => {
 
     const { logger } = makeLogger();
     const adapter = createOtpSenderDevAdapter({ mode: 'dev', logger });
+    const correlation = createCorrelation();
 
-    await adapter.sendOtp(PHONE, CODE, CORRELATION);
+    await adapter.sendOtp(PHONE, CODE, correlation);
 
-    expect(otpSink.get(CORRELATION.challengeId)).toEqual({
+    expect(otpSink.get(correlation.challengeId)).toEqual({
       otpCode: CODE,
-      expiresAt: CORRELATION.expiresAt
+      expiresAt: correlation.expiresAt
     });
   });
 
@@ -186,17 +189,18 @@ describe('OtpSenderDevAdapter — dev mode', () => {
 
     const { logger } = makeLogger();
     const adapter = createOtpSenderDevAdapter({ mode: 'dev', logger });
+    const correlation = createCorrelation();
 
-    await adapter.sendOtp(PHONE, CODE, CORRELATION);
+    await adapter.sendOtp(PHONE, CODE, correlation);
 
-    expect(otpSink.get(CORRELATION.challengeId)).toBeNull();
+    expect(otpSink.get(correlation.challengeId)).toBeNull();
   });
 
   it('emits exactly one structured log entry', async () => {
     const { logger, calls } = makeLogger();
     const adapter = createOtpSenderDevAdapter({ mode: 'dev', logger });
 
-    await adapter.sendOtp(PHONE, CODE, CORRELATION);
+    await adapter.sendOtp(PHONE, CODE, createCorrelation());
 
     expect(calls).toHaveLength(1);
   });
@@ -204,8 +208,9 @@ describe('OtpSenderDevAdapter — dev mode', () => {
   it('log payload contains maskedPhone — not the raw number', async () => {
     const { logger, calls } = makeLogger();
     const adapter = createOtpSenderDevAdapter({ mode: 'dev', logger });
+    const correlation = createCorrelation();
 
-    await adapter.sendOtp(PHONE, CODE, CORRELATION);
+    await adapter.sendOtp(PHONE, CODE, correlation);
 
     const [payload] = calls[0] as [Record<string, unknown>];
     expect(payload['maskedPhone']).toBe('+********5678'); // +256712345678: 12 digits → mask 8
@@ -216,19 +221,20 @@ describe('OtpSenderDevAdapter — dev mode', () => {
     const { logger, calls } = makeLogger();
     const adapter = createOtpSenderDevAdapter({ mode: 'dev', logger });
 
-    await adapter.sendOtp(PHONE, CODE, CORRELATION);
+    const correlation = createCorrelation();
+    await adapter.sendOtp(PHONE, CODE, correlation);
 
     const [payload] = calls[0] as [Record<string, unknown>];
-    expect(payload['challengeId']).toBe(CORRELATION.challengeId);
-    expect(payload['requestId']).toBe(CORRELATION.requestId);
-    expect(payload['traceId']).toBe(CORRELATION.traceId);
+    expect(payload['challengeId']).toBe(correlation.challengeId);
+    expect(payload['requestId']).toBe(correlation.requestId);
+    expect(payload['traceId']).toBe(correlation.traceId);
   });
 
   it('log payload NEVER contains otpCode', async () => {
     const { logger, calls } = makeLogger();
     const adapter = createOtpSenderDevAdapter({ mode: 'dev', logger });
 
-    await adapter.sendOtp(PHONE, CODE, CORRELATION);
+    await adapter.sendOtp(PHONE, CODE, createCorrelation());
 
     const serialised = JSON.stringify(calls);
     expect(serialised).not.toContain(CODE);
@@ -254,7 +260,7 @@ describe('OtpSenderDevAdapter — dev mode', () => {
 
     // Use a distinct number so we can search cleanly
     const phone = '+447911123456';
-    await adapter.sendOtp(phone, CODE, CORRELATION);
+    await adapter.sendOtp(phone, CODE, createCorrelation());
 
     const serialised = JSON.stringify(calls);
     expect(serialised).not.toContain(phone);
@@ -265,7 +271,7 @@ describe('OtpSenderDevAdapter — dev mode', () => {
     const { logger } = makeLogger();
     const adapter = createOtpSenderDevAdapter({ mode: 'dev', logger });
 
-    const result = await adapter.sendOtp(PHONE, CODE, CORRELATION);
+    const result = await adapter.sendOtp(PHONE, CODE, createCorrelation());
 
     expect(result.providerMessageId).toBeUndefined();
     expect(result.failureCategory).toBeUndefined();
@@ -284,7 +290,7 @@ describe('OtpSenderDevAdapter — otpCode redaction invariant', () => {
         mode: 'test',
         behavior: { outcome: 'failed', failureCategory: cat }
       });
-      const result = await adapter.sendOtp(PHONE, CODE, CORRELATION);
+      const result = await adapter.sendOtp(PHONE, CODE, createCorrelation());
       expect(JSON.stringify(result)).not.toContain(CODE);
     }
   });
@@ -295,7 +301,7 @@ describe('OtpSenderDevAdapter — otpCode redaction invariant', () => {
     } as never;
 
     const adapter = createOtpSenderDevAdapter({ mode: 'dev', logger });
-    await adapter.sendOtp(PHONE, CODE, CORRELATION);
+    await adapter.sendOtp(PHONE, CODE, createCorrelation());
 
     const loggedArgs = (logger as { info: ReturnType<typeof vi.fn> }).info.mock.calls.flat();
     const loggedStr = JSON.stringify(loggedArgs);

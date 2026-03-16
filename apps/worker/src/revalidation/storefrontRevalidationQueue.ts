@@ -8,6 +8,15 @@ import type { StorefrontRevalidationJobPayload } from './storefrontRevalidationT
 export const STOREFRONT_REVALIDATION_QUEUE = 'storefront.revalidate';
 export const STOREFRONT_REVALIDATION_DLQ = 'storefront.revalidate.dlq';
 const DEFAULT_REVALIDATION_TARGETS = ['/', '/sitemap.xml', '/robots.txt'] as const;
+const SUPPORTED_EVENT_TYPES = new Set([
+  'Publish.Completed',
+  'Rollback.Completed',
+  'Catalog.ProductUpserted',
+  'Catalog.ProductDeleted',
+  'Catalog.CategoryUpserted',
+  'Catalog.CategoryDeleted',
+  'Catalog.ProductCategoryChanged'
+]);
 
 const REVALIDATION_JOB_OPTIONS: JobsOptions = {
   attempts: 3,
@@ -19,13 +28,10 @@ const REVALIDATION_JOB_OPTIONS: JobsOptions = {
 };
 
 const toRevalidationPayload = (
+  eventType: string,
   payload: Record<string, unknown>
 ): StorefrontRevalidationJobPayload | null => {
-  if (
-    typeof payload.tenant_id !== 'string' ||
-    typeof payload.config_id !== 'string' ||
-    (typeof payload.previous_config_id !== 'string' && payload.previous_config_id !== null)
-  ) {
+  if (typeof payload.tenant_id !== 'string') {
     return null;
   }
 
@@ -34,9 +40,13 @@ const toRevalidationPayload = (
     : [...DEFAULT_REVALIDATION_TARGETS];
 
   return {
+    event_type: eventType,
     tenant_id: payload.tenant_id,
-    config_id: payload.config_id,
-    previous_config_id: payload.previous_config_id,
+    config_id: typeof payload.config_id === 'string' ? payload.config_id : undefined,
+    previous_config_id:
+      typeof payload.previous_config_id === 'string' || payload.previous_config_id === null
+        ? (payload.previous_config_id as string | null | undefined)
+        : undefined,
     targets
   } as StorefrontRevalidationJobPayload;
 };
@@ -45,11 +55,11 @@ export const enqueueStorefrontRevalidationJob = async (
   queue: Pick<Queue<StorefrontRevalidationJobPayload>, 'add'>,
   event: OutboxRecord
 ): Promise<boolean> => {
-  if (event.eventType !== 'Publish.Completed' && event.eventType !== 'Rollback.Completed') {
+  if (!SUPPORTED_EVENT_TYPES.has(event.eventType)) {
     return false;
   }
 
-  const payload = toRevalidationPayload(event.payload);
+  const payload = toRevalidationPayload(event.eventType, event.payload);
   if (payload === null) {
     throw new Error(`Outbox event ${event.id} has invalid revalidation payload`);
   }
@@ -57,11 +67,7 @@ export const enqueueStorefrontRevalidationJob = async (
   await queue.add(
     STOREFRONT_REVALIDATION_QUEUE,
     {
-      event_type: event.eventType,
-      tenant_id: payload.tenant_id,
-      config_id: payload.config_id,
-      previous_config_id: payload.previous_config_id,
-      targets: payload.targets
+      ...payload
     },
     REVALIDATION_JOB_OPTIONS
   );

@@ -16,7 +16,7 @@
     "dev:worker": "corepack pnpm exec tsx apps/worker/src/worker.ts",
     "db:up": "docker compose -f docker/docker-compose.yml up -d",
     "db:down": "docker compose -f docker/docker-compose.yml down",
-    "test:integration": "corepack pnpm exec tsx tests/integration/tenancy.test.ts && corepack pnpm exec tsx tests/integration/publishing.test.ts",
+    "test:integration": "corepack pnpm exec tsx tests/integration/tenancy.test.ts && corepack pnpm exec tsx tests/integration/publishing.test.ts && corepack pnpm exec tsx tests/integration/catalog.test.ts",
     "test": "vitest run",
     "db:migrate": "node ./node_modules/knex/bin/cli.js --knexfile knexfile.cjs migrate:latest",
     "db:rollback": "node ./node_modules/knex/bin/cli.js --knexfile knexfile.cjs migrate:rollback",

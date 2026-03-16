@@ -69,6 +69,16 @@ const codeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.RollbackFailed]: 500,
   [ErrorCode.RevalidationDispatchFailed]: 502,
 
+  // CAT codes
+  [ErrorCode.CatalogProductNotFound]: 404,
+  [ErrorCode.CatalogCategoryNotFound]: 404,
+  [ErrorCode.CatalogSlugInvalid]: 400,
+  [ErrorCode.CatalogSlugTaken]: 409,
+  [ErrorCode.CatalogPriceInvalid]: 400,
+  [ErrorCode.CatalogCurrencyNotSupported]: 400,
+  [ErrorCode.CatalogInventoryRuleViolation]: 400,
+  [ErrorCode.CatalogValidationFailed]: 400,
+
   // IAA codes
   [ErrorCode.AuthInvalidPhoneFormat]: 400,
   [ErrorCode.AuthPhoneCountryNotSupported]: 400,
