@@ -228,6 +228,40 @@ export type DatabaseSchema = {
     actor_user_id: string | null;
     created_at: Date;
   };
+  payment_intents: {
+    id: string;
+    tenant_id: string;
+    order_id: string;
+    provider: string;
+    method: 'mobile_money' | 'card' | 'bank';
+    status:
+      | 'CREATED'
+      | 'PENDING_PROVIDER'
+      | 'AWAITING_CUSTOMER'
+      | 'SUCCEEDED'
+      | 'FAILED'
+      | 'EXPIRED'
+      | 'CANCELLED'
+      | 'REFUNDED';
+    amount: number;
+    currency: string;
+    provider_reference: string | null;
+    customer_phone_e164: string | null;
+    failure_code: string | null;
+    failure_message: string | null;
+    created_at: Date;
+    updated_at: Date;
+  };
+  payment_provider_events: {
+    id: string;
+    provider: string;
+    provider_event_id: string;
+    tenant_id: string | null;
+    intent_id: string | null;
+    order_id: string | null;
+    payload: Record<string, unknown>;
+    received_at: Date;
+  };
   auth_otps: {
     id: string;
     phone_e164: string;

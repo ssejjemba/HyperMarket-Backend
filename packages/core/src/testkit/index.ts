@@ -216,6 +216,43 @@ const ensureOrdersTables = async (db: ReturnType<typeof createDbClient>): Promis
   `.execute(db);
 };
 
+const ensurePaymentsTables = async (db: ReturnType<typeof createDbClient>): Promise<void> => {
+  await sql`
+    create table if not exists payment_intents (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references tenants(id) on delete cascade,
+      order_id uuid not null references orders(id) on delete cascade,
+      provider text not null,
+      method text not null,
+      status text not null,
+      amount integer not null,
+      currency text not null default 'UGX',
+      provider_reference text null,
+      customer_phone_e164 text null,
+      failure_code text null,
+      failure_message text null,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `.execute(db);
+  await sql`
+    create table if not exists payment_provider_events (
+      id uuid primary key default gen_random_uuid(),
+      provider text not null,
+      provider_event_id text not null,
+      tenant_id uuid null references tenants(id) on delete set null,
+      intent_id uuid null references payment_intents(id) on delete set null,
+      order_id uuid null references orders(id) on delete set null,
+      payload jsonb not null,
+      received_at timestamptz not null default now()
+    )
+  `.execute(db);
+  await sql`
+    create unique index if not exists payment_provider_events_provider_provider_event_id_unique
+    on payment_provider_events (provider, provider_event_id)
+  `.execute(db);
+};
+
 export const resetDatabase = async (): Promise<void> => {
   const config = loadEnv();
   const db = createDbClient(config.databaseUrl);
@@ -226,9 +263,12 @@ export const resetDatabase = async (): Promise<void> => {
   await ensureMediaTables(db);
   await ensureCatalogMediaForeignKey(db);
   await ensureOrdersTables(db);
+  await ensurePaymentsTables(db);
   await db.deleteFrom('auth_otps').execute();
   await db.deleteFrom('sessions').execute();
   await db.deleteFrom('publish_history').execute();
+  await db.deleteFrom('payment_provider_events').execute();
+  await db.deleteFrom('payment_intents').execute();
   await db.deleteFrom('order_state_history').execute();
   await db.deleteFrom('order_items').execute();
   await db.deleteFrom('orders').execute();
@@ -281,6 +321,7 @@ export const createTestContext = async () => {
   await ensureMediaTables(db);
   await ensureCatalogMediaForeignKey(db);
   await ensureOrdersTables(db);
+  await ensurePaymentsTables(db);
 
   const seed = createSeed();
 
@@ -355,11 +396,13 @@ export const canConnectDatabase = async (): Promise<boolean> => {
     await ensureMediaTables(db);
     await ensureCatalogMediaForeignKey(db);
     await ensureOrdersTables(db);
+    await ensurePaymentsTables(db);
     await db.selectFrom('store_configs').select('id').limit(1).execute();
     await db.selectFrom('tenants').select('id').limit(1).execute();
     await db.selectFrom('products').select('id').limit(1).execute();
     await db.selectFrom('media_assets').select('id').limit(1).execute();
     await db.selectFrom('orders').select('id').limit(1).execute();
+    await db.selectFrom('payment_intents').select('id').limit(1).execute();
     await db.destroy();
     return true;
   } catch {
