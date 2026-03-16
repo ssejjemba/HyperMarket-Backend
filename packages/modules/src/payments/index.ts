@@ -9,6 +9,8 @@ export const registerPaymentRoutes = async (
 
 export { PaymentError } from './errors/PaymentError';
 export type { PaymentErrorCode } from './errors/PaymentError';
+export { createPaymentProviderRegistry } from './application/providerRegistry';
+export { createPaymentUseCases } from './application/useCases';
 export {
   assertPaymentIntentTransition,
   createPaymentRequestHash,
@@ -17,6 +19,8 @@ export {
 } from './domain';
 export type { PaymentIntentStatus } from './domain';
 export { createMockMomoProvider, signMockMomoWebhook } from './provider';
+export { createPaymentRepoPg } from './persistence/PaymentRepoPg';
+export type { PaymentIntentRecord, PaymentProviderEventRecord } from './persistence/PaymentRepoPg';
 export type {
   PaymentIntentProviderStatus,
   PaymentMethod,
