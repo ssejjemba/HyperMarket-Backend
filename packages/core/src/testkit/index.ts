@@ -96,6 +96,37 @@ const ensureCatalogTables = async (db: ReturnType<typeof createDbClient>): Promi
   `.execute(db);
 };
 
+const ensureMediaTables = async (db: ReturnType<typeof createDbClient>): Promise<void> => {
+  await sql`
+    create table if not exists media_assets (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references tenants(id) on delete cascade,
+      storage_key text not null,
+      mime_type text not null,
+      byte_size bigint not null,
+      width integer null,
+      height integer null,
+      checksum text null,
+      status text not null,
+      created_by_user_id uuid null references users(id) on delete set null,
+      created_at timestamptz not null default now(),
+      deleted_at timestamptz null
+    )
+  `.execute(db);
+  await sql`
+    create unique index if not exists media_assets_tenant_storage_key_unique
+    on media_assets (tenant_id, storage_key)
+  `.execute(db);
+  await sql`
+    create index if not exists media_assets_tenant_created_at_idx
+    on media_assets (tenant_id, created_at desc)
+  `.execute(db);
+  await sql`
+    create index if not exists media_assets_tenant_status_created_at_idx
+    on media_assets (tenant_id, status, created_at desc)
+  `.execute(db);
+};
+
 export const resetDatabase = async (): Promise<void> => {
   const config = loadEnv();
   const db = createDbClient(config.databaseUrl);
@@ -103,9 +134,11 @@ export const resetDatabase = async (): Promise<void> => {
   await ensureTenantSettingsWhatsappColumn(db);
   await ensureTenantMembershipRevokedAtColumn(db);
   await ensureCatalogTables(db);
+  await ensureMediaTables(db);
   await db.deleteFrom('auth_otps').execute();
   await db.deleteFrom('sessions').execute();
   await db.deleteFrom('publish_history').execute();
+  await db.deleteFrom('media_assets').execute();
   await db.deleteFrom('product_categories').execute();
   await db.deleteFrom('product_variants').execute();
   await db.deleteFrom('products').execute();
@@ -150,6 +183,7 @@ export const createTestContext = async () => {
   await ensureTenantSettingsWhatsappColumn(db);
   await ensureTenantMembershipRevokedAtColumn(db);
   await ensureCatalogTables(db);
+  await ensureMediaTables(db);
 
   const seed = createSeed();
 
@@ -221,9 +255,11 @@ export const canConnectDatabase = async (): Promise<boolean> => {
     await ensureTenantSettingsWhatsappColumn(db);
     await ensureTenantMembershipRevokedAtColumn(db);
     await ensureCatalogTables(db);
+    await ensureMediaTables(db);
     await db.selectFrom('store_configs').select('id').limit(1).execute();
     await db.selectFrom('tenants').select('id').limit(1).execute();
     await db.selectFrom('products').select('id').limit(1).execute();
+    await db.selectFrom('media_assets').select('id').limit(1).execute();
     await db.destroy();
     return true;
   } catch {

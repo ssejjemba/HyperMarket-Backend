@@ -154,6 +154,20 @@ export type DatabaseSchema = {
     category_id: string;
     created_at: Date;
   };
+  media_assets: {
+    id: string;
+    tenant_id: string;
+    storage_key: string;
+    mime_type: string;
+    byte_size: string | number;
+    width: number | null;
+    height: number | null;
+    checksum: string | null;
+    status: 'uploaded' | 'confirmed' | 'deleted';
+    created_by_user_id: string | null;
+    created_at: Date;
+    deleted_at: Date | null;
+  };
   auth_otps: {
     id: string;
     phone_e164: string;
