@@ -10,6 +10,32 @@ const envSchema = z.object({
   TWILIO_AUTH_TOKEN: z.string().min(1, { message: 'Required' }),
   TWILIO_VERIFY_SERVICE_SID: z.string().min(1, { message: 'Required' }),
   PLATFORM_ROOT_DOMAIN: z.string().min(1, { message: 'Required' }),
+  MEDIA_CDN_BASE_URL: z
+    .string()
+    .min(1)
+    .url({ message: 'Must be a valid URL' })
+    .optional()
+    .default('http://localhost:3002/cdn'),
+  MEDIA_UPLOAD_BASE_URL: z
+    .string()
+    .min(1)
+    .url({ message: 'Must be a valid URL' })
+    .optional()
+    .default('http://localhost:3002/uploads'),
+  MEDIA_UPLOAD_URL_TTL_SECONDS: z
+    .string()
+    .optional()
+    .transform((value) => (value === undefined ? 900 : Number(value)))
+    .refine((value) => Number.isFinite(value) && value > 0, {
+      message: 'MEDIA_UPLOAD_URL_TTL_SECONDS must be a positive number'
+    }),
+  MEDIA_MAX_FILE_BYTES: z
+    .string()
+    .optional()
+    .transform((value) => (value === undefined ? 5 * 1024 * 1024 : Number(value)))
+    .refine((value) => Number.isFinite(value) && value > 0, {
+      message: 'MEDIA_MAX_FILE_BYTES must be a positive number'
+    }),
   OTP_SECRET: z.string().min(1).optional(),
   OTP_TTL_SECONDS: z
     .string()
@@ -73,6 +99,10 @@ export type AppConfig = {
   twilioAuthToken: EnvSchema['TWILIO_AUTH_TOKEN'];
   twilioVerifyServiceSid: EnvSchema['TWILIO_VERIFY_SERVICE_SID'];
   platformRootDomain: EnvSchema['PLATFORM_ROOT_DOMAIN'];
+  mediaCdnBaseUrl: string;
+  mediaUploadBaseUrl: string;
+  mediaUploadUrlTtlSeconds: number;
+  mediaMaxFileBytes: number;
   otpSecret: string;
   otpTtlSeconds: number;
   sessionTtlSeconds: number;
@@ -101,6 +131,10 @@ export const loadEnv = (): AppConfig => {
     twilioAuthToken: result.data.TWILIO_AUTH_TOKEN,
     twilioVerifyServiceSid: result.data.TWILIO_VERIFY_SERVICE_SID,
     platformRootDomain: result.data.PLATFORM_ROOT_DOMAIN,
+    mediaCdnBaseUrl: result.data.MEDIA_CDN_BASE_URL,
+    mediaUploadBaseUrl: result.data.MEDIA_UPLOAD_BASE_URL,
+    mediaUploadUrlTtlSeconds: result.data.MEDIA_UPLOAD_URL_TTL_SECONDS,
+    mediaMaxFileBytes: result.data.MEDIA_MAX_FILE_BYTES,
     otpSecret,
     otpTtlSeconds: result.data.OTP_TTL_SECONDS,
     sessionTtlSeconds: result.data.SESSION_TTL_SECONDS,

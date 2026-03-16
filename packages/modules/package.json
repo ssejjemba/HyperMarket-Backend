@@ -23,6 +23,7 @@
     "./identity-access": "./modules/identity-access/src/index.ts",
     "./tenancy": "./src/tenancy/index.ts",
     "./catalog": "./src/catalog/index.ts",
+    "./media": "./src/media/index.ts",
     "./iaa": "./src/iaa/index.ts",
     "./iaa/testkit": "./src/iaa/testkit.ts"
   }

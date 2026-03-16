@@ -64,6 +64,18 @@ export enum ErrorCode {
   CatalogInventoryRuleViolation = 'catalog_inventory_rule_violation',
   CatalogValidationFailed = 'catalog_validation_failed',
 
+  // MED (Media & Assets) module codes
+  MediaMimeNotAllowed = 'media_mime_not_allowed',
+  MediaFileTooLarge = 'media_file_too_large',
+  MediaQuotaExceeded = 'media_quota_exceeded',
+  MediaUploadTokenFailed = 'media_upload_token_failed',
+  MediaAssetNotFound = 'media_asset_not_found',
+  MediaStorageKeyMismatch = 'media_storage_key_mismatch',
+  MediaConfirmFailed = 'media_confirm_failed',
+  MediaDeleteForbidden = 'media_delete_forbidden',
+  MediaDeleteFailed = 'media_delete_failed',
+  MediaValidationFailed = 'media_validation_failed',
+
   // IAA (Identity and Access) module codes
   AuthInvalidPhoneFormat = 'auth_invalid_phone_format',
   AuthPhoneCountryNotSupported = 'auth_phone_country_not_supported',

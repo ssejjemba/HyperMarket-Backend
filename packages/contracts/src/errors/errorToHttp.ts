@@ -79,6 +79,18 @@ const codeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.CatalogInventoryRuleViolation]: 400,
   [ErrorCode.CatalogValidationFailed]: 400,
 
+  // MED codes
+  [ErrorCode.MediaMimeNotAllowed]: 400,
+  [ErrorCode.MediaFileTooLarge]: 400,
+  [ErrorCode.MediaQuotaExceeded]: 409,
+  [ErrorCode.MediaUploadTokenFailed]: 502,
+  [ErrorCode.MediaAssetNotFound]: 404,
+  [ErrorCode.MediaStorageKeyMismatch]: 409,
+  [ErrorCode.MediaConfirmFailed]: 502,
+  [ErrorCode.MediaDeleteForbidden]: 409,
+  [ErrorCode.MediaDeleteFailed]: 500,
+  [ErrorCode.MediaValidationFailed]: 400,
+
   // IAA codes
   [ErrorCode.AuthInvalidPhoneFormat]: 400,
   [ErrorCode.AuthPhoneCountryNotSupported]: 400,

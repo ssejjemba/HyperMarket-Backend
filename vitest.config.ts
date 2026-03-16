@@ -38,6 +38,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, 'packages/modules/src/catalog/index.ts')
       },
       {
+        find: /^@hypermarket\/modules\/media$/,
+        replacement: path.resolve(__dirname, 'packages/modules/src/media/index.ts')
+      },
+      {
         find: /^@hypermarket\/modules\/templates$/,
         replacement: path.resolve(__dirname, 'packages/modules/src/templates/index.ts')
       },
