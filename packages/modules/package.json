@@ -24,6 +24,7 @@
     "./tenancy": "./src/tenancy/index.ts",
     "./catalog": "./src/catalog/index.ts",
     "./orders": "./src/orders/index.ts",
+    "./payments": "./src/payments/index.ts",
     "./media": "./src/media/index.ts",
     "./iaa": "./src/iaa/index.ts",
     "./iaa/testkit": "./src/iaa/testkit.ts"

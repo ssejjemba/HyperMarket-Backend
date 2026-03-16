@@ -36,6 +36,15 @@ const envSchema = z.object({
     .refine((value) => Number.isFinite(value) && value > 0, {
       message: 'MEDIA_MAX_FILE_BYTES must be a positive number'
     }),
+  PAYMENT_DEFAULT_PROVIDER: z.string().min(1).optional().default('mock_momo'),
+  PAYMENT_MOCK_WEBHOOK_SECRET: z.string().min(1).optional().default('test-pay-webhook-secret'),
+  PAYMENT_RECONCILIATION_STALE_MINUTES: z
+    .string()
+    .optional()
+    .transform((value) => (value === undefined ? 10 : Number(value)))
+    .refine((value) => Number.isFinite(value) && value > 0, {
+      message: 'PAYMENT_RECONCILIATION_STALE_MINUTES must be a positive number'
+    }),
   OTP_SECRET: z.string().min(1).optional(),
   OTP_TTL_SECONDS: z
     .string()
@@ -103,6 +112,9 @@ export type AppConfig = {
   mediaUploadBaseUrl: string;
   mediaUploadUrlTtlSeconds: number;
   mediaMaxFileBytes: number;
+  paymentDefaultProvider: string;
+  paymentMockWebhookSecret: string;
+  paymentReconciliationStaleMinutes: number;
   otpSecret: string;
   otpTtlSeconds: number;
   sessionTtlSeconds: number;
@@ -135,6 +147,9 @@ export const loadEnv = (): AppConfig => {
     mediaUploadBaseUrl: result.data.MEDIA_UPLOAD_BASE_URL,
     mediaUploadUrlTtlSeconds: result.data.MEDIA_UPLOAD_URL_TTL_SECONDS,
     mediaMaxFileBytes: result.data.MEDIA_MAX_FILE_BYTES,
+    paymentDefaultProvider: result.data.PAYMENT_DEFAULT_PROVIDER,
+    paymentMockWebhookSecret: result.data.PAYMENT_MOCK_WEBHOOK_SECRET,
+    paymentReconciliationStaleMinutes: result.data.PAYMENT_RECONCILIATION_STALE_MINUTES,
     otpSecret,
     otpTtlSeconds: result.data.OTP_TTL_SECONDS,
     sessionTtlSeconds: result.data.SESSION_TTL_SECONDS,

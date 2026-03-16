@@ -5,6 +5,7 @@ import { registerIaaRoutes } from './iaa/index';
 import { registerCatalogRoutes } from './catalog/index';
 import { registerMediaRoutes } from './media/index';
 import { registerOrderRoutes } from './orders/index';
+import { registerPaymentRoutes } from './payments/index';
 import { registerPublishingRoutes } from './publishing/index';
 import { registerTenancyRoutes } from './tenancy/index';
 import { registerTemplateRoutes } from './templates/index';
@@ -30,6 +31,11 @@ export const registerModules = async (server: FastifyInstance, deps: ModuleDeps)
   });
 
   await registerOrderRoutes(server, {
+    ...deps,
+    logger: moduleLogger
+  });
+
+  await registerPaymentRoutes(server, {
     ...deps,
     logger: moduleLogger
   });

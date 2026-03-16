@@ -89,6 +89,20 @@ export enum ErrorCode {
   OrderNotFound = 'order_not_found',
   OrderValidationFailed = 'order_validation_failed',
 
+  // PAY (Payments) module codes
+  PaymentProviderConfigInvalid = 'payment_provider_config_invalid',
+  PaymentProviderUnavailable = 'payment_provider_unavailable',
+  PaymentPhoneInvalid = 'payment_phone_invalid',
+  PaymentOrderNotFound = 'payment_order_not_found',
+  PaymentOrderNotPayable = 'payment_order_not_payable',
+  PaymentIntentNotFound = 'payment_intent_not_found',
+  PaymentInvalidStateTransition = 'payment_invalid_state_transition',
+  PaymentWebhookSignatureInvalid = 'payment_webhook_signature_invalid',
+  PaymentWebhookParseFailed = 'payment_webhook_parse_failed',
+  PaymentIdempotencyConflict = 'payment_idempotency_conflict',
+  PaymentReconciliationFailed = 'payment_reconciliation_failed',
+  PaymentDbFailure = 'payment_db_failure',
+
   // IAA (Identity and Access) module codes
   AuthInvalidPhoneFormat = 'auth_invalid_phone_format',
   AuthPhoneCountryNotSupported = 'auth_phone_country_not_supported',

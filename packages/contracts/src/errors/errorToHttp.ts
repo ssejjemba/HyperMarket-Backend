@@ -104,6 +104,20 @@ const codeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.OrderNotFound]: 404,
   [ErrorCode.OrderValidationFailed]: 400,
 
+  // PAY codes
+  [ErrorCode.PaymentProviderConfigInvalid]: 500,
+  [ErrorCode.PaymentProviderUnavailable]: 502,
+  [ErrorCode.PaymentPhoneInvalid]: 400,
+  [ErrorCode.PaymentOrderNotFound]: 404,
+  [ErrorCode.PaymentOrderNotPayable]: 409,
+  [ErrorCode.PaymentIntentNotFound]: 404,
+  [ErrorCode.PaymentInvalidStateTransition]: 409,
+  [ErrorCode.PaymentWebhookSignatureInvalid]: 401,
+  [ErrorCode.PaymentWebhookParseFailed]: 400,
+  [ErrorCode.PaymentIdempotencyConflict]: 409,
+  [ErrorCode.PaymentReconciliationFailed]: 502,
+  [ErrorCode.PaymentDbFailure]: 500,
+
   // IAA codes
   [ErrorCode.AuthInvalidPhoneFormat]: 400,
   [ErrorCode.AuthPhoneCountryNotSupported]: 400,
