@@ -2,7 +2,10 @@
 
 A modular-monolith backend for a multi-tenant commerce SaaS powering merchant builder operations, public storefront runtime, payments, notifications, and an extension-ready analytics/marketing platform.
 
+Documentation lives under [docs/README.md](./docs/README.md).
+
 This repository implements the contracts and guarantees defined in the system design:
+
 - Strict tenant isolation in every repository call.
 - Idempotent commerce flows (orders, payments, publish, webhooks).
 - Outbox-based event emission for reliable side effects.
@@ -25,20 +28,24 @@ This repository implements the contracts and guarantees defined in the system de
 ### Modular monolith (MVP)
 
 Single deployable service with strict internal module boundaries. Each module owns:
+
 - Domain model and invariants
 - Persistence access patterns (via its repositories)
 - External integration adapters
 - Event contracts (published and consumed)
 
 No module reads another module’s tables directly. Cross-module interaction occurs through:
+
 - Application-layer interfaces (commands/queries), or
 - Domain/integration events via the event bus.
 
 ### Communication model
+
 - Synchronous HTTP for interactive operations (dashboard + storefront).
 - Asynchronous events for side effects and integrations (revalidation, notifications, analytics, reconciliation).
 
 ### Reliability baseline
+
 - ACID transactions for state changes.
 - Outbox pattern for event emission.
 - Idempotency keys for client retries.
@@ -49,6 +56,7 @@ No module reads another module’s tables directly. Cross-module interaction occ
 ## Standard module layering
 
 All modules follow the same internal layers:
+
 1. API Layer: controllers, request validation, auth + tenant resolution
 2. Application Layer: commands/queries, orchestration, transaction boundaries, outbox writes
 3. Domain Layer: entities, value objects, invariants, state machines
@@ -61,6 +69,7 @@ All modules follow the same internal layers:
 ## Backend modules
 
 ### MVP modules
+
 1. Identity & Access (IAA)
 2. Tenant & Storefront Configuration (TEN)
 3. Template Registry & Schema (TMP)
@@ -73,10 +82,12 @@ All modules follow the same internal layers:
 10. Notifications (NOT)
 
 ### Extension-ready modules
+
 11. Analytics & Event Platform (ANL)
 12. Marketing (MKT)
 
 ### Allowed interactions (high level)
+
 - IAA → TEN
 - TEN → TMP, PUB
 - ORD → CAT, FUL, PAY, NOT
@@ -87,6 +98,7 @@ All modules follow the same internal layers:
 - MKT → ANL, CAT, ORD, NOT
 
 Hard rules:
+
 - Payments does not mutate Orders without going through an Orders transition interface.
 - Analytics ingestion never blocks checkout or publishing.
 - Tenant scope is mandatory across all modules.
@@ -96,24 +108,30 @@ Hard rules:
 ## Core cross-cutting contracts
 
 ### Tenant resolution
+
 - Builder: tenant derived from session claims + selected store.
 - Storefront: tenant derived from host mapping (subdomain → tenant_id).
 
 Failure behavior:
+
 - Storefront: return “Store not found”, log `tenant_resolution_failed`.
 - Builder: 404/403 based on membership status.
 
 ### Configuration snapshots
+
 Storefront rendering consumes an active configuration snapshot:
+
 - `template_id`, `template_version`, `theme_tokens`
 - `page/section config`, `seo config`, `feature toggles`
 
 Config is validated against schema for `template_id + template_version` prior to activation.
 
 ### Event contract
+
 Events are JSON, stored in the Outbox within the same transaction as the state change, published by a dispatcher, and consumed idempotently.
 
 Required envelope fields:
+
 - `event_id`, `event_type`, `occurred_at`, `tenant_id`, `correlation_id`, `actor_user_id`, `payload`
 
 ---
@@ -133,17 +151,20 @@ Required envelope fields:
 ## Key flows (overview)
 
 ### Publish (transaction + outbox + revalidation)
+
 - Validate config against template schema
 - Transactionally activate config and write outbox event
 - Asynchronously dispatch revalidation
 - Rollback uses the same mechanism
 
 ### Order creation (idempotent)
+
 - Upsert idempotency record
 - Create order + items in a single transaction
 - Return existing order on retry with same key
 
 ### Payment webhook reconciliation (idempotent)
+
 - Verify signature
 - Upsert provider event id
 - Update payment intent + transition order (if valid)
@@ -154,7 +175,9 @@ Required envelope fields:
 ## Observability standards
 
 ### Logging
+
 Every request log line includes:
+
 - `timestamp`, `level`, `module`
 - `request_id`, `trace_id`, `correlation_id`
 - `tenant_id` (when resolved), `user_id` (builder context)
@@ -164,6 +187,7 @@ Every request log line includes:
 Never log OTP codes, tokens, secrets, or provider signatures. Mask phone numbers (last 3–4 digits only).
 
 ### Metrics (minimum viable)
+
 - API latency p50/p95/p99 per route group
 - API error rate per module
 - Publish success rate, revalidation lag
@@ -173,7 +197,9 @@ Never log OTP codes, tokens, secrets, or provider signatures. Mask phone numbers
 - Tenant resolution failure rate
 
 ### Audit log
+
 Append-only audit events for:
+
 - publish/rollback
 - product price changes and deletions
 - manual order transitions
@@ -237,6 +263,7 @@ This project is in the architecture/specification stage.
 - Local dev: TBD
 
 When bootstrapping begins, this section should include:
+
 - Environment variables (.env.example)
 - Database setup + migrations
 - Running the API
