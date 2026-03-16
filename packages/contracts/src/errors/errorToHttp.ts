@@ -91,6 +91,19 @@ const codeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.MediaDeleteFailed]: 500,
   [ErrorCode.MediaValidationFailed]: 400,
 
+  // ORD codes
+  [ErrorCode.OrderIdempotencyConflict]: 409,
+  [ErrorCode.OrderInvalidItems]: 400,
+  [ErrorCode.OrderProductNotFound]: 404,
+  [ErrorCode.OrderVariantNotFound]: 404,
+  [ErrorCode.OrderProductNotAvailable]: 409,
+  [ErrorCode.OrderQuantityInvalid]: 400,
+  [ErrorCode.OrderFulfillmentInvalid]: 400,
+  [ErrorCode.OrderTotalMismatchInternal]: 500,
+  [ErrorCode.OrderInvalidStateTransition]: 409,
+  [ErrorCode.OrderNotFound]: 404,
+  [ErrorCode.OrderValidationFailed]: 400,
+
   // IAA codes
   [ErrorCode.AuthInvalidPhoneFormat]: 400,
   [ErrorCode.AuthPhoneCountryNotSupported]: 400,

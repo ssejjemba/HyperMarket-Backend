@@ -76,6 +76,19 @@ export enum ErrorCode {
   MediaDeleteFailed = 'media_delete_failed',
   MediaValidationFailed = 'media_validation_failed',
 
+  // ORD (Orders) module codes
+  OrderIdempotencyConflict = 'order_idempotency_conflict',
+  OrderInvalidItems = 'order_invalid_items',
+  OrderProductNotFound = 'order_product_not_found',
+  OrderVariantNotFound = 'order_variant_not_found',
+  OrderProductNotAvailable = 'order_product_not_available',
+  OrderQuantityInvalid = 'order_quantity_invalid',
+  OrderFulfillmentInvalid = 'order_fulfillment_invalid',
+  OrderTotalMismatchInternal = 'order_total_mismatch_internal',
+  OrderInvalidStateTransition = 'order_invalid_state_transition',
+  OrderNotFound = 'order_not_found',
+  OrderValidationFailed = 'order_validation_failed',
+
   // IAA (Identity and Access) module codes
   AuthInvalidPhoneFormat = 'auth_invalid_phone_format',
   AuthPhoneCountryNotSupported = 'auth_phone_country_not_supported',
