@@ -67,7 +67,10 @@ export const up = async (knex: Knex): Promise<void> => {
     `);
   }
 
-  if (!(await hasConstraint(knex, 'media_assets', 'media_assets_tenant_storage_key_unique'))) {
+  if (
+    !(await hasConstraint(knex, 'media_assets', 'media_assets_tenant_storage_key_unique')) &&
+    !(await hasIndex(knex, 'media_assets_tenant_storage_key_unique'))
+  ) {
     await knex.schema.alterTable('media_assets', (table) => {
       table.unique(['tenant_id', 'storage_key'], {
         indexName: 'media_assets_tenant_storage_key_unique'

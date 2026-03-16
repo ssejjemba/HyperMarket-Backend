@@ -52,7 +52,10 @@ export const up = async (knex: Knex): Promise<void> => {
     });
   }
 
-  if (!(await hasConstraint(knex, 'categories', 'categories_tenant_slug_unique'))) {
+  if (
+    !(await hasConstraint(knex, 'categories', 'categories_tenant_slug_unique')) &&
+    !(await hasIndex(knex, 'categories_tenant_slug_unique'))
+  ) {
     await knex.schema.alterTable('categories', (table) => {
       table.unique(['tenant_id', 'slug'], {
         indexName: 'categories_tenant_slug_unique'
@@ -88,7 +91,10 @@ export const up = async (knex: Knex): Promise<void> => {
     });
   }
 
-  if (!(await hasConstraint(knex, 'products', 'products_tenant_slug_unique'))) {
+  if (
+    !(await hasConstraint(knex, 'products', 'products_tenant_slug_unique')) &&
+    !(await hasIndex(knex, 'products_tenant_slug_unique'))
+  ) {
     await knex.schema.alterTable('products', (table) => {
       table.unique(['tenant_id', 'slug'], {
         indexName: 'products_tenant_slug_unique'
@@ -132,7 +138,12 @@ export const up = async (knex: Knex): Promise<void> => {
   }
 
   if (
-    !(await hasConstraint(knex, 'product_variants', 'product_variants_tenant_product_name_unique'))
+    !(await hasConstraint(
+      knex,
+      'product_variants',
+      'product_variants_tenant_product_name_unique'
+    )) &&
+    !(await hasIndex(knex, 'product_variants_tenant_product_name_unique'))
   ) {
     await knex.schema.alterTable('product_variants', (table) => {
       table.unique(['tenant_id', 'product_id', 'name'], {
