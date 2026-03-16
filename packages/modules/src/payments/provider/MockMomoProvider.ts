@@ -126,6 +126,8 @@ export const createMockMomoProvider = (input: { webhookSecret: string }): Paymen
       return {
         providerEventId: body.provider_event_id,
         providerReference: body.provider_reference,
+        providerTransactionId: null,
+        txRef: body.provider_reference,
         status: body.status,
         amount: body.amount ?? null,
         currency: body.currency ?? null,
@@ -143,6 +145,8 @@ export const createMockMomoProvider = (input: { webhookSecret: string }): Paymen
     async getIntentStatus(providerReference: string): Promise<ProviderStatusResult> {
       return {
         providerReference,
+        providerTransactionId: null,
+        txRef: providerReference,
         status: 'awaiting_customer',
         amount: null,
         currency: null,

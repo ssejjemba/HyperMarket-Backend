@@ -3,11 +3,21 @@ import type { AppConfigShape } from '@hypermarket/core';
 import { ErrorCode } from '@hypermarket/contracts';
 
 import { PaymentError } from '../errors/PaymentError';
-import { createMockMomoProvider } from '../provider';
+import { createFlutterwaveProvider, createMockMomoProvider } from '../provider';
 import type { PaymentProvider } from '../provider';
 
 export const createPaymentProviderRegistry = (config: AppConfigShape) => {
   const providers = new Map<string, PaymentProvider>();
+  if (config.flwSecretKey !== undefined && config.flwWebhookSecretHash !== undefined) {
+    providers.set(
+      'flutterwave',
+      createFlutterwaveProvider({
+        secretKey: config.flwSecretKey,
+        webhookSecretHash: config.flwWebhookSecretHash,
+        baseUrl: config.flwBaseUrl
+      })
+    );
+  }
   providers.set(
     'mock_momo',
     createMockMomoProvider({

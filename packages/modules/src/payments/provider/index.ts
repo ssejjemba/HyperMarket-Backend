@@ -1,3 +1,4 @@
+export { createFlutterwaveProvider } from './FlutterwaveProvider';
 export { createMockMomoProvider, signMockMomoWebhook } from './MockMomoProvider';
 export type {
   PaymentIntentProviderStatus,
@@ -9,3 +10,4 @@ export type {
   ProviderWebhookEvent,
   ProviderWebhookHttpRequest
 } from './PaymentProvider';
+export type { FlutterwaveHttpClient } from './FlutterwaveProvider';

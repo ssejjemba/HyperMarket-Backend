@@ -43,7 +43,8 @@ export {
   PAYMENT_INTENT_STATUSES
 } from './domain';
 export type { PaymentIntentStatus } from './domain';
-export { createMockMomoProvider, signMockMomoWebhook } from './provider';
+export { createFlutterwaveProvider, createMockMomoProvider, signMockMomoWebhook } from './provider';
+export type { FlutterwaveHttpClient } from './provider';
 export { createPaymentRepoPg } from './persistence/PaymentRepoPg';
 export type { PaymentIntentRecord, PaymentProviderEventRecord } from './persistence/PaymentRepoPg';
 export type {

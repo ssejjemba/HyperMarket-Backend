@@ -14,12 +14,16 @@ export type ProviderCreateIntentInput = {
   amount: number;
   currency: string;
   method: PaymentMethod;
+  txRef?: string;
   customerPhoneE164: string | null;
+  customerEmail?: string;
+  network?: string;
   webhookUrl: string;
 };
 
 export type ProviderCreateIntentResult = {
   providerReference: string;
+  providerTransactionId?: string | null;
   status: PaymentIntentProviderStatus;
   nextAction:
     | {
@@ -40,6 +44,8 @@ export type ProviderWebhookHttpRequest = {
 export type ProviderWebhookEvent = {
   providerEventId: string;
   providerReference: string;
+  providerTransactionId: string | null;
+  txRef: string;
   status: PaymentIntentProviderStatus;
   amount: number | null;
   currency: string | null;
@@ -49,6 +55,8 @@ export type ProviderWebhookEvent = {
 
 export type ProviderStatusResult = {
   providerReference: string;
+  providerTransactionId: string | null;
+  txRef: string;
   status: PaymentIntentProviderStatus;
   amount: number | null;
   currency: string | null;
