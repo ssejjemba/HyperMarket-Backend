@@ -239,7 +239,7 @@ export const createPaymentUseCases = (deps: {
       returnUrl?: string | null;
       requestId?: string;
     }) {
-      const providerName = input.provider ?? deps.config.paymentDefaultProvider;
+      const providerName = input.provider ?? deps.config.paymentDefaultProvider ?? 'mock_momo';
       const phone =
         input.customerPhoneE164 === undefined || input.customerPhoneE164 === null
           ? null
@@ -421,7 +421,8 @@ export const createPaymentUseCases = (deps: {
 
     async reconcileStaleIntents(input?: { limit?: number; staleMinutes?: number }) {
       const staleBefore = new Date(
-        Date.now() - (input?.staleMinutes ?? deps.config.paymentReconciliationStaleMinutes) * 60_000
+        Date.now() -
+          (input?.staleMinutes ?? deps.config.paymentReconciliationStaleMinutes ?? 10) * 60_000
       );
       const repo = createPaymentRepoPg(deps.db);
       const intents = await repo.listStaleIntents({
@@ -448,7 +449,7 @@ export const createPaymentUseCases = (deps: {
             request: {
               headers: {
                 'x-mock-momo-signature': signMockMomoWebhook({
-                  secret: deps.config.paymentMockWebhookSecret,
+                  secret: deps.config.paymentMockWebhookSecret ?? 'test-pay-webhook-secret',
                   body
                 })
               },

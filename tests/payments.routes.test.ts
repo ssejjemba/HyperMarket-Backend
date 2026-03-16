@@ -396,7 +396,7 @@ flowSuite('PAY routes', () => {
     const providerReference = createRes.json<{ intent: { provider_reference: string } }>().intent
       .provider_reference;
     const body = {
-      provider_event_id: 'evt_success_1',
+      provider_event_id: `evt_success_${ctx.seed.orderId}`,
       provider_reference: providerReference,
       status: 'succeeded',
       amount: 3500,
@@ -449,7 +449,7 @@ flowSuite('PAY routes', () => {
       .selectFrom('payment_provider_events')
       .select('id')
       .where('provider', '=', 'mock_momo')
-      .where('provider_event_id', '=', 'evt_success_1')
+      .where('provider_event_id', '=', `evt_success_${ctx.seed.orderId}`)
       .execute();
     expect(events).toHaveLength(1);
 

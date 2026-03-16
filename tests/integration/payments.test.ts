@@ -176,7 +176,7 @@ const run = async (): Promise<void> => {
   assert.equal(replay.id, intent.id);
 
   const body = {
-    provider_event_id: 'evt_integration_1',
+    provider_event_id: `evt_integration_${suffix}`,
     provider_reference: intent.providerReference as string,
     status: 'succeeded' as const,
     amount: 4500,
@@ -224,7 +224,7 @@ const run = async (): Promise<void> => {
     .selectFrom('payment_provider_events')
     .select('id')
     .where('provider', '=', 'mock_momo')
-    .where('provider_event_id', '=', 'evt_integration_1')
+    .where('provider_event_id', '=', `evt_integration_${suffix}`)
     .execute();
   assert.equal(providerEvents.length, 1);
 
