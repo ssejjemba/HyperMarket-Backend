@@ -9,10 +9,15 @@ import {
 import { AppError, ErrorCode } from '@hypermarket/contracts';
 import type { Kysely } from 'kysely';
 
-import { type OrderPaymentPort } from '../../orders';
+import { OrderError, type OrderPaymentPort } from '../../orders';
 import { createPaymentRequestHash, CustomerPhone, type PaymentIntentStatus } from '../domain';
 import { PaymentError } from '../errors/PaymentError';
-import type { PaymentMethod, PaymentProvider, ProviderWebhookHttpRequest } from '../provider';
+import {
+  signMockMomoWebhook,
+  type PaymentMethod,
+  type PaymentProvider,
+  type ProviderWebhookHttpRequest
+} from '../provider';
 import { createPaymentRepoPg } from '../persistence/PaymentRepoPg';
 import { createPaymentProviderRegistry } from './providerRegistry';
 
@@ -26,6 +31,28 @@ const mapIdempotencyError = (error: unknown): never => {
       ...(error.details !== undefined ? { details: error.details } : {}),
       cause: error
     });
+  }
+
+  throw error;
+};
+
+const mapOrderPortError = (error: unknown): never => {
+  if (error instanceof OrderError) {
+    if (error.code === ErrorCode.OrderNotFound) {
+      throw new PaymentError({
+        code: ErrorCode.PaymentOrderNotFound,
+        message: 'Order not found',
+        cause: error
+      });
+    }
+
+    if (error.code === ErrorCode.OrderInvalidStateTransition) {
+      throw new PaymentError({
+        code: ErrorCode.PaymentOrderNotPayable,
+        message: 'Order payment transition failed',
+        cause: error
+      });
+    }
   }
 
   throw error;
@@ -257,10 +284,12 @@ export const createPaymentUseCases = (deps: {
             return existing;
           }
 
-          const order = await deps.orderPaymentPort.getOrderForPayment(
-            input.tenantId,
-            input.orderId
-          );
+          let order;
+          try {
+            order = await deps.orderPaymentPort.getOrderForPayment(input.tenantId, input.orderId);
+          } catch (error) {
+            return mapOrderPortError(error);
+          }
           if (!isOrderPayable(order.status, order.checkoutMode)) {
             throw new PaymentError({
               code: ErrorCode.PaymentOrderNotPayable,
@@ -364,7 +393,11 @@ export const createPaymentUseCases = (deps: {
           };
         });
       } catch (error) {
-        return mapIdempotencyError(error);
+        try {
+          return mapIdempotencyError(error);
+        } catch (mapped) {
+          return mapOrderPortError(mapped);
+        }
       }
     },
 
@@ -375,11 +408,15 @@ export const createPaymentUseCases = (deps: {
     }) {
       const provider = providers.getProvider(input.providerName);
       provider.verifyWebhookSignature(input.request);
-      return applyProviderEvent({
-        provider,
-        request: input.request,
-        ...(input.requestId !== undefined ? { requestId: input.requestId } : {})
-      });
+      try {
+        return await applyProviderEvent({
+          provider,
+          request: input.request,
+          ...(input.requestId !== undefined ? { requestId: input.requestId } : {})
+        });
+      } catch (error) {
+        return mapOrderPortError(error);
+      }
     },
 
     async reconcileStaleIntents(input?: { limit?: number; staleMinutes?: number }) {
@@ -398,20 +435,24 @@ export const createPaymentUseCases = (deps: {
         const provider = providers.getProvider(intent.provider);
         try {
           const status = await provider.getIntentStatus(intent.providerReference ?? intent.id);
+          const body = {
+            provider_event_id: `reconcile:${intent.id}:${status.status}`,
+            provider_reference: status.providerReference,
+            status: status.status,
+            ...(status.amount !== null ? { amount: status.amount } : {}),
+            ...(status.currency !== null ? { currency: status.currency } : {}),
+            occurred_at: new Date().toISOString()
+          };
           const result = await applyProviderEvent({
             provider,
             request: {
               headers: {
-                'x-mock-momo-signature': deps.config.paymentMockWebhookSecret
+                'x-mock-momo-signature': signMockMomoWebhook({
+                  secret: deps.config.paymentMockWebhookSecret,
+                  body
+                })
               },
-              body: {
-                provider_event_id: `reconcile:${intent.id}:${status.status}`,
-                provider_reference: status.providerReference,
-                status: status.status,
-                amount: status.amount ?? undefined,
-                currency: status.currency ?? undefined,
-                occurred_at: new Date().toISOString()
-              }
+              body
             }
           });
           updated.push(result.intent.id);

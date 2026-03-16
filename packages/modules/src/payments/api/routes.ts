@@ -1,0 +1,96 @@
+import type { FastifyInstance } from 'fastify';
+import type { BaseLogger } from 'pino';
+
+import { AppError, ErrorCode } from '@hypermarket/contracts';
+
+import type { TenantRepository } from '../../tenancy/persistence/TenantRepository';
+import type { createPaymentUseCases } from '../application/useCases';
+import { mapPaymentIntentDto } from './controllers/mappers';
+import {
+  createPaymentIntentBodySchema,
+  parsePaymentValidation,
+  storefrontTenantParamsSchema,
+  webhookProviderParamsSchema
+} from './schemas/paymentSchemas';
+
+export type PaymentsApiDeps = {
+  logger: BaseLogger;
+  tenantRepo: TenantRepository;
+  useCases: ReturnType<typeof createPaymentUseCases>;
+};
+
+const resolveTenantIdBySlug = async (
+  tenantRepo: TenantRepository,
+  tenantSlug: string
+): Promise<string> => {
+  const tenant = await tenantRepo.findBySlug(tenantSlug);
+  if (tenant === null) {
+    throw new AppError({
+      code: ErrorCode.TenantResolutionFailed,
+      message: 'Tenant not found'
+    });
+  }
+
+  return tenant.id;
+};
+
+const getIdempotencyKey = (headers: Record<string, string | string[] | undefined>): string => {
+  const header = headers['idempotency-key'];
+  const value = Array.isArray(header) ? header[0] : header;
+
+  if (value === undefined || value.trim().length === 0) {
+    throw new AppError({
+      code: ErrorCode.PaymentProviderConfigInvalid,
+      message: 'Idempotency-Key header is required'
+    });
+  }
+
+  return value.trim();
+};
+
+export const registerPaymentApiRoutes = async (
+  server: FastifyInstance,
+  deps: PaymentsApiDeps
+): Promise<void> => {
+  deps.logger.info({ module: 'payments' }, 'registering PAY routes');
+
+  server.post('/storefront/:tenantSlug/payments/intents', async (request) => {
+    const params = parsePaymentValidation(storefrontTenantParamsSchema.safeParse(request.params));
+    const body = parsePaymentValidation(createPaymentIntentBodySchema.safeParse(request.body));
+    const tenantId = await resolveTenantIdBySlug(deps.tenantRepo, params.tenantSlug);
+    const intent = await deps.useCases.createIntent({
+      tenantId,
+      orderId: body.order_id,
+      idempotencyKey: getIdempotencyKey(request.headers),
+      method: body.method,
+      ...(body.provider !== undefined ? { provider: body.provider } : {}),
+      ...(body.customer_phone_e164 !== undefined
+        ? { customerPhoneE164: body.customer_phone_e164 }
+        : {}),
+      ...(body.return_url !== undefined ? { returnUrl: body.return_url } : {}),
+      requestId: request.id
+    });
+
+    return {
+      intent: mapPaymentIntentDto(intent)
+    };
+  });
+
+  server.post('/payments/webhooks/:provider', async (request, reply) => {
+    const params = parsePaymentValidation(webhookProviderParamsSchema.safeParse(request.params));
+    const result = await deps.useCases.processWebhook({
+      providerName: params.provider,
+      request: {
+        headers: request.headers,
+        body: request.body
+      },
+      requestId: request.id
+    });
+
+    reply.status(200);
+    return {
+      ok: true,
+      duplicate: result.duplicate
+    };
+  });
+};
