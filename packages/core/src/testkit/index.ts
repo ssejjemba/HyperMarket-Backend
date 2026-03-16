@@ -127,6 +127,28 @@ const ensureMediaTables = async (db: ReturnType<typeof createDbClient>): Promise
   `.execute(db);
 };
 
+const ensureCatalogMediaForeignKey = async (
+  db: ReturnType<typeof createDbClient>
+): Promise<void> => {
+  await sql`
+    do $$
+    begin
+      if not exists (
+        select 1
+        from pg_constraint
+        where conname = 'products_primary_image_asset_id_foreign'
+      ) then
+        alter table products
+        add constraint products_primary_image_asset_id_foreign
+        foreign key (primary_image_asset_id)
+        references media_assets(id)
+        on delete set null;
+      end if;
+    end
+    $$;
+  `.execute(db);
+};
+
 export const resetDatabase = async (): Promise<void> => {
   const config = loadEnv();
   const db = createDbClient(config.databaseUrl);
@@ -135,6 +157,7 @@ export const resetDatabase = async (): Promise<void> => {
   await ensureTenantMembershipRevokedAtColumn(db);
   await ensureCatalogTables(db);
   await ensureMediaTables(db);
+  await ensureCatalogMediaForeignKey(db);
   await db.deleteFrom('auth_otps').execute();
   await db.deleteFrom('sessions').execute();
   await db.deleteFrom('publish_history').execute();
@@ -184,6 +207,7 @@ export const createTestContext = async () => {
   await ensureTenantMembershipRevokedAtColumn(db);
   await ensureCatalogTables(db);
   await ensureMediaTables(db);
+  await ensureCatalogMediaForeignKey(db);
 
   const seed = createSeed();
 
@@ -256,6 +280,7 @@ export const canConnectDatabase = async (): Promise<boolean> => {
     await ensureTenantMembershipRevokedAtColumn(db);
     await ensureCatalogTables(db);
     await ensureMediaTables(db);
+    await ensureCatalogMediaForeignKey(db);
     await db.selectFrom('store_configs').select('id').limit(1).execute();
     await db.selectFrom('tenants').select('id').limit(1).execute();
     await db.selectFrom('products').select('id').limit(1).execute();
