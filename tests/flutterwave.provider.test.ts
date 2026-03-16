@@ -51,7 +51,7 @@ describe('Flutterwave provider adapter', () => {
     ).resolves.toMatchObject({
       providerReference: 't:tenant:o:order:pi:intent:ts:1',
       providerTransactionId: '12345',
-      status: 'pending'
+      status: 'awaiting_customer'
     });
 
     expect(requests[0]?.url).toBe(

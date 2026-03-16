@@ -20,12 +20,11 @@ import {
 } from '../domain';
 import { PaymentError } from '../errors/PaymentError';
 import {
-  signMockMomoWebhook,
   type PaymentMethod,
   type PaymentProvider,
   type ProviderWebhookHttpRequest
 } from '../provider';
-import { createPaymentRepoPg } from '../persistence/PaymentRepoPg';
+import { createPaymentRepoPg, type PaymentIntentRecord } from '../persistence/PaymentRepoPg';
 import { createPaymentProviderRegistry } from './providerRegistry';
 
 const CREATE_INTENT_OPERATION = 'create_payment_intent';
@@ -135,6 +134,80 @@ export const createPaymentUseCases = (deps: {
     }
   };
 
+  const persistIntentStatusChange = async (input: {
+    trx: Parameters<typeof auditWriter.write>[0];
+    repo: ReturnType<typeof createPaymentRepoPg>;
+    intent: PaymentIntentRecord;
+    status: PaymentIntentStatus;
+    providerReference: string | null;
+    providerTransactionId: string | null;
+    requestId?: string;
+    auditAction: string;
+  }) => {
+    const updatedIntent =
+      input.intent.status === input.status || isFinalIntentStatus(input.intent.status)
+        ? input.intent
+        : await input.repo.updateIntent({
+            tenantId: input.intent.tenantId,
+            intentId: input.intent.id,
+            status: input.status,
+            providerReference: input.providerReference,
+            providerTransactionId: input.providerTransactionId
+          });
+
+    if (updatedIntent === null) {
+      throw new PaymentError({
+        code: ErrorCode.PaymentIntentNotFound,
+        message: 'Payment intent not found'
+      });
+    }
+
+    await auditWriter.write(input.trx, {
+      tenantId: input.intent.tenantId,
+      action: input.auditAction,
+      targetType: 'payment_intent',
+      targetId: updatedIntent.id,
+      before: {
+        status: input.intent.status
+      },
+      after: {
+        status: updatedIntent.status,
+        provider_reference: updatedIntent.providerReference,
+        tx_ref: updatedIntent.txRef,
+        provider_transaction_id: updatedIntent.providerTransactionId
+      },
+      ...(input.requestId !== undefined ? { requestId: input.requestId } : {})
+    });
+
+    if (updatedIntent.status !== input.intent.status) {
+      await outboxWriter.write(input.trx, {
+        eventType: updatedIntent.status === 'SUCCEEDED' ? 'Payment.Succeeded' : 'Payment.Failed',
+        tenantId: input.intent.tenantId,
+        ...(input.requestId !== undefined ? { correlationId: input.requestId } : {}),
+        payload: {
+          tenant_id: input.intent.tenantId,
+          order_id: input.intent.orderId,
+          intent_id: updatedIntent.id,
+          provider: updatedIntent.provider,
+          provider_reference: updatedIntent.providerReference,
+          tx_ref: updatedIntent.txRef,
+          provider_transaction_id: updatedIntent.providerTransactionId,
+          status: updatedIntent.status
+        }
+      });
+
+      await transitionOrderForIntent({
+        tenantId: input.intent.tenantId,
+        orderId: input.intent.orderId,
+        intentId: updatedIntent.id,
+        status: updatedIntent.status,
+        ...(input.requestId !== undefined ? { requestId: input.requestId } : {})
+      });
+    }
+
+    return updatedIntent;
+  };
+
   const applyProviderEvent = async (input: {
     provider: PaymentProvider;
     request: ProviderWebhookHttpRequest;
@@ -208,68 +281,16 @@ export const createPaymentUseCases = (deps: {
         providerTransactionId = event.providerTransactionId;
       }
 
-      const updatedIntent =
-        intent.status === nextStatus || isFinalIntentStatus(intent.status)
-          ? intent
-          : await repo.updateIntent({
-              tenantId: intent.tenantId,
-              intentId: intent.id,
-              status: nextStatus,
-              providerReference,
-              providerTransactionId
-            });
-
-      if (updatedIntent === null) {
-        throw new PaymentError({
-          code: ErrorCode.PaymentIntentNotFound,
-          message: 'Payment intent not found'
-        });
-      }
-
-      await auditWriter.write(trx, {
-        tenantId: intent.tenantId,
-        action: 'payment.webhook.processed',
-        targetType: 'payment_intent',
-        targetId: updatedIntent.id,
-        before: {
-          status: intent.status
-        },
-        after: {
-          status: updatedIntent.status,
-          provider_reference: updatedIntent.providerReference,
-          tx_ref: updatedIntent.txRef,
-          provider_transaction_id: updatedIntent.providerTransactionId
-        },
-        requestId: input.requestId
+      const updatedIntent = await persistIntentStatusChange({
+        trx,
+        repo,
+        intent,
+        status: nextStatus,
+        providerReference,
+        providerTransactionId,
+        ...(input.requestId !== undefined ? { requestId: input.requestId } : {}),
+        auditAction: 'payment.webhook.processed'
       });
-
-      if (updatedIntent.status !== intent.status) {
-        await outboxWriter.write(trx, {
-          eventType: updatedIntent.status === 'SUCCEEDED' ? 'Payment.Succeeded' : 'Payment.Failed',
-          tenantId: intent.tenantId,
-          correlationId: input.requestId,
-          payload: {
-            tenant_id: intent.tenantId,
-            order_id: intent.orderId,
-            intent_id: updatedIntent.id,
-            provider: updatedIntent.provider,
-            provider_reference: updatedIntent.providerReference,
-            tx_ref: updatedIntent.txRef,
-            provider_transaction_id: updatedIntent.providerTransactionId,
-            status: updatedIntent.status
-          }
-        });
-      }
-
-      if (updatedIntent.status !== intent.status) {
-        await transitionOrderForIntent({
-          tenantId: intent.tenantId,
-          orderId: intent.orderId,
-          intentId: updatedIntent.id,
-          status: updatedIntent.status,
-          ...(input.requestId !== undefined ? { requestId: input.requestId } : {})
-        });
-      }
 
       return {
         duplicate: false,
@@ -523,28 +544,53 @@ export const createPaymentUseCases = (deps: {
       for (const intent of intents) {
         const provider = providers.getProvider(intent.provider);
         try {
-          const status = await provider.getIntentStatus(intent.providerReference ?? intent.id);
-          const body = {
-            provider_event_id: `reconcile:${intent.id}:${status.status}`,
-            provider_reference: status.providerReference,
-            status: status.status,
-            ...(status.amount !== null ? { amount: status.amount } : {}),
-            ...(status.currency !== null ? { currency: status.currency } : {}),
-            occurred_at: new Date().toISOString()
-          };
-          const result = await applyProviderEvent({
-            provider,
-            request: {
-              headers: {
-                'x-mock-momo-signature': signMockMomoWebhook({
-                  secret: deps.config.flwWebhookSecretHash ?? 'test-pay-webhook-secret',
-                  body
-                })
-              },
-              body
+          const status = await provider.getIntentStatus(intent.txRef);
+          let nextStatus = mapProviderStatus(status.status);
+          if (status.status === 'succeeded') {
+            if (
+              status.txRef !== intent.txRef ||
+              status.currency !== intent.currency ||
+              status.amount === null ||
+              status.amount < intent.amount
+            ) {
+              throw new PaymentError({
+                code: ErrorCode.PaymentTransactionMismatch,
+                message: 'Flutterwave reconciliation did not match the payment intent',
+                details: {
+                  expected_tx_ref: intent.txRef,
+                  actual_tx_ref: status.txRef,
+                  expected_currency: intent.currency,
+                  actual_currency: status.currency,
+                  expected_amount: intent.amount,
+                  actual_amount: status.amount
+                }
+              });
             }
+
+            nextStatus = 'SUCCEEDED';
+          }
+
+          const result = await runInTransaction(deps.db, async (trx) => {
+            const repo = createPaymentRepoPg(trx);
+            const currentIntent = await repo.getIntentById(intent.tenantId, intent.id);
+            if (currentIntent === null) {
+              throw new PaymentError({
+                code: ErrorCode.PaymentIntentNotFound,
+                message: 'Payment intent not found'
+              });
+            }
+
+            return persistIntentStatusChange({
+              trx,
+              repo,
+              intent: currentIntent,
+              status: nextStatus,
+              providerReference: status.providerReference,
+              providerTransactionId: status.providerTransactionId,
+              auditAction: 'payment.reconciliation.processed'
+            });
           });
-          updated.push(result.intent.id);
+          updated.push(result.id);
         } catch (error) {
           throw new PaymentError({
             code: ErrorCode.PaymentReconciliationFailed,

@@ -137,6 +137,7 @@ const run = async (): Promise<void> => {
   const suffix = Date.now().toString().slice(-12).padStart(12, '0');
   const tenantId = `30000000-0000-0000-0000-${suffix}`;
   const orderId = `31000000-0000-0000-0000-${suffix}`;
+  const staleOrderId = `32000000-0000-0000-0000-${suffix}`;
 
   await ensureOrdersTables(db);
   await ensurePaymentsTables(db);
@@ -157,26 +158,48 @@ const run = async (): Promise<void> => {
 
   await db
     .insertInto('orders')
-    .values({
-      id: orderId,
-      tenant_id: tenantId,
-      order_number: 1,
-      status: 'PENDING',
-      checkout_mode: 'gateway_payment',
-      currency: 'UGX',
-      subtotal_amount: 4500,
-      delivery_fee_amount: 0,
-      discount_amount: 0,
-      total_amount: 4500,
-      customer_id: null,
-      customer_snapshot: {},
-      fulfillment_snapshot: {
-        type: 'pickup'
+    .values([
+      {
+        id: orderId,
+        tenant_id: tenantId,
+        order_number: 1,
+        status: 'PENDING',
+        checkout_mode: 'gateway_payment',
+        currency: 'UGX',
+        subtotal_amount: 4500,
+        delivery_fee_amount: 0,
+        discount_amount: 0,
+        total_amount: 4500,
+        customer_id: null,
+        customer_snapshot: {},
+        fulfillment_snapshot: {
+          type: 'pickup'
+        },
+        notes: null,
+        created_at: new Date(),
+        updated_at: new Date()
       },
-      notes: null,
-      created_at: new Date(),
-      updated_at: new Date()
-    })
+      {
+        id: staleOrderId,
+        tenant_id: tenantId,
+        order_number: 2,
+        status: 'PENDING',
+        checkout_mode: 'gateway_payment',
+        currency: 'UGX',
+        subtotal_amount: 5200,
+        delivery_fee_amount: 0,
+        discount_amount: 0,
+        total_amount: 5200,
+        customer_id: null,
+        customer_snapshot: {},
+        fulfillment_snapshot: {
+          type: 'pickup'
+        },
+        notes: null,
+        created_at: new Date(),
+        updated_at: new Date()
+      }
+    ])
     .execute();
 
   const useCases = createPaymentUseCases({
@@ -216,7 +239,7 @@ const run = async (): Promise<void> => {
             id: 9988,
             tx_ref: txRef,
             status: 'successful',
-            amount: 4500,
+            amount: 999999,
             currency: 'UGX'
           }
         }),
@@ -254,6 +277,24 @@ const run = async (): Promise<void> => {
     network: 'MTN'
   });
   assert.equal(replay.id, intent.id);
+
+  const staleIntent = await useCases.createIntent({
+    tenantId,
+    orderId: staleOrderId,
+    idempotencyKey: 'integration-pay-2',
+    method: 'mobile_money',
+    customerPhoneE164: '+256712345678',
+    customerEmail: 'shopper@example.com',
+    network: 'MTN'
+  });
+  assert.equal(staleIntent.status, 'AWAITING_CUSTOMER');
+  await db
+    .updateTable('payment_intents')
+    .set({
+      updated_at: new Date('2000-01-01T00:00:00.000Z')
+    })
+    .where('id', '=', staleIntent.id)
+    .execute();
 
   const transactionId = Number(suffix.slice(-6));
   const body = {
@@ -305,6 +346,20 @@ const run = async (): Promise<void> => {
     .where('provider_event_id', '=', `charge.completed:${transactionId}`)
     .execute();
   assert.equal(providerEvents.length, 1);
+
+  const reconciled = await useCases.reconcileStaleIntents({
+    limit: 10000,
+    staleMinutes: 10
+  });
+  assert.equal(reconciled.checked >= 1, true);
+  assert.equal(reconciled.updatedIntentIds.length >= 1, true);
+
+  const staleOrder = await db
+    .selectFrom('orders')
+    .select(['status'])
+    .where('id', '=', staleOrderId)
+    .executeTakeFirstOrThrow();
+  assert.equal(staleOrder.status, 'PAID');
 
   await db.destroy();
 };
