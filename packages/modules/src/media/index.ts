@@ -18,3 +18,7 @@ export {
 export type { AllowedImageMimeType, MediaUploadConstraints } from './domain';
 export { MediaError } from './errors/MediaError';
 export type { MediaErrorCode } from './errors/MediaError';
+export { createNoopMediaMetrics, createInMemoryMediaMetrics } from './observability/mediaMetrics';
+export type { InMemoryMediaMetrics, MediaMetrics } from './observability/mediaMetrics';
+export { createSignedUploadUrlSigner } from './storage/UploadUrlSigner';
+export type { UploadUrlDescriptor, UploadUrlSigner } from './storage/UploadUrlSigner';
