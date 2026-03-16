@@ -61,6 +61,8 @@ export type {
   OrderTotals
 } from './domain';
 export { registerOrderApiRoutes } from './api/routes';
+export { createOrderPaymentPort } from './application/paymentPort';
+export type { OrderPaymentPort } from './application/paymentPort';
 export { createOrderUseCases } from './application/useCases';
 export { createOrderRepoPg } from './persistence/OrderRepoPg';
 export type {
