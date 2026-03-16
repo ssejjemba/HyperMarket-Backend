@@ -1,11 +1,43 @@
 import type { FastifyInstance } from 'fastify';
 
 import type { ModuleDeps } from '../types';
+import { createSessionRepoPg } from '../iaa/session/persistence/SessionRepoPg';
+import { createSessionService } from '../iaa/session/SessionService';
+import { createTokenSigner } from '../iaa/session/TokenSigner';
+import { createMembershipReaderPg } from '../tenancy/persistence/TenancyMembershipReaderPg';
+import { createTenantRepoPg } from '../tenancy/persistence/TenantRepoPg';
+import { registerOrderApiRoutes } from './api/routes';
+import { createOrderUseCases } from './application/useCases';
 
 export const registerOrderRoutes = async (
-  _server: FastifyInstance,
-  _deps: ModuleDeps
-): Promise<void> => {};
+  server: FastifyInstance,
+  deps: ModuleDeps
+): Promise<void> => {
+  const sessionRepo = createSessionRepoPg(deps.db);
+  const tokenSigner = createTokenSigner({
+    secret: deps.config.jwtSecret,
+    ttlSeconds: deps.config.sessionTtlSeconds,
+    issuer: deps.config.jwtIssuer
+  });
+  const sessionService = createSessionService({
+    signer: tokenSigner,
+    repo: sessionRepo,
+    ttlSeconds: deps.config.sessionTtlSeconds
+  });
+  const membershipReader = createMembershipReaderPg(deps.db);
+  const tenantRepo = createTenantRepoPg(deps.db);
+  const useCases = createOrderUseCases({
+    db: deps.db
+  });
+
+  await registerOrderApiRoutes(server, {
+    logger: deps.logger,
+    sessionService,
+    membershipReader,
+    tenantRepo,
+    useCases
+  });
+};
 
 export { OrderError } from './errors/OrderError';
 export type { OrderErrorCode } from './errors/OrderError';
@@ -28,6 +60,7 @@ export type {
   OrderStatus,
   OrderTotals
 } from './domain';
+export { registerOrderApiRoutes } from './api/routes';
 export { createOrderUseCases } from './application/useCases';
 export { createOrderRepoPg } from './persistence/OrderRepoPg';
 export type {
