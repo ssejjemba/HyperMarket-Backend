@@ -4,8 +4,11 @@ import { ErrorCode } from '@hypermarket/contracts';
 import {
   assertPaymentIntentTransition,
   createMockMomoProvider,
+  createFlutterwaveTxRef,
   createPaymentRequestHash,
+  CustomerEmail,
   CustomerPhone,
+  FlutterwaveNetwork,
   PaymentError,
   signMockMomoWebhook
 } from '@hypermarket/modules/payments';
@@ -29,23 +32,53 @@ describe('PAY domain rules', () => {
     );
   });
 
+  it('accepts valid customer email and supported mobile money networks', () => {
+    expect(CustomerEmail.parse(' shopper@example.com ').toString()).toBe('shopper@example.com');
+    expect(FlutterwaveNetwork.parse('mtn').toString()).toBe('MTN');
+    expect(() => CustomerEmail.parse('not-an-email')).toThrowError(
+      expect.objectContaining({
+        code: ErrorCode.PaymentProviderRejectedRequest
+      })
+    );
+    expect(() => FlutterwaveNetwork.parse('vodafone')).toThrowError(
+      expect.objectContaining({
+        code: ErrorCode.PaymentProviderRejectedRequest
+      })
+    );
+  });
+
   it('produces deterministic payment idempotency hashes', () => {
     const left = createPaymentRequestHash({
       tenantId: 'tenant-1',
       orderId: 'order-1',
       method: 'mobile_money',
-      provider: 'mock_momo',
-      customerPhoneE164: '+256712345678'
+      provider: 'flutterwave',
+      customerPhoneE164: '+256712345678',
+      customerEmail: 'shopper@example.com',
+      network: 'MTN'
     });
     const right = createPaymentRequestHash({
       tenantId: 'tenant-1',
       orderId: 'order-1',
       method: 'mobile_money',
-      provider: 'mock_momo',
-      customerPhoneE164: '+256712345678'
+      provider: 'flutterwave',
+      customerPhoneE164: '+256712345678',
+      customerEmail: 'shopper@example.com',
+      network: 'MTN'
     });
 
     expect(left).toBe(right);
+  });
+
+  it('builds deterministic flutterwave transaction references', () => {
+    expect(
+      createFlutterwaveTxRef({
+        tenantId: 'tenant-1',
+        orderId: 'order-1',
+        paymentIntentId: 'pi-1',
+        now: new Date('2026-03-17T10:00:00.000Z')
+      })
+    ).toBe('t:tenant-1:o:order-1:pi:pi-1:ts:1773741600');
   });
 
   it('verifies and parses mock momo webhooks', async () => {

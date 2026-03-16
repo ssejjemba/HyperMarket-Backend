@@ -21,6 +21,8 @@ export const createPaymentRequestHash = (input: {
   method: string;
   provider: string;
   customerPhoneE164: string | null;
+  customerEmail?: string | null;
+  network?: string | null;
   returnUrl?: string | null;
 }): string =>
   createHash('sha256')
@@ -31,6 +33,8 @@ export const createPaymentRequestHash = (input: {
         method: input.method,
         provider: input.provider,
         customer_phone_e164: input.customerPhoneE164,
+        customer_email: input.customerEmail ?? null,
+        network: input.network ?? null,
         return_url: input.returnUrl ?? null
       })
     )

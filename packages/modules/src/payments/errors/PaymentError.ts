@@ -4,14 +4,21 @@ import type { ErrorCode } from '@hypermarket/contracts';
 export type PaymentErrorCode =
   | ErrorCode.PaymentProviderConfigInvalid
   | ErrorCode.PaymentProviderUnavailable
+  | ErrorCode.PaymentProviderRejectedRequest
+  | ErrorCode.PaymentProviderRateLimited
+  | ErrorCode.PaymentProviderAuthFailed
   | ErrorCode.PaymentPhoneInvalid
   | ErrorCode.PaymentOrderNotFound
   | ErrorCode.PaymentOrderNotPayable
   | ErrorCode.PaymentIntentNotFound
   | ErrorCode.PaymentInvalidStateTransition
   | ErrorCode.PaymentWebhookSignatureInvalid
+  | ErrorCode.PaymentWebhookHashMissing
+  | ErrorCode.PaymentWebhookHashMismatch
   | ErrorCode.PaymentWebhookParseFailed
   | ErrorCode.PaymentIdempotencyConflict
+  | ErrorCode.PaymentTransactionVerificationFailed
+  | ErrorCode.PaymentTransactionMismatch
   | ErrorCode.PaymentReconciliationFailed
   | ErrorCode.PaymentDbFailure;
 

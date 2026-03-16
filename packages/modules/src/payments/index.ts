@@ -34,8 +34,12 @@ export { createPaymentProviderRegistry } from './application/providerRegistry';
 export { createPaymentUseCases } from './application/useCases';
 export {
   assertPaymentIntentTransition,
+  createFlutterwaveTxRef,
   createPaymentRequestHash,
+  CustomerEmail,
   CustomerPhone,
+  FLUTTERWAVE_NETWORKS,
+  FlutterwaveNetwork,
   PAYMENT_INTENT_STATUSES
 } from './domain';
 export type { PaymentIntentStatus } from './domain';
