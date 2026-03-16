@@ -81,6 +81,9 @@ const isOrderPayable = (status: string, checkoutMode: string): boolean =>
 const isFinalIntentStatus = (status: PaymentIntentStatus): boolean =>
   ['SUCCEEDED', 'FAILED', 'EXPIRED', 'CANCELLED', 'REFUNDED'].includes(status);
 
+const createdTxRefFallback = (tenantId: string, orderId: string): string =>
+  `legacy:${tenantId}:${orderId}`;
+
 export const createPaymentUseCases = (deps: {
   db: Kysely<DatabaseSchema>;
   config: AppConfigShape;
@@ -310,6 +313,9 @@ export const createPaymentUseCases = (deps: {
             status: 'CREATED',
             amount: order.totalAmount,
             currency: order.currency,
+            txRef: createdTxRefFallback(input.tenantId, input.orderId),
+            customerEmail: '',
+            network: '',
             ...(phone !== null ? { customerPhoneE164: phone } : {})
           });
 

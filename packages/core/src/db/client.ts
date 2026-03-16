@@ -245,8 +245,12 @@ export type DatabaseSchema = {
       | 'REFUNDED';
     amount: number;
     currency: string;
+    tx_ref: string;
     provider_reference: string | null;
+    provider_transaction_id: string | null;
     customer_phone_e164: string | null;
+    customer_email: string;
+    network: string;
     failure_code: string | null;
     failure_message: string | null;
     created_at: Date;

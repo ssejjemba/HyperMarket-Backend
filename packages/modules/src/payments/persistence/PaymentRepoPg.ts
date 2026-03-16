@@ -14,8 +14,12 @@ export type PaymentIntentRecord = {
   status: PaymentIntentStatus;
   amount: number;
   currency: string;
+  txRef: string;
   providerReference: string | null;
+  providerTransactionId: string | null;
   customerPhoneE164: string | null;
+  customerEmail: string;
+  network: string;
   failureCode: string | null;
   failureMessage: string | null;
   createdAt: Date;
@@ -42,8 +46,12 @@ const mapIntent = (row: DatabaseSchema['payment_intents']): PaymentIntentRecord 
   status: row.status,
   amount: row.amount,
   currency: row.currency,
+  txRef: row.tx_ref,
   providerReference: row.provider_reference,
+  providerTransactionId: row.provider_transaction_id,
   customerPhoneE164: row.customer_phone_e164,
+  customerEmail: row.customer_email,
+  network: row.network,
   failureCode: row.failure_code,
   failureMessage: row.failure_message,
   createdAt: row.created_at,
@@ -70,6 +78,9 @@ export const createPaymentRepoPg = (db: Kysely<DatabaseSchema> | Transaction<Dat
     status: PaymentIntentStatus;
     amount: number;
     currency: string;
+    txRef: string;
+    customerEmail: string;
+    network: string;
     customerPhoneE164?: string | null;
   }): Promise<PaymentIntentRecord> {
     const row = await db
@@ -83,8 +94,12 @@ export const createPaymentRepoPg = (db: Kysely<DatabaseSchema> | Transaction<Dat
         status: input.status,
         amount: input.amount,
         currency: input.currency,
+        tx_ref: input.txRef,
         provider_reference: null,
+        provider_transaction_id: null,
         customer_phone_e164: input.customerPhoneE164 ?? null,
+        customer_email: input.customerEmail,
+        network: input.network,
         failure_code: null,
         failure_message: null,
         created_at: sql`now()`,
@@ -100,7 +115,9 @@ export const createPaymentRepoPg = (db: Kysely<DatabaseSchema> | Transaction<Dat
     tenantId: string;
     intentId: string;
     status: PaymentIntentStatus;
+    txRef?: string;
     providerReference?: string | null;
+    providerTransactionId?: string | null;
     failureCode?: string | null;
     failureMessage?: string | null;
   }): Promise<PaymentIntentRecord | null> {
@@ -109,8 +126,12 @@ export const createPaymentRepoPg = (db: Kysely<DatabaseSchema> | Transaction<Dat
       .set({
         status: input.status,
         updated_at: new Date(),
+        ...(input.txRef !== undefined ? { tx_ref: input.txRef } : {}),
         ...(input.providerReference !== undefined
           ? { provider_reference: input.providerReference }
+          : {}),
+        ...(input.providerTransactionId !== undefined
+          ? { provider_transaction_id: input.providerTransactionId }
           : {}),
         ...(input.failureCode !== undefined ? { failure_code: input.failureCode } : {}),
         ...(input.failureMessage !== undefined ? { failure_message: input.failureMessage } : {})
@@ -143,6 +164,17 @@ export const createPaymentRepoPg = (db: Kysely<DatabaseSchema> | Transaction<Dat
       .selectAll()
       .where('provider', '=', provider)
       .where('provider_reference', '=', providerReference)
+      .executeTakeFirst();
+
+    return row === undefined ? null : mapIntent(row);
+  },
+
+  async getIntentByTxRef(provider: string, txRef: string): Promise<PaymentIntentRecord | null> {
+    const row = await db
+      .selectFrom('payment_intents')
+      .selectAll()
+      .where('provider', '=', provider)
+      .where('tx_ref', '=', txRef)
       .executeTakeFirst();
 
     return row === undefined ? null : mapIntent(row);

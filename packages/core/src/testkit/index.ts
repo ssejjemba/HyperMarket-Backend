@@ -227,13 +227,33 @@ const ensurePaymentsTables = async (db: ReturnType<typeof createDbClient>): Prom
       status text not null,
       amount integer not null,
       currency text not null default 'UGX',
+      tx_ref text not null default '',
       provider_reference text null,
+      provider_transaction_id text null,
       customer_phone_e164 text null,
+      customer_email text not null default '',
+      network text not null default '',
       failure_code text null,
       failure_message text null,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     )
+  `.execute(db);
+  await sql`
+    alter table payment_intents
+    add column if not exists tx_ref text not null default ''
+  `.execute(db);
+  await sql`
+    alter table payment_intents
+    add column if not exists provider_transaction_id text null
+  `.execute(db);
+  await sql`
+    alter table payment_intents
+    add column if not exists customer_email text not null default ''
+  `.execute(db);
+  await sql`
+    alter table payment_intents
+    add column if not exists network text not null default ''
   `.execute(db);
   await sql`
     create table if not exists payment_provider_events (
@@ -250,6 +270,15 @@ const ensurePaymentsTables = async (db: ReturnType<typeof createDbClient>): Prom
   await sql`
     create unique index if not exists payment_provider_events_provider_provider_event_id_unique
     on payment_provider_events (provider, provider_event_id)
+  `.execute(db);
+  await sql`
+    create unique index if not exists payment_intents_provider_tx_ref_idx
+    on payment_intents (provider, tx_ref)
+  `.execute(db);
+  await sql`
+    create index if not exists payment_intents_provider_transaction_id_idx
+    on payment_intents (provider, provider_transaction_id)
+    where provider_transaction_id is not null
   `.execute(db);
 };
 

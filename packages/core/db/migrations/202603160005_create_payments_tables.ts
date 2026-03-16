@@ -47,12 +47,40 @@ export const up = async (knex: Knex): Promise<void> => {
       table.text('status').notNullable();
       table.integer('amount').notNullable();
       table.text('currency').notNullable().defaultTo('UGX');
+      table.text('tx_ref').notNullable().defaultTo('');
       table.text('provider_reference').nullable();
+      table.text('provider_transaction_id').nullable();
       table.text('customer_phone_e164').nullable();
+      table.text('customer_email').notNullable().defaultTo('');
+      table.text('network').notNullable().defaultTo('');
       table.text('failure_code').nullable();
       table.text('failure_message').nullable();
       table.timestamp('created_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
       table.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
+    });
+  }
+
+  if (!(await knex.schema.hasColumn('payment_intents', 'tx_ref'))) {
+    await knex.schema.alterTable('payment_intents', (table) => {
+      table.text('tx_ref').notNullable().defaultTo('');
+    });
+  }
+
+  if (!(await knex.schema.hasColumn('payment_intents', 'provider_transaction_id'))) {
+    await knex.schema.alterTable('payment_intents', (table) => {
+      table.text('provider_transaction_id').nullable();
+    });
+  }
+
+  if (!(await knex.schema.hasColumn('payment_intents', 'customer_email'))) {
+    await knex.schema.alterTable('payment_intents', (table) => {
+      table.text('customer_email').notNullable().defaultTo('');
+    });
+  }
+
+  if (!(await knex.schema.hasColumn('payment_intents', 'network'))) {
+    await knex.schema.alterTable('payment_intents', (table) => {
+      table.text('network').notNullable().defaultTo('');
     });
   }
 
@@ -91,6 +119,21 @@ export const up = async (knex: Knex): Promise<void> => {
       create unique index payment_intents_provider_reference_idx
       on payment_intents (provider, provider_reference)
       where provider_reference is not null
+    `);
+  }
+
+  if (!(await hasIndex(knex, 'payment_intents_provider_tx_ref_idx'))) {
+    await knex.raw(`
+      create unique index payment_intents_provider_tx_ref_idx
+      on payment_intents (provider, tx_ref)
+    `);
+  }
+
+  if (!(await hasIndex(knex, 'payment_intents_provider_transaction_id_idx'))) {
+    await knex.raw(`
+      create index payment_intents_provider_transaction_id_idx
+      on payment_intents (provider, provider_transaction_id)
+      where provider_transaction_id is not null
     `);
   }
 
