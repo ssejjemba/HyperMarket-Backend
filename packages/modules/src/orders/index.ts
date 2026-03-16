@@ -28,3 +28,14 @@ export type {
   OrderStatus,
   OrderTotals
 } from './domain';
+export { createOrderUseCases } from './application/useCases';
+export { createOrderRepoPg } from './persistence/OrderRepoPg';
+export type {
+  CustomerRecord,
+  OrderActorType,
+  OrderCheckoutMode,
+  OrderDetailRecord,
+  OrderItemRecord,
+  OrderRecord,
+  OrderStateHistoryRecord
+} from './persistence/OrderRepoPg';
