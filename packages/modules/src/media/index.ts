@@ -7,5 +7,14 @@ export const registerMediaRoutes = async (
   _deps: ModuleDeps
 ): Promise<void> => {};
 
+export {
+  ALLOWED_IMAGE_MIME_TYPES,
+  buildMediaPublicUrl,
+  buildMediaStorageKey,
+  createDefaultMediaUploadPolicy,
+  MediaUploadPolicy,
+  sanitizeOriginalFilename
+} from './domain';
+export type { AllowedImageMimeType, MediaUploadConstraints } from './domain';
 export { MediaError } from './errors/MediaError';
 export type { MediaErrorCode } from './errors/MediaError';
