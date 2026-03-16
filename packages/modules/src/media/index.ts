@@ -16,9 +16,12 @@ export {
   sanitizeOriginalFilename
 } from './domain';
 export type { AllowedImageMimeType, MediaUploadConstraints } from './domain';
+export { createMediaUseCases } from './application/useCases';
 export { MediaError } from './errors/MediaError';
 export type { MediaErrorCode } from './errors/MediaError';
 export { createNoopMediaMetrics, createInMemoryMediaMetrics } from './observability/mediaMetrics';
 export type { InMemoryMediaMetrics, MediaMetrics } from './observability/mediaMetrics';
+export { createMediaAssetRepoPg } from './persistence/MediaAssetRepoPg';
+export type { MediaAssetRecord, MediaAssetStatus } from './persistence/MediaAssetRepoPg';
 export { createSignedUploadUrlSigner } from './storage/UploadUrlSigner';
 export type { UploadUrlDescriptor, UploadUrlSigner } from './storage/UploadUrlSigner';
