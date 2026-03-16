@@ -300,12 +300,23 @@ export const createOrderUseCases = (deps: { db: Kysely<DatabaseSchema> }) => {
             actorType: 'customer'
           });
 
+          const finalizedOrder = await orderRepo.getOrderById(
+            input.tenantId,
+            createdOrder.order.id
+          );
+          if (finalizedOrder === null) {
+            throw new OrderError({
+              code: ErrorCode.OrderNotFound,
+              message: 'Created order could not be reloaded'
+            });
+          }
+
           await auditWriter.write(trx, {
             tenantId: input.tenantId,
             action: 'order.created',
             targetType: 'order',
-            targetId: createdOrder.order.id,
-            after: mapOrderAudit(createdOrder.order),
+            targetId: finalizedOrder.order.id,
+            after: mapOrderAudit(finalizedOrder.order),
             requestId: toAuditRequestId(input.requestId)
           });
 
@@ -315,16 +326,16 @@ export const createOrderUseCases = (deps: { db: Kysely<DatabaseSchema> }) => {
             correlationId: toAuditRequestId(input.requestId),
             payload: {
               tenant_id: input.tenantId,
-              order_id: createdOrder.order.id,
-              order_number: createdOrder.order.orderNumber,
-              status: createdOrder.order.status,
-              total_amount: createdOrder.order.totalAmount
+              order_id: finalizedOrder.order.id,
+              order_number: finalizedOrder.order.orderNumber,
+              status: finalizedOrder.order.status,
+              total_amount: finalizedOrder.order.totalAmount
             }
           });
 
-          await idempotency.complete(trx, begin.record.id, createdOrder.order.id);
+          await idempotency.complete(trx, begin.record.id, finalizedOrder.order.id);
 
-          return createdOrder;
+          return finalizedOrder;
         });
 
       try {
