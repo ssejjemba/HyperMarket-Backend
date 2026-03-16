@@ -7,6 +7,16 @@ export const registerPaymentRoutes = async (
   _deps: ModuleDeps
 ): Promise<void> => {};
 
+export { PaymentError } from './errors/PaymentError';
+export type { PaymentErrorCode } from './errors/PaymentError';
+export {
+  assertPaymentIntentTransition,
+  createPaymentRequestHash,
+  CustomerPhone,
+  PAYMENT_INTENT_STATUSES
+} from './domain';
+export type { PaymentIntentStatus } from './domain';
+export { createMockMomoProvider, signMockMomoWebhook } from './provider';
 export type {
   PaymentIntentProviderStatus,
   PaymentMethod,
