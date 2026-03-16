@@ -168,6 +168,66 @@ export type DatabaseSchema = {
     created_at: Date;
     deleted_at: Date | null;
   };
+  customers: {
+    id: string;
+    tenant_id: string;
+    full_name: string | null;
+    phone_e164: string | null;
+    email: string | null;
+    notes: string | null;
+    created_at: Date;
+  };
+  orders: {
+    id: string;
+    tenant_id: string;
+    order_number: string | number;
+    status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'PAID' | 'FAILED' | 'FULFILLED' | 'REFUNDED';
+    checkout_mode: 'pay_on_delivery' | 'gateway_payment';
+    currency: string;
+    subtotal_amount: number;
+    delivery_fee_amount: number;
+    discount_amount: number;
+    total_amount: number;
+    customer_id: string | null;
+    customer_snapshot: Record<string, unknown>;
+    fulfillment_snapshot: Record<string, unknown>;
+    notes: string | null;
+    created_at: Date;
+    updated_at: Date;
+  };
+  order_items: {
+    id: string;
+    tenant_id: string;
+    order_id: string;
+    product_id: string | null;
+    variant_id: string | null;
+    title: string;
+    sku: string | null;
+    quantity: number;
+    unit_price_amount: number;
+    line_total_amount: number;
+    image_url: string | null;
+    created_at: Date;
+  };
+  order_state_history: {
+    id: string;
+    tenant_id: string;
+    order_id: string;
+    from_status:
+      | 'PENDING'
+      | 'CONFIRMED'
+      | 'CANCELLED'
+      | 'PAID'
+      | 'FAILED'
+      | 'FULFILLED'
+      | 'REFUNDED'
+      | null;
+    to_status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'PAID' | 'FAILED' | 'FULFILLED' | 'REFUNDED';
+    reason: string | null;
+    actor_type: 'system' | 'merchant' | 'customer';
+    actor_user_id: string | null;
+    created_at: Date;
+  };
   auth_otps: {
     id: string;
     phone_e164: string;

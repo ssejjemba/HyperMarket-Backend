@@ -149,6 +149,73 @@ const ensureCatalogMediaForeignKey = async (
   `.execute(db);
 };
 
+const ensureOrdersTables = async (db: ReturnType<typeof createDbClient>): Promise<void> => {
+  await sql`
+    create table if not exists customers (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references tenants(id) on delete cascade,
+      full_name text null,
+      phone_e164 text null,
+      email text null,
+      notes text null,
+      created_at timestamptz not null default now()
+    )
+  `.execute(db);
+  await sql`
+    create table if not exists orders (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references tenants(id) on delete cascade,
+      order_number bigint not null,
+      status text not null,
+      checkout_mode text not null,
+      currency text not null default 'UGX',
+      subtotal_amount integer not null,
+      delivery_fee_amount integer not null default 0,
+      discount_amount integer not null default 0,
+      total_amount integer not null,
+      customer_id uuid null references customers(id) on delete set null,
+      customer_snapshot jsonb not null,
+      fulfillment_snapshot jsonb not null,
+      notes text null,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `.execute(db);
+  await sql`
+    create table if not exists order_items (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references tenants(id) on delete cascade,
+      order_id uuid not null references orders(id) on delete cascade,
+      product_id uuid null references products(id) on delete set null,
+      variant_id uuid null references product_variants(id) on delete set null,
+      title text not null,
+      sku text null,
+      quantity integer not null,
+      unit_price_amount integer not null,
+      line_total_amount integer not null,
+      image_url text null,
+      created_at timestamptz not null default now()
+    )
+  `.execute(db);
+  await sql`
+    create table if not exists order_state_history (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references tenants(id) on delete cascade,
+      order_id uuid not null references orders(id) on delete cascade,
+      from_status text null,
+      to_status text not null,
+      reason text null,
+      actor_type text not null,
+      actor_user_id uuid null references users(id) on delete set null,
+      created_at timestamptz not null default now()
+    )
+  `.execute(db);
+  await sql`
+    create unique index if not exists orders_tenant_order_number_unique
+    on orders (tenant_id, order_number)
+  `.execute(db);
+};
+
 export const resetDatabase = async (): Promise<void> => {
   const config = loadEnv();
   const db = createDbClient(config.databaseUrl);
@@ -158,9 +225,14 @@ export const resetDatabase = async (): Promise<void> => {
   await ensureCatalogTables(db);
   await ensureMediaTables(db);
   await ensureCatalogMediaForeignKey(db);
+  await ensureOrdersTables(db);
   await db.deleteFrom('auth_otps').execute();
   await db.deleteFrom('sessions').execute();
   await db.deleteFrom('publish_history').execute();
+  await db.deleteFrom('order_state_history').execute();
+  await db.deleteFrom('order_items').execute();
+  await db.deleteFrom('orders').execute();
+  await db.deleteFrom('customers').execute();
   await db.deleteFrom('media_assets').execute();
   await db.deleteFrom('product_categories').execute();
   await db.deleteFrom('product_variants').execute();
@@ -208,6 +280,7 @@ export const createTestContext = async () => {
   await ensureCatalogTables(db);
   await ensureMediaTables(db);
   await ensureCatalogMediaForeignKey(db);
+  await ensureOrdersTables(db);
 
   const seed = createSeed();
 
@@ -281,10 +354,12 @@ export const canConnectDatabase = async (): Promise<boolean> => {
     await ensureCatalogTables(db);
     await ensureMediaTables(db);
     await ensureCatalogMediaForeignKey(db);
+    await ensureOrdersTables(db);
     await db.selectFrom('store_configs').select('id').limit(1).execute();
     await db.selectFrom('tenants').select('id').limit(1).execute();
     await db.selectFrom('products').select('id').limit(1).execute();
     await db.selectFrom('media_assets').select('id').limit(1).execute();
+    await db.selectFrom('orders').select('id').limit(1).execute();
     await db.destroy();
     return true;
   } catch {
