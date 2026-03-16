@@ -1,12 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorCode } from '@hypermarket/contracts';
 import { createDbClient, sql } from '@hypermarket/core/db';
 import type { AppConfig } from '@hypermarket/core/config/loadEnv';
-import { signMockMomoWebhook } from '@hypermarket/modules/payments';
-
 import { buildServer } from '../apps/api/src/server';
 
 type ErrorEnvelope = {
@@ -273,11 +271,38 @@ const canConnectPaymentsDatabase = async (): Promise<boolean> => {
 
 const dbAvailable = await canConnectPaymentsDatabase();
 const flowSuite = dbAvailable ? describe : describe.skip;
+const fetchMock = vi.fn<typeof fetch>();
+
+const createFlutterwaveFetchResponse = (input: {
+  txRef?: string;
+  status: string;
+  amount?: number;
+  currency?: string;
+  transactionId?: number;
+}) =>
+  new Response(
+    JSON.stringify({
+      status: 'success',
+      data: {
+        id: input.transactionId ?? 9988,
+        tx_ref: input.txRef ?? '',
+        status: input.status,
+        ...(input.amount !== undefined ? { amount: input.amount } : {}),
+        ...(input.currency !== undefined ? { currency: input.currency } : {})
+      }
+    }),
+    {
+      status: 200,
+      headers: {
+        'content-type': 'application/json'
+      }
+    }
+  );
 
 describe('PAY routes scaffold', () => {
   it.each([
     ['POST', '/storefront/test-tenant/payments/intents'],
-    ['POST', '/payments/webhooks/mock_momo']
+    ['POST', '/payments/webhooks/flutterwave']
   ])('registers %s %s', async (method, url) => {
     const server = buildServer({ config: TEST_CONFIG, devRoutesMode: 'disabled' });
     await server.ready();
@@ -292,7 +317,38 @@ describe('PAY routes scaffold', () => {
 flowSuite('PAY routes', () => {
   let ctx: Awaited<ReturnType<typeof createPaymentRouteTestContext>>;
 
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    fetchMock.mockImplementation(async (input, init) => {
+      const url =
+        typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      if (url.includes('/v3/charges?type=mobile_money_uganda')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as { tx_ref?: string };
+        return createFlutterwaveFetchResponse({
+          txRef: body.tx_ref,
+          status: 'pending',
+          transactionId: 9988
+        });
+      }
+
+      if (url.includes('/v3/transactions/verify_by_reference')) {
+        const txRef = new URL(url).searchParams.get('tx_ref') ?? '';
+        return createFlutterwaveFetchResponse({
+          txRef,
+          status: 'successful',
+          amount: 3500,
+          currency: 'UGX',
+          transactionId: 9988
+        });
+      }
+
+      return new Response('{}', { status: 404 });
+    });
+  });
+
   afterEach(async () => {
+    vi.unstubAllGlobals();
     if (ctx !== undefined) {
       await ctx.destroy();
     }
@@ -311,7 +367,6 @@ flowSuite('PAY routes', () => {
       },
       payload: {
         order_id: ctx.seed.orderId,
-        provider: 'mock_momo',
         customer_phone_e164: '+256712345678',
         network: 'MTN',
         email: 'shopper@example.com'
@@ -323,7 +378,7 @@ flowSuite('PAY routes', () => {
       intent: {
         order_id: ctx.seed.orderId,
         status: 'AWAITING_CUSTOMER',
-        provider: 'mock_momo'
+        provider: 'flutterwave'
       }
     });
 
@@ -335,7 +390,6 @@ flowSuite('PAY routes', () => {
       },
       payload: {
         order_id: ctx.seed.orderId,
-        provider: 'mock_momo',
         customer_phone_e164: '+256712345678',
         network: 'MTN',
         email: 'shopper@example.com'
@@ -363,7 +417,6 @@ flowSuite('PAY routes', () => {
       },
       payload: {
         order_id: ctx.seed.orderId,
-        provider: 'mock_momo',
         customer_phone_e164: '+256712345678',
         network: 'MTN',
         email: 'shopper@example.com'
@@ -378,7 +431,6 @@ flowSuite('PAY routes', () => {
       },
       payload: {
         order_id: ctx.seed.secondOrderId,
-        provider: 'mock_momo',
         customer_phone_e164: '+256712345678',
         network: 'MTN',
         email: 'shopper@example.com'
@@ -391,26 +443,26 @@ flowSuite('PAY routes', () => {
     await server.close();
   });
 
-  it('rejects invalid webhook signatures', async () => {
+  it('rejects webhook requests with a missing flutterwave hash', async () => {
     ctx = await createPaymentRouteTestContext();
     const server = buildServer({ config: TEST_CONFIG, devRoutesMode: 'disabled' });
     await server.ready();
 
     const res = await server.inject({
       method: 'POST',
-      url: '/payments/webhooks/mock_momo',
-      headers: {
-        'x-mock-momo-signature': 'bad-signature'
-      },
+      url: '/payments/webhooks/flutterwave',
       payload: {
-        provider_event_id: 'evt_bad',
-        provider_reference: 'mock_momo_missing',
-        status: 'succeeded'
+        event: 'charge.completed',
+        data: {
+          id: 9988,
+          tx_ref: 'missing',
+          status: 'successful'
+        }
       }
     });
 
     expect(res.statusCode).toBe(401);
-    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.PaymentWebhookSignatureInvalid);
+    expect(res.json<ErrorEnvelope>().error_code).toBe(ErrorCode.PaymentWebhookHashMissing);
 
     await server.close();
   });
@@ -428,33 +480,31 @@ flowSuite('PAY routes', () => {
       },
       payload: {
         order_id: ctx.seed.orderId,
-        provider: 'mock_momo',
         customer_phone_e164: '+256712345678',
         network: 'MTN',
         email: 'shopper@example.com'
       }
     });
 
-    const providerReference = createRes.json<{ intent: { provider_reference: string } }>().intent
-      .provider_reference;
+    const txRef = createRes.json<{ intent: { tx_ref: string } }>().intent.tx_ref;
+    const transactionId = parseInt(ctx.seed.orderId.replace(/-/g, '').slice(0, 8), 16);
     const body = {
-      provider_event_id: `evt_success_${ctx.seed.orderId}`,
-      provider_reference: providerReference,
-      status: 'succeeded',
-      amount: 3500,
-      currency: 'UGX',
-      occurred_at: '2026-03-16T00:00:00.000Z'
+      event: 'charge.completed',
+      data: {
+        id: transactionId,
+        tx_ref: txRef,
+        status: 'successful',
+        amount: 3500,
+        currency: 'UGX',
+        created_at: '2026-03-16T00:00:00.000Z'
+      }
     };
-    const signature = signMockMomoWebhook({
-      secret: TEST_CONFIG.flwWebhookSecretHash as string,
-      body
-    });
 
     const first = await server.inject({
       method: 'POST',
-      url: '/payments/webhooks/mock_momo',
+      url: '/payments/webhooks/flutterwave',
       headers: {
-        'x-mock-momo-signature': signature
+        'verif-hash': TEST_CONFIG.flwWebhookSecretHash as string
       },
       payload: body
     });
@@ -467,9 +517,9 @@ flowSuite('PAY routes', () => {
 
     const second = await server.inject({
       method: 'POST',
-      url: '/payments/webhooks/mock_momo',
+      url: '/payments/webhooks/flutterwave',
       headers: {
-        'x-mock-momo-signature': signature
+        'verif-hash': TEST_CONFIG.flwWebhookSecretHash as string
       },
       payload: body
     });
@@ -490,8 +540,8 @@ flowSuite('PAY routes', () => {
     const events = await ctx.db
       .selectFrom('payment_provider_events')
       .select('id')
-      .where('provider', '=', 'mock_momo')
-      .where('provider_event_id', '=', `evt_success_${ctx.seed.orderId}`)
+      .where('provider', '=', 'flutterwave')
+      .where('provider_event_id', '=', `charge.completed:${transactionId}`)
       .execute();
     expect(events).toHaveLength(1);
 

@@ -143,15 +143,12 @@ export const createPaymentUseCases = (deps: {
     runInTransaction(deps.db, async (trx) => {
       const repo = createPaymentRepoPg(trx);
       const event = input.provider.parseWebhook(input.request);
-      const intent = await repo.getIntentByProviderReference(
-        input.provider.providerName,
-        event.providerReference
-      );
+      const intent = await repo.getIntentByTxRef(input.provider.providerName, event.txRef);
 
       if (intent === null) {
         throw new PaymentError({
           code: ErrorCode.PaymentIntentNotFound,
-          message: 'Payment intent not found for provider reference'
+          message: 'Payment intent not found for transaction reference'
         });
       }
 
@@ -171,14 +168,55 @@ export const createPaymentUseCases = (deps: {
         };
       }
 
-      const nextStatus = mapProviderStatus(event.status);
+      let nextStatus = mapProviderStatus(event.status);
+      let providerReference = intent.providerReference;
+      let providerTransactionId = intent.providerTransactionId;
+
+      if (event.status === 'succeeded') {
+        const verification = await input.provider.getIntentStatus(event.txRef);
+        if (verification.status !== 'succeeded') {
+          throw new PaymentError({
+            code: ErrorCode.PaymentTransactionVerificationFailed,
+            message: 'Flutterwave transaction verification did not confirm success'
+          });
+        }
+
+        if (
+          verification.txRef !== intent.txRef ||
+          verification.currency !== intent.currency ||
+          verification.amount === null ||
+          verification.amount < intent.amount
+        ) {
+          throw new PaymentError({
+            code: ErrorCode.PaymentTransactionMismatch,
+            message: 'Flutterwave transaction verification did not match the payment intent',
+            details: {
+              expected_tx_ref: intent.txRef,
+              actual_tx_ref: verification.txRef,
+              expected_currency: intent.currency,
+              actual_currency: verification.currency,
+              expected_amount: intent.amount,
+              actual_amount: verification.amount
+            }
+          });
+        }
+
+        nextStatus = 'SUCCEEDED';
+        providerReference = verification.providerReference;
+        providerTransactionId = verification.providerTransactionId;
+      } else if (event.providerTransactionId !== null) {
+        providerTransactionId = event.providerTransactionId;
+      }
+
       const updatedIntent =
         intent.status === nextStatus || isFinalIntentStatus(intent.status)
           ? intent
           : await repo.updateIntent({
               tenantId: intent.tenantId,
               intentId: intent.id,
-              status: nextStatus
+              status: nextStatus,
+              providerReference,
+              providerTransactionId
             });
 
       if (updatedIntent === null) {
@@ -198,7 +236,9 @@ export const createPaymentUseCases = (deps: {
         },
         after: {
           status: updatedIntent.status,
-          provider_reference: updatedIntent.providerReference
+          provider_reference: updatedIntent.providerReference,
+          tx_ref: updatedIntent.txRef,
+          provider_transaction_id: updatedIntent.providerTransactionId
         },
         requestId: input.requestId
       });
@@ -214,6 +254,8 @@ export const createPaymentUseCases = (deps: {
             intent_id: updatedIntent.id,
             provider: updatedIntent.provider,
             provider_reference: updatedIntent.providerReference,
+            tx_ref: updatedIntent.txRef,
+            provider_transaction_id: updatedIntent.providerTransactionId,
             status: updatedIntent.status
           }
         });

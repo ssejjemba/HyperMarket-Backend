@@ -283,11 +283,19 @@ export const createFlutterwaveProvider = (
 
       const txRef = raw.data?.tx_ref ?? input.txRef;
       const transactionId = raw.data?.id === undefined ? null : String(raw.data.id);
+      const initialStatus = (() => {
+        const providerStatus = parseProviderStatus(raw.data?.status);
+        if (providerStatus === 'pending') {
+          return 'awaiting_customer' as const;
+        }
+
+        return providerStatus;
+      })();
 
       return {
         providerReference: txRef,
         providerTransactionId: transactionId,
-        status: parseProviderStatus(raw.data?.status),
+        status: initialStatus,
         nextAction: {
           type: 'display_message',
           message: 'Mobile money prompt initiated'

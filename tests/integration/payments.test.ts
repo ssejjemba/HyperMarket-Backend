@@ -6,7 +6,7 @@ import { config as loadDotenv } from 'dotenv';
 import { createDbClient, sql } from '../../packages/core/src/db/index';
 import { loadEnv } from '../../packages/core/src/config/loadEnv';
 import { createOrderPaymentPort } from '../../packages/modules/src/orders';
-import { createPaymentUseCases, signMockMomoWebhook } from '../../packages/modules/src/payments';
+import { createPaymentUseCases } from '../../packages/modules/src/payments';
 
 const currentFile = fileURLToPath(import.meta.url);
 const rootDir = path.resolve(path.dirname(currentFile), '../..');
@@ -184,12 +184,58 @@ const run = async (): Promise<void> => {
     config,
     orderPaymentPort: createOrderPaymentPort({ db })
   });
+  globalThis.fetch = async (input, init) => {
+    const url =
+      typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    if (url.includes('/v3/charges?type=mobile_money_uganda')) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { tx_ref?: string };
+      return new Response(
+        JSON.stringify({
+          status: 'success',
+          data: {
+            id: 9988,
+            tx_ref: body.tx_ref,
+            status: 'pending'
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'content-type': 'application/json'
+          }
+        }
+      );
+    }
+
+    if (url.includes('/v3/transactions/verify_by_reference')) {
+      const txRef = new URL(url).searchParams.get('tx_ref');
+      return new Response(
+        JSON.stringify({
+          status: 'success',
+          data: {
+            id: 9988,
+            tx_ref: txRef,
+            status: 'successful',
+            amount: 4500,
+            currency: 'UGX'
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'content-type': 'application/json'
+          }
+        }
+      );
+    }
+
+    return new Response('{}', { status: 404 });
+  };
 
   const intent = await useCases.createIntent({
     tenantId,
     orderId,
     idempotencyKey: 'integration-pay-1',
-    provider: 'mock_momo',
     method: 'mobile_money',
     customerPhoneE164: '+256712345678',
     customerEmail: 'shopper@example.com',
@@ -202,7 +248,6 @@ const run = async (): Promise<void> => {
     tenantId,
     orderId,
     idempotencyKey: 'integration-pay-1',
-    provider: 'mock_momo',
     method: 'mobile_money',
     customerPhoneE164: '+256712345678',
     customerEmail: 'shopper@example.com',
@@ -210,23 +255,24 @@ const run = async (): Promise<void> => {
   });
   assert.equal(replay.id, intent.id);
 
+  const transactionId = Number(suffix.slice(-6));
   const body = {
-    provider_event_id: `evt_integration_${suffix}`,
-    provider_reference: intent.providerReference as string,
-    status: 'succeeded' as const,
-    amount: 4500,
-    currency: 'UGX',
-    occurred_at: new Date().toISOString()
+    event: 'charge.completed',
+    data: {
+      id: transactionId,
+      tx_ref: intent.txRef,
+      status: 'successful' as const,
+      amount: 4500,
+      currency: 'UGX',
+      created_at: new Date().toISOString()
+    }
   };
 
   const processed = await useCases.processWebhook({
-    providerName: 'mock_momo',
+    providerName: 'flutterwave',
     request: {
       headers: {
-        'x-mock-momo-signature': signMockMomoWebhook({
-          secret: config.flwWebhookSecretHash as string,
-          body
-        })
+        'verif-hash': config.flwWebhookSecretHash as string
       },
       body
     }
@@ -235,13 +281,10 @@ const run = async (): Promise<void> => {
   assert.equal(processed.intent.status, 'SUCCEEDED');
 
   const duplicate = await useCases.processWebhook({
-    providerName: 'mock_momo',
+    providerName: 'flutterwave',
     request: {
       headers: {
-        'x-mock-momo-signature': signMockMomoWebhook({
-          secret: config.flwWebhookSecretHash as string,
-          body
-        })
+        'verif-hash': config.flwWebhookSecretHash as string
       },
       body
     }
@@ -258,8 +301,8 @@ const run = async (): Promise<void> => {
   const providerEvents = await db
     .selectFrom('payment_provider_events')
     .select('id')
-    .where('provider', '=', 'mock_momo')
-    .where('provider_event_id', '=', `evt_integration_${suffix}`)
+    .where('provider', '=', 'flutterwave')
+    .where('provider_event_id', '=', `charge.completed:${transactionId}`)
     .execute();
   assert.equal(providerEvents.length, 1);
 
