@@ -5,6 +5,7 @@ This directory documents the backend as it exists in the repository today.
 Start here:
 
 - [Getting Started](./getting-started/README.md)
+- [Frontend Integration Guide](./frontend/README.md)
 - [Architecture](./architecture/README.md)
 - [API Reference](./api/README.md)
 - [Reference](./reference/README.md)

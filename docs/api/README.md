@@ -1,5 +1,7 @@
 # API Reference
 
+- If you are consuming the API from a frontend application, start with the
+  [Frontend Integration Guide](../frontend/README.md).
 - [Conventions](./conventions.md)
 - [Authentication](./authentication.md)
 - [Merchant API](./merchant/README.md)
