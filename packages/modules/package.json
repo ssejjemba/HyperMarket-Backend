@@ -11,6 +11,7 @@
   "dependencies": {
     "@hypermarket/core": "workspace:*",
     "@hypermarket/contracts": "workspace:*",
+    "bullmq": "^5.71.0",
     "fastify": "^4.28.1",
     "ioredis": "^5.4.1",
     "jose": "^5.6.0",
@@ -25,6 +26,7 @@
     "./orders": "./src/orders/index.ts",
     "./payments": "./src/payments/index.ts",
     "./notifications": "./src/notifications/index.ts",
+    "./ops": "./src/ops/index.ts",
     "./media": "./src/media/index.ts",
     "./iaa": "./src/iaa/index.ts",
     "./iaa/testkit": "./src/iaa/testkit.ts"

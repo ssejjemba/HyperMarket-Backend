@@ -1,8 +1,15 @@
 import { randomUUID } from 'node:crypto';
+import { Queue } from 'bullmq';
 
 import { createDbClient } from '../../packages/core/src/db';
 import { buildServer } from '../../apps/api/src/server';
 import { loadEnv, type AppConfig } from '../../packages/core/src/config/loadEnv';
+import {
+  UserIdentity,
+  createSessionRepoPg,
+  createSessionService,
+  createTokenSigner
+} from '../../packages/modules/src/iaa';
 
 const applySmokeDefaults = (): void => {
   process.env.NODE_ENV ??= 'test';
@@ -64,14 +71,20 @@ const seedStorefrontData = async (
   tenantSlug: string;
   categorySlug: string;
   productSlug: string;
+  userId: string;
+  userPhone: string;
 }> => {
   const suffix = randomUUID().slice(0, 8);
   const tenantId = randomUUID();
   const categoryId = randomUUID();
   const productId = randomUUID();
+  const userId = randomUUID();
   const tenantSlug = `smoke-tenant-${suffix}`;
   const categorySlug = `smoke-category-${suffix}`;
   const productSlug = `smoke-product-${suffix}`;
+  const userPhone = `+25670${Math.floor(Math.random() * 10_000_000)
+    .toString()
+    .padStart(7, '0')}`;
   const now = new Date();
 
   await db
@@ -85,6 +98,31 @@ const seedStorefrontData = async (
       active_config_id: null,
       created_at: now,
       updated_at: now
+    })
+    .execute();
+
+  await db
+    .insertInto('users')
+    .values({
+      id: userId,
+      phone_e164: userPhone,
+      email: 'smoke-owner@example.com',
+      is_active: true,
+      created_at: now,
+      updated_at: now
+    })
+    .execute();
+
+  await db
+    .insertInto('tenant_memberships')
+    .values({
+      id: randomUUID(),
+      tenant_id: tenantId,
+      user_id: userId,
+      role: 'owner',
+      status: 'active',
+      created_at: now,
+      revoked_at: null
     })
     .execute();
 
@@ -163,8 +201,40 @@ const seedStorefrontData = async (
     tenantId,
     tenantSlug,
     categorySlug,
-    productSlug
+    productSlug,
+    userId,
+    userPhone
   };
+};
+
+const issueAccessToken = async (
+  db: ReturnType<typeof createDbClient>,
+  config: AppConfig,
+  user: { id: string; phoneE164: string }
+): Promise<string> => {
+  const sessionRepo = createSessionRepoPg(db);
+  const tokenSigner = createTokenSigner({
+    secret: config.jwtSecret,
+    ttlSeconds: config.sessionTtlSeconds,
+    issuer: config.jwtIssuer
+  });
+  const sessionService = createSessionService({
+    signer: tokenSigner,
+    repo: sessionRepo,
+    ttlSeconds: config.sessionTtlSeconds
+  });
+
+  const result = await sessionService.issueSession(
+    new UserIdentity({
+      id: user.id,
+      phoneE164: user.phoneE164,
+      status: 'active',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+  );
+
+  return result.accessToken;
 };
 
 const main = async (): Promise<void> => {
@@ -173,6 +243,14 @@ const main = async (): Promise<void> => {
   const seeded = await seedStorefrontData(db);
   const server = buildServer({ config, devRoutesMode: 'disabled' });
   let baseUrl = '';
+  const redisTarget = new URL(config.redisUrl);
+  const notificationsDlq = new Queue('notifications.dispatch.dlq', {
+    connection: {
+      host: redisTarget.hostname,
+      port: Number(redisTarget.port || 6379),
+      maxRetriesPerRequest: null
+    }
+  });
 
   try {
     const address = await server.listen({ host: '127.0.0.1', port: 0 });
@@ -230,6 +308,154 @@ const main = async (): Promise<void> => {
       }),
       { label: 'storefront order create' }
     );
+    const accessToken = await issueAccessToken(db, config, {
+      id: seeded.userId,
+      phoneE164: seeded.userPhone
+    });
+    const createdOrderId =
+      typeof (order as { order_id?: unknown }).order_id === 'string'
+        ? (order as { order_id: string }).order_id
+        : null;
+
+    if (createdOrderId === null) {
+      throw new Error('storefront order response did not include order_id');
+    }
+
+    await db
+      .insertInto('payment_intents')
+      .values({
+        id: randomUUID(),
+        tenant_id: seeded.tenantId,
+        order_id: createdOrderId,
+        provider: 'flutterwave',
+        method: 'mobile_money',
+        status: 'AWAITING_CUSTOMER',
+        amount: 25000,
+        currency: 'UGX',
+        tx_ref: `t:${seeded.tenantId}:o:${createdOrderId}:pi:smoke:ts:1`,
+        provider_reference: 'smoke-flw-ref',
+        provider_transaction_id: 'smoke-flw-tx',
+        customer_phone_e164: '+256700000001',
+        customer_email: 'customer@example.com',
+        network: 'MTN',
+        failure_code: null,
+        failure_message: null,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .execute();
+
+    const latestOutbox = await db
+      .selectFrom('outbox_events')
+      .select('id')
+      .where('tenant_id', '=', seeded.tenantId)
+      .orderBy('created_at', 'desc')
+      .executeTakeFirstOrThrow();
+    const notificationJobId = randomUUID();
+
+    await db
+      .insertInto('notification_jobs')
+      .values({
+        id: notificationJobId,
+        tenant_id: seeded.tenantId,
+        event_id: latestOutbox.id,
+        event_type: 'Order.Created',
+        channel: 'sms',
+        recipient: '+256700000001',
+        template_id: 'customer.order_confirmation',
+        template_version: 1,
+        payload: {
+          order_number: (order as { order_number?: unknown }).order_number ?? 1,
+          total_amount: 25000,
+          currency: 'UGX',
+          store_name: 'Smoke Test Tenant'
+        },
+        dedupe_key: `smoke-${randomUUID()}`,
+        status: 'FAILED_RETRYABLE',
+        attempt_count: 1,
+        last_error_code: 'not_provider_unavailable',
+        last_error_message: 'temporary outage',
+        provider: 'twilio_sms',
+        provider_message_id: null,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .execute();
+
+    await db
+      .insertInto('notification_delivery_attempts')
+      .values({
+        id: randomUUID(),
+        tenant_id: seeded.tenantId,
+        job_id: notificationJobId,
+        attempt_number: 1,
+        provider: 'twilio_sms',
+        result: 'failed',
+        error_code: 'not_provider_unavailable',
+        error_message: 'temporary outage',
+        provider_message_id: null,
+        created_at: new Date()
+      })
+      .execute();
+
+    const dlqJob = await notificationsDlq.add('notifications.dispatch.dlq', {
+      job_id: notificationJobId,
+      tenant_id: seeded.tenantId,
+      error_message: 'temporary outage'
+    });
+    const authHeaders = {
+      authorization: `Bearer ${accessToken}`
+    };
+    const opsSummary = await assertResponse(
+      await fetch(`${baseUrl}/tenants/${seeded.tenantId}/ops/summary`, {
+        headers: authHeaders
+      }),
+      { label: 'ops summary' }
+    );
+    const opsPayments = await assertResponse(
+      await fetch(`${baseUrl}/tenants/${seeded.tenantId}/ops/payments?status=AWAITING_CUSTOMER`, {
+        headers: authHeaders
+      }),
+      { label: 'ops payments' }
+    );
+    const opsNotifications = await assertResponse(
+      await fetch(
+        `${baseUrl}/tenants/${seeded.tenantId}/ops/notifications?status=FAILED_RETRYABLE`,
+        {
+          headers: authHeaders
+        }
+      ),
+      { label: 'ops notifications' }
+    );
+    const opsAttempts = await assertResponse(
+      await fetch(
+        `${baseUrl}/tenants/${seeded.tenantId}/ops/notifications/${notificationJobId}/attempts`,
+        {
+          headers: authHeaders
+        }
+      ),
+      { label: 'ops notification attempts' }
+    );
+    const opsDlq = await assertResponse(
+      await fetch(`${baseUrl}/tenants/${seeded.tenantId}/ops/dlq/notifications?limit=10`, {
+        headers: authHeaders
+      }),
+      { label: 'ops notification dlq' }
+    );
+    const replayTarget = dlqJob.id?.toString();
+    if (replayTarget === undefined) {
+      throw new Error('failed to create smoke dlq job');
+    }
+    const opsReplay = await assertResponse(
+      await fetch(
+        `${baseUrl}/tenants/${seeded.tenantId}/ops/dlq/notifications/${replayTarget}/replay`,
+        {
+          method: 'POST',
+          headers: authHeaders
+        }
+      ),
+      { label: 'ops dlq replay' }
+    );
 
     console.log(
       JSON.stringify(
@@ -265,13 +491,30 @@ const main = async (): Promise<void> => {
           order_number:
             typeof (order as { order_number?: unknown }).order_number === 'number'
               ? (order as { order_number: number }).order_number
-              : null
+              : null,
+          ops: {
+            summary: opsSummary,
+            payments_count: Array.isArray((opsPayments as { intents?: unknown[] }).intents)
+              ? (opsPayments as { intents: unknown[] }).intents.length
+              : null,
+            notifications_count: Array.isArray((opsNotifications as { jobs?: unknown[] }).jobs)
+              ? (opsNotifications as { jobs: unknown[] }).jobs.length
+              : null,
+            attempts_count: Array.isArray((opsAttempts as { attempts?: unknown[] }).attempts)
+              ? (opsAttempts as { attempts: unknown[] }).attempts.length
+              : null,
+            dlq_count: Array.isArray((opsDlq as { jobs?: unknown[] }).jobs)
+              ? (opsDlq as { jobs: unknown[] }).jobs.length
+              : null,
+            replay: opsReplay
+          }
         },
         null,
         2
       )
     );
   } finally {
+    await notificationsDlq.close();
     await server.close();
     await db.deleteFrom('tenants').where('id', '=', seeded.tenantId).execute();
     await db.destroy();

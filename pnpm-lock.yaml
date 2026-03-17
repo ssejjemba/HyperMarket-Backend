@@ -22,6 +22,9 @@ importers:
       '@typescript-eslint/parser':
         specifier: ^8.39.0
         version: 8.56.1(eslint@9.39.4)(typescript@5.9.3)
+      bullmq:
+        specifier: ^5.71.0
+        version: 5.71.0
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
@@ -88,6 +91,9 @@ importers:
       '@hypermarket/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@hypermarket/modules':
+        specifier: workspace:*
+        version: link:../../packages/modules
       bullmq:
         specifier: ^5.71.0
         version: 5.71.0
@@ -126,6 +132,9 @@ importers:
       '@hypermarket/core':
         specifier: workspace:*
         version: link:../core
+      bullmq:
+        specifier: ^5.71.0
+        version: 5.71.0
       fastify:
         specifier: ^4.28.1
         version: 4.29.1
