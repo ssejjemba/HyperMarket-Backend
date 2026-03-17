@@ -25,6 +25,7 @@ export const createNotificationUseCases = (deps: {
       const plan = buildNotificationPlan(event);
       let createdCount = 0;
       let dedupedCount = 0;
+      const createdJobIds: string[] = [];
 
       for (const notification of plan) {
         const dedupeKey = createNotificationDedupeKey({
@@ -63,6 +64,9 @@ export const createNotificationUseCases = (deps: {
         }
 
         createdCount += 1;
+        if (result.job !== null) {
+          createdJobIds.push(result.job.id);
+        }
         deps.logger.info(
           {
             eventId: event.id,
@@ -78,7 +82,8 @@ export const createNotificationUseCases = (deps: {
 
       return {
         createdCount,
-        dedupedCount
+        dedupedCount,
+        createdJobIds
       };
     });
   },

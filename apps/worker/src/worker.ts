@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url';
 
 import { Queue, Worker } from 'bullmq';
 import { config as loadDotenv } from 'dotenv';
-import Redis from 'ioredis';
 
 import {
   createDbClient,
@@ -12,6 +11,10 @@ import {
   loadEnv,
   withRequestContext
 } from '@hypermarket/core';
+import {
+  createNotificationUseCases,
+  createTwilioSmsProvider
+} from '../../../packages/modules/src/notifications/index';
 
 import {
   STOREFRONT_REVALIDATION_DLQ,
@@ -21,6 +24,12 @@ import {
   enqueueStorefrontRevalidationJob,
   handleStorefrontRevalidationFailure
 } from './revalidation';
+import {
+  NOTIFICATION_DISPATCH_DLQ,
+  NOTIFICATION_DISPATCH_QUEUE,
+  enqueueNotificationDispatchJobs,
+  handleNotificationDispatchFailure
+} from './notifications';
 
 const resolveRootDir = (): string => {
   const currentFile = fileURLToPath(import.meta.url);
@@ -82,10 +91,6 @@ const startWorker = async (): Promise<void> => {
     port: Number(new URL(config.redisUrl).port || 6379),
     maxRetriesPerRequest: null as null
   };
-  const redis = new Redis(config.redisUrl, {
-    lazyConnect: true,
-    maxRetriesPerRequest: 2
-  });
 
   const outboxDispatcher = createOutboxDispatcher({ batchSize: 50 });
   const revalidationMetrics = createNoopStorefrontRevalidationMetrics();
@@ -109,6 +114,41 @@ const startWorker = async (): Promise<void> => {
       connection: bullmqConnection
     }
   );
+  const notificationDispatchQueue = new Queue(NOTIFICATION_DISPATCH_QUEUE, {
+    connection: bullmqConnection
+  });
+  const notificationDispatchDlq = new Queue(NOTIFICATION_DISPATCH_DLQ, {
+    connection: bullmqConnection
+  });
+  const notificationUseCases = createNotificationUseCases({
+    db,
+    logger,
+    provider: createTwilioSmsProvider({
+      accountSid: config.twilioAccountSid,
+      authToken: config.twilioAuthToken,
+      from: config.twilioSmsFrom
+    })
+  });
+  const notificationDispatchWorker = new Worker(
+    NOTIFICATION_DISPATCH_QUEUE,
+    async (job) => {
+      const result = await notificationUseCases.dispatchJob(job.data.job_id);
+
+      if (result.status === 'FAILED_RETRYABLE') {
+        throw new Error(result.lastErrorMessage ?? 'notification_retryable_failure');
+      }
+
+      if (result.status === 'DEAD') {
+        await notificationDispatchDlq.add(NOTIFICATION_DISPATCH_DLQ, {
+          ...job.data,
+          error_message: result.lastErrorMessage ?? 'notification_dead'
+        });
+      }
+    },
+    {
+      connection: bullmqConnection
+    }
+  );
 
   storefrontRevalidationWorker.on('failed', async (job, error) => {
     if (job === undefined) {
@@ -118,6 +158,19 @@ const startWorker = async (): Promise<void> => {
     await handleStorefrontRevalidationFailure({
       dlq: storefrontRevalidationDlq,
       metrics: revalidationMetrics,
+      logger,
+      job,
+      error
+    });
+  });
+  notificationDispatchWorker.on('failed', async (job, error) => {
+    if (job === undefined) {
+      return;
+    }
+
+    await handleNotificationDispatchFailure({
+      db,
+      dlq: notificationDispatchDlq,
       logger,
       job,
       error
@@ -146,6 +199,15 @@ const startWorker = async (): Promise<void> => {
           try {
             eventLogger.info({ eventType: event.eventType }, 'Dispatching outbox event');
             await enqueueStorefrontRevalidationJob(storefrontRevalidationQueue, event);
+            if ((event.tenantId ?? '').length > 0) {
+              const scheduled = await notificationUseCases.scheduleFromOutboxEvent(event);
+              if (scheduled.createdJobIds.length > 0) {
+                await enqueueNotificationDispatchJobs(notificationDispatchQueue, {
+                  tenantId: event.tenantId as string,
+                  jobIds: scheduled.createdJobIds
+                });
+              }
+            }
             await outboxDispatcher.markDispatched(db, [event.id]);
           } catch (error) {
             const message = error instanceof Error ? error.message : 'unknown_error';
@@ -160,40 +222,14 @@ const startWorker = async (): Promise<void> => {
     }
   };
 
-  const startNotificationWorker = async (): Promise<void> => {
-    const channel = 'notifications:placeholder';
-    redis.on('error', (error) => {
-      logger.warn({ err: error }, 'Redis connection error');
-    });
-
-    while (true) {
-      try {
-        if (redis.status !== 'ready') {
-          await redis.connect();
-        }
-
-        await redis.subscribe(channel);
-
-        redis.on('message', (messageChannel, payload) => {
-          if (messageChannel === channel) {
-            logger.info({ payload }, 'Received notification placeholder');
-          }
-        });
-
-        break;
-      } catch (error) {
-        logger.warn({ err: error }, 'Redis not ready, retrying');
-        await sleep(1000);
-      }
-    }
-  };
-
   await Promise.all([
     storefrontRevalidationQueue.waitUntilReady(),
     storefrontRevalidationDlq.waitUntilReady(),
     storefrontRevalidationWorker.waitUntilReady(),
-    pollOutbox(),
-    startNotificationWorker()
+    notificationDispatchQueue.waitUntilReady(),
+    notificationDispatchDlq.waitUntilReady(),
+    notificationDispatchWorker.waitUntilReady(),
+    pollOutbox()
   ]);
 };
 
