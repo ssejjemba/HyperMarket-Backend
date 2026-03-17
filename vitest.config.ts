@@ -95,7 +95,7 @@ export default defineConfig({
       },
       {
         find: /^@hypermarket\/modules\/(.*)$/,
-        replacement: path.resolve(__dirname, 'packages/modules/modules/$1')
+        replacement: path.resolve(__dirname, 'packages/modules/src/$1/index.ts')
       }
     ]
   },
