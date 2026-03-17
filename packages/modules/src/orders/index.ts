@@ -6,6 +6,7 @@ import { createSessionService } from '../iaa/session/SessionService';
 import { createTokenSigner } from '../iaa/session/TokenSigner';
 import { createMembershipReaderPg } from '../tenancy/persistence/TenancyMembershipReaderPg';
 import { createTenantRepoPg } from '../tenancy/persistence/TenantRepoPg';
+import { createRedisStorefrontRateLimiter } from '../rateLimit/RedisStorefrontRateLimiter';
 import { registerOrderApiRoutes } from './api/routes';
 import { createOrderUseCases } from './application/useCases';
 
@@ -26,6 +27,15 @@ export const registerOrderRoutes = async (
   });
   const membershipReader = createMembershipReaderPg(deps.db);
   const tenantRepo = createTenantRepoPg(deps.db);
+  const storefrontRateLimiter = createRedisStorefrontRateLimiter({
+    redisUrl: deps.config.redisUrl,
+    keyPrefix: 'storefront:orders:rate-limit',
+    max: deps.config.publicOrderRateLimitMax ?? 20,
+    windowSeconds: deps.config.publicOrderRateLimitWindowSeconds ?? 60
+  });
+  server.addHook('onClose', async () => {
+    await storefrontRateLimiter.close();
+  });
   const useCases = createOrderUseCases({
     db: deps.db
   });
@@ -35,7 +45,8 @@ export const registerOrderRoutes = async (
     sessionService,
     membershipReader,
     tenantRepo,
-    useCases
+    useCases,
+    storefrontRateLimiter
   });
 };
 

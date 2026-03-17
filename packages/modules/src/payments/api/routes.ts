@@ -3,6 +3,7 @@ import type { BaseLogger } from 'pino';
 
 import { AppError, ErrorCode } from '@hypermarket/contracts';
 
+import type { StorefrontRateLimiter } from '../../rateLimit/RedisStorefrontRateLimiter';
 import type { TenantRepository } from '../../tenancy/persistence/TenantRepository';
 import type { createPaymentUseCases } from '../application/useCases';
 import { mapPaymentIntentDto } from './controllers/mappers';
@@ -17,6 +18,7 @@ export type PaymentsApiDeps = {
   logger: BaseLogger;
   tenantRepo: TenantRepository;
   useCases: ReturnType<typeof createPaymentUseCases>;
+  storefrontRateLimiter?: StorefrontRateLimiter | undefined;
 };
 
 const resolveTenantIdBySlug = async (
@@ -54,10 +56,25 @@ export const registerPaymentApiRoutes = async (
 ): Promise<void> => {
   deps.logger.info({ module: 'payments' }, 'registering PAY routes');
 
-  server.post('/storefront/:tenantSlug/payments/intents', async (request) => {
+  server.post('/storefront/:tenantSlug/payments/intents', async (request, reply) => {
     const params = parsePaymentValidation(storefrontTenantParamsSchema.safeParse(request.params));
     const body = parsePaymentValidation(createPaymentIntentBodySchema.safeParse(request.body));
     const tenantId = await resolveTenantIdBySlug(deps.tenantRepo, params.tenantSlug);
+
+    if (deps.storefrontRateLimiter !== undefined) {
+      const decision = await deps.storefrontRateLimiter.check(`${tenantId}:${request.ip}`);
+      if (!decision.allowed) {
+        reply.header('Retry-After', String(decision.retryAfterSeconds));
+        throw new AppError({
+          code: ErrorCode.RateLimited,
+          message: 'Too many payment initiation requests',
+          details: {
+            retry_after_seconds: decision.retryAfterSeconds
+          }
+        });
+      }
+    }
+
     const intent = await deps.useCases.createIntent({
       tenantId,
       orderId: body.order_id,

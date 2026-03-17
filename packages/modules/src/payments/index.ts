@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 
 import type { ModuleDeps } from '../types';
+import { createRedisStorefrontRateLimiter } from '../rateLimit/RedisStorefrontRateLimiter';
 import { createTenantRepoPg } from '../tenancy/persistence/TenantRepoPg';
 import { createOrderPaymentPort } from '../orders';
 import { registerPaymentApiRoutes } from './api/routes';
@@ -11,6 +12,15 @@ export const registerPaymentRoutes = async (
   deps: ModuleDeps
 ): Promise<void> => {
   const tenantRepo = createTenantRepoPg(deps.db);
+  const storefrontRateLimiter = createRedisStorefrontRateLimiter({
+    redisUrl: deps.config.redisUrl,
+    keyPrefix: 'storefront:payments:rate-limit',
+    max: deps.config.publicPaymentRateLimitMax ?? 10,
+    windowSeconds: deps.config.publicPaymentRateLimitWindowSeconds ?? 60
+  });
+  server.addHook('onClose', async () => {
+    await storefrontRateLimiter.close();
+  });
   const orderPaymentPort = createOrderPaymentPort({
     db: deps.db
   });
@@ -23,7 +33,8 @@ export const registerPaymentRoutes = async (
   await registerPaymentApiRoutes(server, {
     logger: deps.logger,
     tenantRepo,
-    useCases
+    useCases,
+    storefrontRateLimiter
   });
 };
 

@@ -56,6 +56,34 @@ const envSchema = z.object({
   NOT_DEFAULT_PROVIDER: z.string().min(1).optional().default('twilio_sms'),
   NOT_DEFAULT_CHANNEL: z.enum(['sms', 'whatsapp', 'email']).optional().default('sms'),
   TWILIO_SMS_FROM: z.string().min(1).optional().default('+256700000000'),
+  PUBLIC_ORDER_RATE_LIMIT_WINDOW_SECONDS: z
+    .string()
+    .optional()
+    .transform((value) => (value === undefined ? 60 : Number(value)))
+    .refine((value) => Number.isFinite(value) && value > 0, {
+      message: 'PUBLIC_ORDER_RATE_LIMIT_WINDOW_SECONDS must be a positive number'
+    }),
+  PUBLIC_ORDER_RATE_LIMIT_MAX: z
+    .string()
+    .optional()
+    .transform((value) => (value === undefined ? 20 : Number(value)))
+    .refine((value) => Number.isFinite(value) && value > 0, {
+      message: 'PUBLIC_ORDER_RATE_LIMIT_MAX must be a positive number'
+    }),
+  PUBLIC_PAYMENT_RATE_LIMIT_WINDOW_SECONDS: z
+    .string()
+    .optional()
+    .transform((value) => (value === undefined ? 60 : Number(value)))
+    .refine((value) => Number.isFinite(value) && value > 0, {
+      message: 'PUBLIC_PAYMENT_RATE_LIMIT_WINDOW_SECONDS must be a positive number'
+    }),
+  PUBLIC_PAYMENT_RATE_LIMIT_MAX: z
+    .string()
+    .optional()
+    .transform((value) => (value === undefined ? 10 : Number(value)))
+    .refine((value) => Number.isFinite(value) && value > 0, {
+      message: 'PUBLIC_PAYMENT_RATE_LIMIT_MAX must be a positive number'
+    }),
   OTP_SECRET: z.string().min(1).optional(),
   OTP_TTL_SECONDS: z
     .string()
@@ -154,6 +182,10 @@ export type AppConfig = {
   notificationDefaultProvider: string;
   notificationDefaultChannel: 'sms' | 'whatsapp' | 'email';
   twilioSmsFrom: string;
+  publicOrderRateLimitWindowSeconds?: number;
+  publicOrderRateLimitMax?: number;
+  publicPaymentRateLimitWindowSeconds?: number;
+  publicPaymentRateLimitMax?: number;
   otpSecret: string;
   otpTtlSeconds: number;
   sessionTtlSeconds: number;
@@ -200,6 +232,10 @@ export const loadEnv = (): AppConfig => {
     notificationDefaultProvider: result.data.NOT_DEFAULT_PROVIDER,
     notificationDefaultChannel: result.data.NOT_DEFAULT_CHANNEL,
     twilioSmsFrom: result.data.TWILIO_SMS_FROM,
+    publicOrderRateLimitWindowSeconds: result.data.PUBLIC_ORDER_RATE_LIMIT_WINDOW_SECONDS,
+    publicOrderRateLimitMax: result.data.PUBLIC_ORDER_RATE_LIMIT_MAX,
+    publicPaymentRateLimitWindowSeconds: result.data.PUBLIC_PAYMENT_RATE_LIMIT_WINDOW_SECONDS,
+    publicPaymentRateLimitMax: result.data.PUBLIC_PAYMENT_RATE_LIMIT_MAX,
     otpSecret,
     otpTtlSeconds: result.data.OTP_TTL_SECONDS,
     sessionTtlSeconds: result.data.SESSION_TTL_SECONDS,

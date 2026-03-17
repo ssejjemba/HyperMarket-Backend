@@ -8,6 +8,7 @@ import { extractBearerToken } from '../../iaa/api/controllers/extractBearerToken
 import type { SessionService } from '../../iaa/session/SessionService';
 import type { MembershipReader } from '../../tenancy/MembershipReader';
 import type { TenantRepository } from '../../tenancy/persistence/TenantRepository';
+import type { StorefrontRateLimiter } from '../../rateLimit/RedisStorefrontRateLimiter';
 import type { createOrderUseCases } from '../application/useCases';
 import { mapOrderDetailDto, mapOrderSummaryDto, mapPublicOrderDto } from './controllers/mappers';
 import {
@@ -26,6 +27,7 @@ export type OrdersApiDeps = {
   membershipReader: MembershipReader;
   tenantRepo: TenantRepository;
   useCases: ReturnType<typeof createOrderUseCases>;
+  storefrontRateLimiter?: StorefrontRateLimiter | undefined;
 };
 
 const normalizeCustomerInput = (
@@ -131,10 +133,25 @@ export const registerOrderApiRoutes = async (
       deps.membershipReader.assertMembership(userId, tenantId)
   });
 
-  server.post('/storefront/:tenantSlug/orders', async (request) => {
+  server.post('/storefront/:tenantSlug/orders', async (request, reply) => {
     const params = parseOrderValidation(storefrontTenantParamsSchema.safeParse(request.params));
     const body = parseOrderValidation(createOrderBodySchema.safeParse(request.body));
     const tenantId = await resolveTenantIdBySlug(deps.tenantRepo, params.tenantSlug);
+
+    if (deps.storefrontRateLimiter !== undefined) {
+      const decision = await deps.storefrontRateLimiter.check(`${tenantId}:${request.ip}`);
+      if (!decision.allowed) {
+        reply.header('Retry-After', String(decision.retryAfterSeconds));
+        throw new AppError({
+          code: ErrorCode.RateLimited,
+          message: 'Too many checkout requests',
+          details: {
+            retry_after_seconds: decision.retryAfterSeconds
+          }
+        });
+      }
+    }
+
     const created = await deps.useCases.createOrder({
       tenantId,
       idempotencyKey: getIdempotencyKey(request),
