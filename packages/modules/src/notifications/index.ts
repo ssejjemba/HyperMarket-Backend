@@ -13,5 +13,7 @@ export type {
   NotificationJobStatus,
   NotificationTemplateDefinition
 } from './domain';
+export { buildNotificationPlan } from './application/NotificationPlanBuilder';
+export type { PlannedNotification } from './application/NotificationPlanBuilder';
 export { NotificationError } from './errors/NotificationError';
 export type { NotificationErrorCode } from './errors/NotificationError';
