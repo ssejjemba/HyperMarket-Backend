@@ -14,6 +14,7 @@
     "typecheck": "tsc -p tsconfig.base.json --noEmit",
     "dev:api": "corepack pnpm exec tsx apps/api/src/server.ts",
     "dev:worker": "corepack pnpm exec tsx apps/worker/src/worker.ts",
+    "smoke:storefront": "corepack pnpm exec tsx scripts/smoke/storefront-readiness.ts",
     "db:up": "docker compose -f docker/docker-compose.yml up -d",
     "db:down": "docker compose -f docker/docker-compose.yml down",
     "test:integration": "corepack pnpm exec tsx tests/integration/tenancy.test.ts && corepack pnpm exec tsx tests/integration/publishing.test.ts && corepack pnpm exec tsx tests/integration/catalog.test.ts && corepack pnpm exec tsx tests/integration/media.test.ts",

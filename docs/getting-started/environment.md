@@ -52,6 +52,15 @@ Source of truth:
 | `NOT_DEFAULT_CHANNEL`                  | `sms`                         |
 | `TWILIO_SMS_FROM`                      | `+256700000000`               |
 
+## Public Storefront Abuse Controls
+
+| Variable                                   | Default |
+| ------------------------------------------ | ------- |
+| `PUBLIC_ORDER_RATE_LIMIT_WINDOW_SECONDS`   | `60`    |
+| `PUBLIC_ORDER_RATE_LIMIT_MAX`              | `20`    |
+| `PUBLIC_PAYMENT_RATE_LIMIT_WINDOW_SECONDS` | `60`    |
+| `PUBLIC_PAYMENT_RATE_LIMIT_MAX`            | `10`    |
+
 ## Worker-Specific
 
 | Variable                        | Purpose                                               |
@@ -66,3 +75,5 @@ Source of truth:
 - The current MVP is Uganda-first, so catalog currency is locked to `UGX`.
 - PAY is currently configured around Flutterwave Uganda MoMo.
 - NOT currently sends SMS via Twilio and uses worker-side job dispatch only.
+- Flutterwave secrets are required outside test mode when `PAYMENT_DEFAULT_PROVIDER=flutterwave`.
+- Twilio SMS sender is required outside test mode when `NOT_DEFAULT_PROVIDER=twilio_sms`.
