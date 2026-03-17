@@ -15,7 +15,10 @@ const SUPPORTED_EVENT_TYPES = new Set([
   'Catalog.ProductDeleted',
   'Catalog.CategoryUpserted',
   'Catalog.CategoryDeleted',
-  'Catalog.ProductCategoryChanged'
+  'Catalog.ProductCategoryChanged',
+  'Fulfillment.SettingsUpdated',
+  'Fulfillment.ZoneUpserted',
+  'Fulfillment.ZoneDeactivated'
 ]);
 
 const REVALIDATION_JOB_OPTIONS: JobsOptions = {

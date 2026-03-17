@@ -195,4 +195,36 @@ describe('worker storefront revalidation client', () => {
       expect.any(Object)
     );
   });
+
+  it('enqueues fulfillment outbox events as revalidation jobs', async () => {
+    const add = vi.fn().mockResolvedValue(undefined);
+    const event: OutboxRecord = {
+      id: 'outbox-ful-1',
+      eventType: 'Fulfillment.SettingsUpdated',
+      tenantId: 'tenant-1',
+      correlationId: 'corr-1',
+      actorUserId: 'user-1',
+      payload: {
+        tenant_id: 'tenant-1'
+      },
+      occurredAt: new Date(),
+      availableAt: new Date(),
+      attempts: 0
+    };
+
+    const queued = await enqueueStorefrontRevalidationJob({ add }, event);
+
+    expect(queued).toBe(true);
+    expect(add).toHaveBeenCalledWith(
+      STOREFRONT_REVALIDATION_QUEUE,
+      {
+        event_type: 'Fulfillment.SettingsUpdated',
+        tenant_id: 'tenant-1',
+        config_id: undefined,
+        previous_config_id: undefined,
+        targets: ['/', '/sitemap.xml', '/robots.txt']
+      },
+      expect.any(Object)
+    );
+  });
 });

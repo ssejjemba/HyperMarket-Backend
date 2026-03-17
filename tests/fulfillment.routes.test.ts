@@ -139,6 +139,17 @@ flowSuite('FUL routes', () => {
       }
     });
 
+    const outbox = await ctx.db
+      .selectFrom('outbox_events')
+      .select('event_type')
+      .where('tenant_id', '=', ctx.seed.tenantId)
+      .orderBy('created_at', 'asc')
+      .execute();
+    expect(outbox.map((entry) => entry.event_type)).toEqual([
+      'Fulfillment.ZoneUpserted',
+      'Fulfillment.SettingsUpdated'
+    ]);
+
     const zones = await server.inject({
       method: 'GET',
       url: `/tenants/${ctx.seed.tenantId}/fulfillment/zones?include_inactive=false`,
