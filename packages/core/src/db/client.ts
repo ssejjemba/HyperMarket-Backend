@@ -266,6 +266,38 @@ export type DatabaseSchema = {
     payload: Record<string, unknown>;
     received_at: Date;
   };
+  notification_jobs: {
+    id: string;
+    tenant_id: string;
+    event_id: string;
+    event_type: string;
+    channel: 'whatsapp' | 'sms' | 'email';
+    recipient: string;
+    template_id: string;
+    template_version: number;
+    payload: Record<string, unknown>;
+    dedupe_key: string;
+    status: 'PENDING' | 'PROCESSING' | 'SENT' | 'FAILED_RETRYABLE' | 'DEAD';
+    attempt_count: number;
+    last_error_code: string | null;
+    last_error_message: string | null;
+    provider: string | null;
+    provider_message_id: string | null;
+    created_at: Date;
+    updated_at: Date;
+  };
+  notification_delivery_attempts: {
+    id: string;
+    tenant_id: string;
+    job_id: string;
+    attempt_number: number;
+    provider: string;
+    result: 'success' | 'failed';
+    error_code: string | null;
+    error_message: string | null;
+    provider_message_id: string | null;
+    created_at: Date;
+  };
   auth_otps: {
     id: string;
     phone_e164: string;

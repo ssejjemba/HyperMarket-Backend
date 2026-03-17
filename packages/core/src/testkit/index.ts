@@ -282,6 +282,65 @@ const ensurePaymentsTables = async (db: ReturnType<typeof createDbClient>): Prom
   `.execute(db);
 };
 
+const ensureNotificationsTables = async (db: ReturnType<typeof createDbClient>): Promise<void> => {
+  await sql`
+    create table if not exists notification_jobs (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references tenants(id) on delete cascade,
+      event_id uuid not null references outbox_events(id) on delete cascade,
+      event_type text not null,
+      channel text not null,
+      recipient text not null,
+      template_id text not null,
+      template_version integer not null,
+      payload jsonb not null,
+      dedupe_key text not null,
+      status text not null,
+      attempt_count integer not null default 0,
+      last_error_code text null,
+      last_error_message text null,
+      provider text null,
+      provider_message_id text null,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `.execute(db);
+  await sql`
+    create table if not exists notification_delivery_attempts (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references tenants(id) on delete cascade,
+      job_id uuid not null references notification_jobs(id) on delete cascade,
+      attempt_number integer not null,
+      provider text not null,
+      result text not null,
+      error_code text null,
+      error_message text null,
+      provider_message_id text null,
+      created_at timestamptz not null default now()
+    )
+  `.execute(db);
+  await sql`
+    create unique index if not exists notification_jobs_dedupe_key_unique
+    on notification_jobs (dedupe_key)
+  `.execute(db);
+  await sql`
+    create index if not exists notification_jobs_tenant_created_at_idx
+    on notification_jobs (tenant_id, created_at desc)
+  `.execute(db);
+  await sql`
+    create index if not exists notification_jobs_tenant_status_updated_at_idx
+    on notification_jobs (tenant_id, status, updated_at desc)
+  `.execute(db);
+  await sql`
+    create index if not exists notification_jobs_event_id_idx
+    on notification_jobs (event_id)
+  `.execute(db);
+  await sql`
+    create index if not exists notification_delivery_attempts_tenant_job_attempt_idx
+    on notification_delivery_attempts (tenant_id, job_id, attempt_number)
+  `.execute(db);
+};
+
 export const resetDatabase = async (): Promise<void> => {
   const config = loadEnv();
   const db = createDbClient(config.databaseUrl);
@@ -293,9 +352,12 @@ export const resetDatabase = async (): Promise<void> => {
   await ensureCatalogMediaForeignKey(db);
   await ensureOrdersTables(db);
   await ensurePaymentsTables(db);
+  await ensureNotificationsTables(db);
   await db.deleteFrom('auth_otps').execute();
   await db.deleteFrom('sessions').execute();
   await db.deleteFrom('publish_history').execute();
+  await db.deleteFrom('notification_delivery_attempts').execute();
+  await db.deleteFrom('notification_jobs').execute();
   await db.deleteFrom('payment_provider_events').execute();
   await db.deleteFrom('payment_intents').execute();
   await db.deleteFrom('order_state_history').execute();
@@ -351,6 +413,7 @@ export const createTestContext = async () => {
   await ensureCatalogMediaForeignKey(db);
   await ensureOrdersTables(db);
   await ensurePaymentsTables(db);
+  await ensureNotificationsTables(db);
 
   const seed = createSeed();
 
