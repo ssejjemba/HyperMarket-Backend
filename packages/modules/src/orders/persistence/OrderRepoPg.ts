@@ -127,6 +127,18 @@ type OrderListFilters = {
   limit: number;
 };
 
+type DeductProductStockInput = {
+  tenantId: string;
+  productId: string;
+  quantity: number;
+};
+
+type DeductVariantStockInput = {
+  tenantId: string;
+  variantId: string;
+  quantity: number;
+};
+
 const mapCustomer = (row: DatabaseSchema['customers']): CustomerRecord => ({
   id: row.id,
   tenantId: row.tenant_id,
@@ -217,6 +229,41 @@ const loadOrderHistory = async (
 
 export const createOrderRepoPg = (db: Kysely<DatabaseSchema> | Transaction<DatabaseSchema>) => {
   return {
+    async deductProductStock(input: DeductProductStockInput): Promise<boolean> {
+      const result = await db
+        .updateTable('products')
+        .set(({ ref }) => ({
+          stock_quantity: sql`${ref('stock_quantity')} - ${input.quantity}`,
+          updated_at: sql`now()`
+        }))
+        .where('tenant_id', '=', input.tenantId)
+        .where('id', '=', input.productId)
+        .where('track_inventory', '=', true)
+        .where('stock_quantity', 'is not', null)
+        .where('stock_quantity', '>=', input.quantity)
+        .returning('id')
+        .executeTakeFirst();
+
+      return result !== undefined;
+    },
+
+    async deductVariantStock(input: DeductVariantStockInput): Promise<boolean> {
+      const result = await db
+        .updateTable('product_variants')
+        .set(({ ref }) => ({
+          stock_quantity: sql`${ref('stock_quantity')} - ${input.quantity}`,
+          updated_at: sql`now()`
+        }))
+        .where('tenant_id', '=', input.tenantId)
+        .where('id', '=', input.variantId)
+        .where('stock_quantity', 'is not', null)
+        .where('stock_quantity', '>=', input.quantity)
+        .returning('id')
+        .executeTakeFirst();
+
+      return result !== undefined;
+    },
+
     async createCustomer(input: CreateCustomerInput): Promise<CustomerRecord> {
       const row = await db
         .insertInto('customers')

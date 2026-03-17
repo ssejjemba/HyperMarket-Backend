@@ -384,6 +384,33 @@ flowSuite('ORD routes', () => {
       .execute();
     expect(orders).toHaveLength(1);
 
+    const product = await ctx.db
+      .selectFrom('products')
+      .select('stock_quantity')
+      .where('tenant_id', '=', ctx.seed.tenantId)
+      .where('slug', '=', 'fresh-milk')
+      .executeTakeFirstOrThrow();
+    expect(product.stock_quantity).toBe(10);
+
+    const oversell = await server.inject({
+      method: 'POST',
+      url: `/storefront/${ctx.seed.tenantSlug}/orders`,
+      headers: {
+        'idempotency-key': 'order-key-1-oversell'
+      },
+      payload: {
+        ...payload,
+        items: [
+          {
+            product_slug: 'fresh-milk',
+            quantity: 11
+          }
+        ]
+      }
+    });
+    expect(oversell.statusCode).toBe(409);
+    expect(oversell.json<ErrorEnvelope>().error_code).toBe(ErrorCode.OrderProductNotAvailable);
+
     const outbox = await ctx.db
       .selectFrom('outbox_events')
       .select('event_type')

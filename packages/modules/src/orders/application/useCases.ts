@@ -271,6 +271,7 @@ export const createOrderUseCases = (deps: { db: Kysely<DatabaseSchema> }) => {
             resolvedItems.push({
               productId: product.id,
               variantId: variant?.id ?? null,
+              trackInventory: product.trackInventory,
               title: variant === null ? product.name : `${product.name} - ${variant.name}`,
               sku: variant?.sku ?? product.sku,
               quantity: line.quantity,
@@ -278,6 +279,36 @@ export const createOrderUseCases = (deps: { db: Kysely<DatabaseSchema> }) => {
               lineTotalAmount: line.lineTotalAmount,
               imageUrl: null
             });
+          }
+
+          for (const item of resolvedItems) {
+            if (item.trackInventory !== true) {
+              continue;
+            }
+
+            const deducted =
+              item.variantId !== null
+                ? await orderRepo.deductVariantStock({
+                    tenantId: input.tenantId,
+                    variantId: item.variantId,
+                    quantity: item.quantity
+                  })
+                : await orderRepo.deductProductStock({
+                    tenantId: input.tenantId,
+                    productId: item.productId,
+                    quantity: item.quantity
+                  });
+
+            if (!deducted) {
+              throw new OrderError({
+                code: ErrorCode.OrderProductNotAvailable,
+                message: 'Requested quantity exceeds available stock',
+                details: {
+                  product_id: item.productId,
+                  variant_id: item.variantId
+                }
+              });
+            }
           }
 
           const deliveryFeeAmount = input.fulfillment.type === 'delivery' ? 0 : 0;

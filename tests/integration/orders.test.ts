@@ -168,6 +168,14 @@ const run = async (): Promise<void> => {
   assert.equal(created.items.length, 1);
   assert.equal(created.history.length, 1);
 
+  const updatedProduct = await db
+    .selectFrom('products')
+    .select('stock_quantity')
+    .where('tenant_id', '=', tenantId)
+    .where('slug', '=', 'bread')
+    .executeTakeFirstOrThrow();
+  assert.equal(updatedProduct.stock_quantity, 3);
+
   const replay = await useCases.createOrder({
     tenantId,
     idempotencyKey: 'integration-order-1',
@@ -189,6 +197,31 @@ const run = async (): Promise<void> => {
   });
 
   assert.equal(replay.order.id, created.order.id);
+
+  await assert.rejects(
+    () =>
+      useCases.createOrder({
+        tenantId,
+        idempotencyKey: 'integration-order-oversell',
+        checkoutMode: 'pay_on_delivery',
+        items: [
+          {
+            productSlug: 'bread',
+            quantity: 4
+          }
+        ],
+        customer: {
+          full_name: 'Amina',
+          phone_e164: '+256700000001'
+        },
+        fulfillment: {
+          type: 'pickup',
+          pickup_location_label: 'Ntinda'
+        }
+      }),
+    (error: unknown) =>
+      error instanceof Error && 'code' in error && error.code === 'order_product_not_available'
+  );
 
   const transitioned = await useCases.transitionOrder({
     tenantId,
