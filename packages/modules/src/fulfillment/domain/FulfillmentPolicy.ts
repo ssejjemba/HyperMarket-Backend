@@ -90,7 +90,7 @@ export const assertFulfillmentModes = (settings: {
 export const assertDeliveryZoneInput = (input: {
   name: string;
   feeAmount: number;
-  minOrderAmount?: number | null;
+  minOrderAmount?: number | null | undefined;
 }): {
   name: string;
   feeAmount: number;

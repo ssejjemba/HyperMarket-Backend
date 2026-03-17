@@ -20,7 +20,7 @@
     "ops:dlq:replay": "corepack pnpm --filter @hypermarket/worker exec tsx src/ops/dlq.ts replay",
     "db:up": "docker compose -f docker/docker-compose.yml up -d",
     "db:down": "docker compose -f docker/docker-compose.yml down",
-    "test:integration": "corepack pnpm exec tsx tests/integration/tenancy.test.ts && corepack pnpm exec tsx tests/integration/publishing.test.ts && corepack pnpm exec tsx tests/integration/catalog.test.ts && corepack pnpm exec tsx tests/integration/media.test.ts",
+    "test:integration": "corepack pnpm exec tsx tests/integration/tenancy.test.ts && corepack pnpm exec tsx tests/integration/publishing.test.ts && corepack pnpm exec tsx tests/integration/catalog.test.ts && corepack pnpm exec tsx tests/integration/media.test.ts && corepack pnpm exec tsx tests/integration/fulfillment.test.ts && corepack pnpm exec tsx tests/integration/orders.test.ts",
     "test": "vitest run",
     "db:migrate": "node ./node_modules/knex/bin/cli.js --knexfile knexfile.cjs migrate:latest",
     "db:rollback": "node ./node_modules/knex/bin/cli.js --knexfile knexfile.cjs migrate:rollback",

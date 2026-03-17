@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Queue } from 'bullmq';
 
-import { createDbClient } from '../../packages/core/src/db';
+import { createDbClient, sql } from '../../packages/core/src/db';
 import { buildServer } from '../../apps/api/src/server';
 import { loadEnv, type AppConfig } from '../../packages/core/src/config/loadEnv';
 import {
@@ -197,6 +197,45 @@ const seedStorefrontData = async (
     })
     .execute();
 
+  await db
+    .insertInto('fulfillment_settings')
+    .values({
+      tenant_id: tenantId,
+      pickup_enabled: true,
+      delivery_enabled: true,
+      pickup_instructions: 'Collect from the main branch.',
+      delivery_instructions: 'Call on arrival.',
+      business_hours: {},
+      cutoff_rules: {},
+      updated_at: now
+    })
+    .onConflict((oc) =>
+      oc.column('tenant_id').doUpdateSet({
+        pickup_enabled: true,
+        delivery_enabled: true,
+        pickup_instructions: 'Collect from the main branch.',
+        delivery_instructions: 'Call on arrival.',
+        business_hours: {},
+        cutoff_rules: {},
+        updated_at: now
+      })
+    )
+    .execute();
+
+  await db
+    .insertInto('delivery_zones')
+    .values({
+      id: randomUUID(),
+      tenant_id: tenantId,
+      name: 'Ntinda',
+      fee_amount: 4000,
+      min_order_amount: 20000,
+      is_active: true,
+      sort_order: 0,
+      created_at: now
+    })
+    .execute();
+
   return {
     tenantId,
     tenantSlug,
@@ -208,35 +247,34 @@ const seedStorefrontData = async (
 };
 
 const ensureFulfillmentTables = async (db: ReturnType<typeof createDbClient>): Promise<void> => {
-  await db.schema
-    .createTable('fulfillment_settings')
-    .ifNotExists()
-    .addColumn('tenant_id', 'uuid', (column) => column.primaryKey())
-    .addColumn('pickup_enabled', 'boolean', (column) => column.notNull().defaultTo(true))
-    .addColumn('delivery_enabled', 'boolean', (column) => column.notNull().defaultTo(false))
-    .addColumn('pickup_instructions', 'text')
-    .addColumn('delivery_instructions', 'text')
-    .addColumn('business_hours', 'jsonb', (column) =>
-      column.notNull().defaultTo('{}' as unknown as never)
+  await sql`
+    create table if not exists fulfillment_settings (
+      tenant_id uuid primary key references tenants(id) on delete cascade,
+      pickup_enabled boolean not null default true,
+      delivery_enabled boolean not null default false,
+      pickup_instructions text null,
+      delivery_instructions text null,
+      business_hours jsonb not null default '{}'::jsonb,
+      cutoff_rules jsonb not null default '{}'::jsonb,
+      updated_at timestamptz not null default now()
     )
-    .addColumn('cutoff_rules', 'jsonb', (column) =>
-      column.notNull().defaultTo('{}' as unknown as never)
+  `.execute(db);
+  await sql`
+    create table if not exists delivery_zones (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references tenants(id) on delete cascade,
+      name text not null,
+      fee_amount integer not null,
+      min_order_amount integer null,
+      is_active boolean not null default true,
+      sort_order integer not null default 0,
+      created_at timestamptz not null default now()
     )
-    .addColumn('updated_at', 'timestamptz', (column) => column.notNull().defaultToNow())
-    .execute();
-
-  await db.schema
-    .createTable('delivery_zones')
-    .ifNotExists()
-    .addColumn('id', 'uuid', (column) => column.primaryKey().defaultTo(randomUUID()))
-    .addColumn('tenant_id', 'uuid', (column) => column.notNull())
-    .addColumn('name', 'text', (column) => column.notNull())
-    .addColumn('fee_amount', 'integer', (column) => column.notNull())
-    .addColumn('min_order_amount', 'integer')
-    .addColumn('is_active', 'boolean', (column) => column.notNull().defaultTo(true))
-    .addColumn('sort_order', 'integer', (column) => column.notNull().defaultTo(0))
-    .addColumn('created_at', 'timestamptz', (column) => column.notNull().defaultToNow())
-    .execute();
+  `.execute(db);
+  await sql`
+    create unique index if not exists delivery_zones_tenant_name_unique
+    on delivery_zones (tenant_id, name)
+  `.execute(db);
 };
 
 const issueAccessToken = async (
@@ -318,6 +356,10 @@ const main = async (): Promise<void> => {
     const product = await assertResponse(
       await fetch(`${baseUrl}/storefront/${seeded.tenantSlug}/products/${seeded.productSlug}`),
       { label: 'storefront product detail' }
+    );
+    const fulfillmentOptions = await assertResponse(
+      await fetch(`${baseUrl}/storefront/${seeded.tenantSlug}/fulfillment/options`),
+      { label: 'storefront fulfillment options' }
     );
     const order = await assertResponse(
       await fetch(`${baseUrl}/storefront/${seeded.tenantSlug}/orders`, {
@@ -512,6 +554,21 @@ const main = async (): Promise<void> => {
             : null,
           products_count: Array.isArray((products as { products?: unknown[] }).products)
             ? (products as { products: unknown[] }).products.length
+            : null,
+          fulfillment_modes: {
+            pickup_enabled:
+              (fulfillmentOptions as { fulfillment?: { pickup_enabled?: unknown } }).fulfillment
+                ?.pickup_enabled ?? null,
+            delivery_enabled:
+              (fulfillmentOptions as { fulfillment?: { delivery_enabled?: unknown } }).fulfillment
+                ?.delivery_enabled ?? null
+          },
+          delivery_zones_count: Array.isArray(
+            (fulfillmentOptions as { fulfillment?: { delivery_zones?: unknown[] } }).fulfillment
+              ?.delivery_zones
+          )
+            ? (fulfillmentOptions as { fulfillment: { delivery_zones: unknown[] } }).fulfillment
+                .delivery_zones.length
             : null,
           product_slug:
             typeof (product as { product?: { slug?: unknown } }).product?.slug === 'string'
