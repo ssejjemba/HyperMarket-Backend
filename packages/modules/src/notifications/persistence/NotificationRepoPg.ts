@@ -88,46 +88,43 @@ export const createNotificationRepoPg = (
     payload: Record<string, unknown>;
     dedupeKey: string;
   }): Promise<{ duplicate: boolean; job: NotificationJobRecord | null }> {
-    try {
-      const row = await db
-        .insertInto('notification_jobs')
-        .values({
-          id: sql`gen_random_uuid()` as unknown as string,
-          tenant_id: input.tenantId,
-          event_id: input.eventId,
-          event_type: input.eventType,
-          channel: input.channel,
-          recipient: input.recipient,
-          template_id: input.templateId,
-          template_version: input.templateVersion,
-          payload: input.payload,
-          dedupe_key: input.dedupeKey,
-          status: 'PENDING',
-          attempt_count: 0,
-          last_error_code: null,
-          last_error_message: null,
-          provider: null,
-          provider_message_id: null,
-          created_at: sql`now()`,
-          updated_at: sql`now()`
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow();
+    const row = await db
+      .insertInto('notification_jobs')
+      .values({
+        id: sql`gen_random_uuid()` as unknown as string,
+        tenant_id: input.tenantId,
+        event_id: input.eventId,
+        event_type: input.eventType,
+        channel: input.channel,
+        recipient: input.recipient,
+        template_id: input.templateId,
+        template_version: input.templateVersion,
+        payload: input.payload,
+        dedupe_key: input.dedupeKey,
+        status: 'PENDING',
+        attempt_count: 0,
+        last_error_code: null,
+        last_error_message: null,
+        provider: null,
+        provider_message_id: null,
+        created_at: sql`now()`,
+        updated_at: sql`now()`
+      })
+      .onConflict((oc) => oc.column('dedupe_key').doNothing())
+      .returningAll()
+      .executeTakeFirst();
 
+    if (row === undefined) {
       return {
-        duplicate: false,
-        job: mapJob(row)
+        duplicate: true,
+        job: null
       };
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('notification_jobs_dedupe_key_unique')) {
-        return {
-          duplicate: true,
-          job: null
-        };
-      }
-
-      throw error;
     }
+
+    return {
+      duplicate: false,
+      job: mapJob(row)
+    };
   },
 
   async getJobById(jobId: string): Promise<NotificationJobRecord | null> {
