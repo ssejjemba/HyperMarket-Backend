@@ -298,6 +298,26 @@ export type DatabaseSchema = {
     provider_message_id: string | null;
     created_at: Date;
   };
+  fulfillment_settings: {
+    tenant_id: string;
+    pickup_enabled: boolean;
+    delivery_enabled: boolean;
+    pickup_instructions: string | null;
+    delivery_instructions: string | null;
+    business_hours: Record<string, unknown>;
+    cutoff_rules: Record<string, unknown>;
+    updated_at: Date;
+  };
+  delivery_zones: {
+    id: string;
+    tenant_id: string;
+    name: string;
+    fee_amount: number;
+    min_order_amount: number | null;
+    is_active: boolean;
+    sort_order: number;
+    created_at: Date;
+  };
   auth_otps: {
     id: string;
     phone_e164: string;
