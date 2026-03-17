@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import type { BaseLogger } from 'pino';
 
 import { AppError, ErrorCode } from '@hypermarket/contracts';
@@ -7,6 +7,7 @@ import { requireTenantMembership, requireTenantOwner } from '@hypermarket/core/h
 import { extractBearerToken } from '../../iaa/api/controllers/extractBearerToken';
 import type { SessionService } from '../../iaa/session/SessionService';
 import type { MembershipReader } from '../../tenancy/MembershipReader';
+import type { ModuleRequest } from '../../types';
 import type { createOpsRepoPg } from '../persistence/OpsRepoPg';
 import type { createOpsQueueClient } from '../runtime/OpsQueueClient';
 import {
@@ -28,7 +29,7 @@ export type OpsApiDeps = {
   queues: ReturnType<typeof createOpsQueueClient>;
 };
 
-const getTenantId = (request: FastifyRequest): string => {
+const getTenantId = (request: ModuleRequest): string => {
   const tenantId = request.tenant?.tenantId;
   if (tenantId === undefined) {
     throw new Error('tenant context is required');

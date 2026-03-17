@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import type { BaseLogger } from 'pino';
 
 import { requireTenantMembership, requireTenantOwner } from '@hypermarket/core/http';
@@ -6,6 +6,7 @@ import { requireTenantMembership, requireTenantOwner } from '@hypermarket/core/h
 import { extractBearerToken } from '../../iaa/api/controllers/extractBearerToken';
 import type { SessionService } from '../../iaa/session/SessionService';
 import type { MembershipReader } from '../../tenancy/MembershipReader';
+import type { ModuleRequest } from '../../types';
 import type { createMediaUseCases } from '../application/useCases';
 import { mapMediaAssetDto } from './controllers/mappers';
 import {
@@ -24,7 +25,7 @@ export type MediaApiDeps = {
   useCases: ReturnType<typeof createMediaUseCases>;
 };
 
-const getTenantId = (request: FastifyRequest): string => {
+const getTenantId = (request: ModuleRequest): string => {
   const tenantId = request.tenant?.tenantId;
   if (tenantId === undefined) {
     throw new Error('tenant context is required');
@@ -33,7 +34,7 @@ const getTenantId = (request: FastifyRequest): string => {
   return tenantId;
 };
 
-const getActorUserId = (request: FastifyRequest): string => {
+const getActorUserId = (request: ModuleRequest): string => {
   const userId = request.auth?.userId;
   if (userId === undefined) {
     throw new Error('auth context is required');

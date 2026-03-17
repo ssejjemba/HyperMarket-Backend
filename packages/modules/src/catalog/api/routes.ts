@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import type { BaseLogger } from 'pino';
 
 import { AppError, ErrorCode } from '@hypermarket/contracts';
@@ -8,6 +8,7 @@ import { extractBearerToken } from '../../iaa/api/controllers/extractBearerToken
 import type { SessionService } from '../../iaa/session/SessionService';
 import type { MembershipReader } from '../../tenancy/MembershipReader';
 import type { TenantRepository } from '../../tenancy/persistence/TenantRepository';
+import type { ModuleRequest } from '../../types';
 import type { ReturnTypeCatalogUseCases } from '../index';
 import {
   catalogCategoryParamsSchema,
@@ -85,7 +86,7 @@ const resolveTenantIdBySlug = async (
   return tenant.id;
 };
 
-const getTenantId = (request: FastifyRequest): string => {
+const getTenantId = (request: ModuleRequest): string => {
   const tenantId = request.tenant?.tenantId;
   if (tenantId === undefined) {
     throw new Error('tenant context is required');
@@ -94,7 +95,7 @@ const getTenantId = (request: FastifyRequest): string => {
   return tenantId;
 };
 
-const getActorUserId = (request: FastifyRequest): string => {
+const getActorUserId = (request: ModuleRequest): string => {
   const userId = request.auth?.userId;
   if (userId === undefined) {
     throw new Error('auth context is required');

@@ -1,6 +1,5 @@
-import type { FastifyRequest } from 'fastify';
-
 import type { GetStoreConfigUseCase } from '../../application';
+import type { ModuleRequest } from '../../../types';
 import { parseTenantConfigParams } from '../schemas/publishingSchemas';
 
 export type StoreConfigResponse = {
@@ -23,7 +22,7 @@ export type StoreConfigResponse = {
 
 export const makeGetStoreConfigHandler =
   (useCase: GetStoreConfigUseCase) =>
-  async (request: FastifyRequest): Promise<StoreConfigResponse> => {
+  async (request: ModuleRequest): Promise<StoreConfigResponse> => {
     const tenantId = request.tenant?.tenantId;
     if (tenantId === undefined) {
       throw new Error('tenant context is required');

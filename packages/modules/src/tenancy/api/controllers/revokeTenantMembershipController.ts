@@ -1,6 +1,5 @@
-import type { FastifyRequest } from 'fastify';
-
 import type { RevokeTenantMembershipUseCase } from '../../application';
+import type { ModuleRequest } from '../../../types';
 import { parseTenantMembershipUserParams } from '../schemas/tenantSchemas';
 
 export type RevokeTenantMembershipResponse = {
@@ -16,7 +15,7 @@ export type RevokeTenantMembershipResponse = {
 
 export const makeRevokeTenantMembershipHandler =
   (useCase: RevokeTenantMembershipUseCase) =>
-  async (request: FastifyRequest): Promise<RevokeTenantMembershipResponse> => {
+  async (request: ModuleRequest): Promise<RevokeTenantMembershipResponse> => {
     const actorUserId = request.auth?.userId;
     if (actorUserId === undefined) {
       throw new Error('auth context is required');

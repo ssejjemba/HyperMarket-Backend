@@ -1,6 +1,5 @@
-import type { FastifyRequest } from 'fastify';
-
 import type { PublishConfigUseCase } from '../../application';
+import type { ModuleRequest } from '../../../types';
 import { parseActivateConfigRequest } from '../schemas/publishingSchemas';
 
 export type PublishConfigResponse = {
@@ -13,7 +12,7 @@ export type PublishConfigResponse = {
 
 export const makePublishConfigHandler =
   (useCase: PublishConfigUseCase) =>
-  async (request: FastifyRequest): Promise<PublishConfigResponse> => {
+  async (request: ModuleRequest): Promise<PublishConfigResponse> => {
     const tenantId = request.tenant?.tenantId;
     const userId = request.auth?.userId;
     if (tenantId === undefined || userId === undefined) {

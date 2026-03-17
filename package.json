@@ -11,7 +11,7 @@
     "prepare": "husky install",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "typecheck": "tsc -p tsconfig.base.json --noEmit",
+    "typecheck": "corepack pnpm exec tsc -p packages/contracts/tsconfig.json --noEmit && corepack pnpm exec tsc -p packages/core/tsconfig.json --noEmit && corepack pnpm exec tsc -p packages/modules/tsconfig.json --noEmit && corepack pnpm exec tsc -p apps/api/tsconfig.json --noEmit && corepack pnpm exec tsc -p apps/worker/tsconfig.json --noEmit",
     "dev:api": "corepack pnpm exec tsx apps/api/src/server.ts",
     "dev:worker": "corepack pnpm exec tsx apps/worker/src/worker.ts",
     "smoke:storefront": "corepack pnpm exec tsx scripts/smoke/storefront-readiness.ts",

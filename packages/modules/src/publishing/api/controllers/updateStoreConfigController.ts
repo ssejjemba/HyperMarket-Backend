@@ -1,13 +1,12 @@
-import type { FastifyRequest } from 'fastify';
-
 import type { UpdateStoreConfigUseCase } from '../../application';
+import type { ModuleRequest } from '../../../types';
 import { parseTenantConfigParams, parseUpdateConfigRequest } from '../schemas/publishingSchemas';
 import type { StoreConfigResponse } from './getStoreConfigController';
 import { mapStoreConfigResponse } from './createStoreConfigController';
 
 export const makeUpdateStoreConfigHandler =
   (useCase: UpdateStoreConfigUseCase) =>
-  async (request: FastifyRequest): Promise<StoreConfigResponse> => {
+  async (request: ModuleRequest): Promise<StoreConfigResponse> => {
     const tenantId = request.tenant?.tenantId;
     const userId = request.auth?.userId;
     if (tenantId === undefined || userId === undefined) {

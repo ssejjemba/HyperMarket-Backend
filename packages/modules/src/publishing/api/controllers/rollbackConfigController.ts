@@ -1,6 +1,5 @@
-import type { FastifyRequest } from 'fastify';
-
 import type { RollbackConfigUseCase } from '../../application';
+import type { ModuleRequest } from '../../../types';
 import { parseActivateConfigRequest } from '../schemas/publishingSchemas';
 
 export type RollbackConfigResponse = {
@@ -13,7 +12,7 @@ export type RollbackConfigResponse = {
 
 export const makeRollbackConfigHandler =
   (useCase: RollbackConfigUseCase) =>
-  async (request: FastifyRequest): Promise<RollbackConfigResponse> => {
+  async (request: ModuleRequest): Promise<RollbackConfigResponse> => {
     const tenantId = request.tenant?.tenantId;
     const userId = request.auth?.userId;
     if (tenantId === undefined || userId === undefined) {

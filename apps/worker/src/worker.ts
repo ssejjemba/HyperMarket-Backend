@@ -15,7 +15,7 @@ import {
 import {
   createNotificationUseCases,
   createTwilioSmsProvider
-} from '../../../packages/modules/src/notifications/index';
+} from '@hypermarket/modules/notifications';
 
 import {
   STOREFRONT_REVALIDATION_DLQ,

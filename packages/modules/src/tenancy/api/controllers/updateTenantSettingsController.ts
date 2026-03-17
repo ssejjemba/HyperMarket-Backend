@@ -1,15 +1,14 @@
-import type { FastifyRequest } from 'fastify';
-
 import { ErrorCode } from '@hypermarket/contracts';
 
 import { TenancyError } from '../../errors/TenancyError';
 import type { UpdateTenantSettingsUseCase } from '../../application';
+import type { ModuleRequest } from '../../../types';
 import { updateTenantSettingsSchema } from '../schemas/tenantSchemas';
 import type { GetTenantSettingsResponse } from './getTenantSettingsController';
 
 export const makeUpdateTenantSettingsHandler =
   (useCase: UpdateTenantSettingsUseCase) =>
-  async (request: FastifyRequest): Promise<GetTenantSettingsResponse> => {
+  async (request: ModuleRequest): Promise<GetTenantSettingsResponse> => {
     const tenantId = request.tenant?.tenantId;
     const userId = request.auth?.userId;
     if (tenantId === undefined || userId === undefined) {

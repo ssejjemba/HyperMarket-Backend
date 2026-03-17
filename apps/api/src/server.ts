@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { config as loadDotenv } from 'dotenv';
-import Fastify from 'fastify';
+import Fastify, { type FastifyRequest } from 'fastify';
 
 import { loadEnv, type AppConfig } from '@hypermarket/core/config/loadEnv';
 import { createDbClient, sql } from '@hypermarket/core/db';
@@ -93,8 +93,11 @@ export const buildServer = ({ config, devRoutesMode = 'auto' }: ServerOptions) =
     const traceId =
       typeof traceHeader === 'string' && traceHeader.length > 0 ? traceHeader : request.id;
     const requestContext = createRequestContext(request.id, traceId);
+    const contextualRequest = request as FastifyRequest & {
+      requestContext?: RequestContext;
+    };
 
-    request.requestContext = requestContext;
+    contextualRequest.requestContext = requestContext;
     request.log = withRequestContext(request.log, requestContext);
     reply.header('x-request-id', request.id);
   });

@@ -1,12 +1,11 @@
-import type { FastifyRequest } from 'fastify';
-
 import type { CreateDraftConfigUseCase } from '../../application';
+import type { ModuleRequest } from '../../../types';
 import { parseCreateConfigRequest } from '../schemas/publishingSchemas';
 import type { StoreConfigResponse } from './getStoreConfigController';
 
 export const makeCreateStoreConfigHandler =
   (useCase: CreateDraftConfigUseCase) =>
-  async (request: FastifyRequest): Promise<StoreConfigResponse> => {
+  async (request: ModuleRequest): Promise<StoreConfigResponse> => {
     const tenantId = request.tenant?.tenantId;
     const userId = request.auth?.userId;
     if (tenantId === undefined || userId === undefined) {

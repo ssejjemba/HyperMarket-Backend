@@ -1,6 +1,5 @@
-import type { FastifyRequest } from 'fastify';
-
 import type { ListTenantMembershipsUseCase } from '../../application';
+import type { ModuleRequest } from '../../../types';
 
 export type ListTenantMembershipsResponse = {
   memberships: Array<{
@@ -13,7 +12,7 @@ export type ListTenantMembershipsResponse = {
 
 export const makeListTenantMembershipsHandler =
   (useCase: ListTenantMembershipsUseCase) =>
-  async (request: FastifyRequest): Promise<ListTenantMembershipsResponse> => {
+  async (request: ModuleRequest): Promise<ListTenantMembershipsResponse> => {
     const tenantId = request.tenant?.tenantId;
     if (tenantId === undefined) {
       throw new Error('tenant context is required');

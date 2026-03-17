@@ -1,6 +1,5 @@
-import type { FastifyRequest } from 'fastify';
-
 import type { UpdateTenantMembershipRoleUseCase } from '../../application';
+import type { ModuleRequest } from '../../../types';
 import {
   parseTenantMembershipUserParams,
   parseUpdateTenantMembershipRoleInput
@@ -18,7 +17,7 @@ export type UpdateTenantMembershipRoleResponse = {
 
 export const makeUpdateTenantMembershipRoleHandler =
   (useCase: UpdateTenantMembershipRoleUseCase) =>
-  async (request: FastifyRequest): Promise<UpdateTenantMembershipRoleResponse> => {
+  async (request: ModuleRequest): Promise<UpdateTenantMembershipRoleResponse> => {
     const actorUserId = request.auth?.userId;
     if (actorUserId === undefined) {
       throw new Error('auth context is required');

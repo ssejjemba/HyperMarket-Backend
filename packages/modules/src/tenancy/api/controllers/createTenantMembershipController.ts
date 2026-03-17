@@ -1,6 +1,5 @@
-import type { FastifyRequest } from 'fastify';
-
 import type { CreateTenantMembershipUseCase } from '../../application';
+import type { ModuleRequest } from '../../../types';
 import { parseCreateTenantMembershipInput } from '../schemas/tenantSchemas';
 
 export type CreateTenantMembershipResponse = {
@@ -14,7 +13,7 @@ export type CreateTenantMembershipResponse = {
 
 export const makeCreateTenantMembershipHandler =
   (useCase: CreateTenantMembershipUseCase) =>
-  async (request: FastifyRequest): Promise<CreateTenantMembershipResponse> => {
+  async (request: ModuleRequest): Promise<CreateTenantMembershipResponse> => {
     const tenantId = request.tenant?.tenantId;
     const actorUserId = request.auth?.userId;
     if (tenantId === undefined || actorUserId === undefined) {

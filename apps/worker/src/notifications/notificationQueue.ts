@@ -1,7 +1,7 @@
 import type { JobsOptions, Job, Queue } from 'bullmq';
 
 import type { createDbClient } from '@hypermarket/core';
-import { createNotificationRepoPg } from '../../../../packages/modules/src/notifications/index';
+import { createNotificationRepoPg } from '@hypermarket/modules/notifications';
 
 export type NotificationDispatchJobPayload = {
   job_id: string;
