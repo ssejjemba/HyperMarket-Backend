@@ -116,6 +116,24 @@ Runtime location:
 - Worker consumes outbox events and dispatches notification jobs
 - Core files live under `packages/modules/src/notifications` and `apps/worker/src/notifications`
 
+### OPS
+
+Owns:
+
+- authenticated operator visibility for tenant-scoped outbox, payment, and notification state
+- tenant-scoped DLQ inspection for notification and revalidation queues
+- owner-only DLQ replay through HTTP for future dashboard tooling
+
+Key routes:
+
+- `GET /tenants/:tenantId/ops/summary`
+- `GET /tenants/:tenantId/ops/outbox`
+- `GET /tenants/:tenantId/ops/payments`
+- `GET /tenants/:tenantId/ops/notifications`
+- `GET /tenants/:tenantId/ops/notifications/:jobId/attempts`
+- `GET /tenants/:tenantId/ops/dlq/:target`
+- `POST /tenants/:tenantId/ops/dlq/:target/:jobId/replay`
+
 ### PUB
 
 Owns:
@@ -143,4 +161,5 @@ Owns:
 - Worker delivery must tolerate retries and duplicates.
 - PAY does not mutate orders directly; it uses the ORD payment port.
 - NOT does not decide business timing; it reacts to outbox events from other modules.
+- OPS is read-mostly and must stay tenant-scoped; replay-style mutations are owner-only.
 - Public storefront reads must never expose internal soft-delete fields.

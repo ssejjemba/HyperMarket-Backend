@@ -50,6 +50,25 @@ Current metrics coverage includes:
 - worker queue depth by queue/state
 - outbox backlog gauges
 
+## Authenticated Operator Endpoints
+
+The API now exposes tenant-scoped operator endpoints for dashboard tooling:
+
+- `GET /tenants/:tenantId/ops/summary`
+- `GET /tenants/:tenantId/ops/outbox`
+- `GET /tenants/:tenantId/ops/payments`
+- `GET /tenants/:tenantId/ops/notifications`
+- `GET /tenants/:tenantId/ops/notifications/:jobId/attempts`
+- `GET /tenants/:tenantId/ops/dlq/:target`
+- `POST /tenants/:tenantId/ops/dlq/:target/:jobId/replay`
+
+Access rules:
+
+- read endpoints require tenant membership
+- DLQ replay requires tenant owner access
+
+This closes the gap between CLI-only recovery and future frontend operator tools.
+
 ## Public Abuse Controls
 
 Storefront write endpoints are Redis-rate-limited:

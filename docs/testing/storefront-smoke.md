@@ -12,11 +12,15 @@ What the script does:
 
 1. Creates an isolated tenant using the shared testkit bootstrap.
 2. Seeds one public category and one public product.
-3. Starts the API on a real localhost port.
-4. Calls live HTTP endpoints with `fetch`.
-5. Scrapes the live API `/metrics` endpoint.
-6. Creates a real pay-on-delivery order through the storefront API.
-7. Closes the server and destroys the seeded data.
+3. Seeds a merchant owner and issues a real auth token.
+4. Starts the API on a real localhost port.
+5. Calls live HTTP endpoints with `fetch`.
+6. Scrapes the live API `/metrics` endpoint.
+7. Creates a real pay-on-delivery order through the storefront API.
+8. Seeds tenant-scoped payment, notification, and DLQ records.
+9. Calls the authenticated operator endpoints.
+10. Replays a real notification DLQ job through the HTTP ops surface.
+11. Closes the server and destroys the seeded data.
 
 Endpoints covered:
 
@@ -28,6 +32,12 @@ Endpoints covered:
 - `GET /storefront/:tenantSlug/products`
 - `GET /storefront/:tenantSlug/products/:productSlug`
 - `POST /storefront/:tenantSlug/orders`
+- `GET /tenants/:tenantId/ops/summary`
+- `GET /tenants/:tenantId/ops/payments`
+- `GET /tenants/:tenantId/ops/notifications`
+- `GET /tenants/:tenantId/ops/notifications/:jobId/attempts`
+- `GET /tenants/:tenantId/ops/dlq/notifications`
+- `POST /tenants/:tenantId/ops/dlq/notifications/:jobId/replay`
 
 Expected prerequisites:
 
