@@ -11,29 +11,13 @@ import {
 } from '../domain';
 import { NotificationError } from '../errors/NotificationError';
 import { createNotificationRepoPg } from '../persistence/NotificationRepoPg';
+import type { NotificationProvider, NotificationProviderSendResult } from '../provider';
 import { buildNotificationPlan } from './NotificationPlanBuilder';
-
-export type NotificationDispatchResult = {
-  status: 'SENT' | 'FAILED';
-  provider: string;
-  providerMessageId?: string | null;
-  failureCategory?: string | null;
-  retryable: boolean;
-  errorCode?: string | null;
-  errorMessage?: string | null;
-};
 
 export const createNotificationUseCases = (deps: {
   db: Kysely<DatabaseSchema>;
   logger: BaseLogger;
-  dispatchMessage?:
-    | ((input: {
-        channel: 'sms' | 'whatsapp' | 'email';
-        recipient: string;
-        text: string;
-        payload: Record<string, unknown>;
-      }) => Promise<NotificationDispatchResult>)
-    | undefined;
+  provider?: NotificationProvider | undefined;
 }) => ({
   async scheduleFromOutboxEvent(event: OutboxRecord) {
     return runInTransaction(deps.db, async (trx) => {
@@ -100,13 +84,13 @@ export const createNotificationUseCases = (deps: {
   },
 
   async dispatchJob(jobId: string) {
-    if (deps.dispatchMessage === undefined) {
+    if (deps.provider === undefined) {
       throw new NotificationError({
         code: ErrorCode.NotProviderUnavailable,
         message: 'Notification dispatcher is not configured'
       });
     }
-    const dispatchMessage = deps.dispatchMessage;
+    const provider = deps.provider;
 
     return runInTransaction(deps.db, async (trx) => {
       const repo = createNotificationRepoPg(trx);
@@ -136,7 +120,7 @@ export const createNotificationUseCases = (deps: {
         templateVersion: processing.templateVersion,
         payload: processing.payload
       });
-      const result = await dispatchMessage({
+      const result: NotificationProviderSendResult = await provider.send({
         channel: processing.channel,
         recipient: processing.recipient,
         text: rendered.text,

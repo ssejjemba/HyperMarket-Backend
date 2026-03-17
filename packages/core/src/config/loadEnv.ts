@@ -53,6 +53,9 @@ const envSchema = z.object({
     .optional()
     .default('https://api.flutterwave.com'),
   FLW_DEFAULT_NETWORK: z.enum(['MTN', 'AIRTEL']).optional().default('MTN'),
+  NOT_DEFAULT_PROVIDER: z.string().min(1).optional().default('twilio_sms'),
+  NOT_DEFAULT_CHANNEL: z.enum(['sms', 'whatsapp', 'email']).optional().default('sms'),
+  TWILIO_SMS_FROM: z.string().min(1).optional().default('+256700000000'),
   OTP_SECRET: z.string().min(1).optional(),
   OTP_TTL_SECONDS: z
     .string()
@@ -126,6 +129,9 @@ export type AppConfig = {
   flwWebhookSecretHash: string | undefined;
   flwBaseUrl: string;
   flwDefaultNetwork: 'MTN' | 'AIRTEL';
+  notificationDefaultProvider: string;
+  notificationDefaultChannel: 'sms' | 'whatsapp' | 'email';
+  twilioSmsFrom: string;
   otpSecret: string;
   otpTtlSeconds: number;
   sessionTtlSeconds: number;
@@ -164,6 +170,9 @@ export const loadEnv = (): AppConfig => {
     flwWebhookSecretHash: result.data.FLW_WEBHOOK_SECRET_HASH,
     flwBaseUrl: result.data.FLW_BASE_URL,
     flwDefaultNetwork: result.data.FLW_DEFAULT_NETWORK,
+    notificationDefaultProvider: result.data.NOT_DEFAULT_PROVIDER,
+    notificationDefaultChannel: result.data.NOT_DEFAULT_CHANNEL,
+    twilioSmsFrom: result.data.TWILIO_SMS_FROM,
     otpSecret,
     otpTtlSeconds: result.data.OTP_TTL_SECONDS,
     sessionTtlSeconds: result.data.SESSION_TTL_SECONDS,

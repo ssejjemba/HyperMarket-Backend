@@ -102,16 +102,19 @@ suite('NOT use cases', () => {
   it('dispatches jobs and records delivery attempts', async () => {
     ctx = await createTestContext();
     const logger = createLogger({ config: ctx.config, base: { service: 'test' } });
-    const dispatchMessage = vi.fn().mockResolvedValue({
-      status: 'SENT',
-      provider: 'fake_sms',
-      providerMessageId: 'MSG-1',
-      retryable: false
-    });
+    const provider = {
+      providerName: 'fake_sms',
+      send: vi.fn().mockResolvedValue({
+        status: 'SENT',
+        provider: 'fake_sms',
+        providerMessageId: 'MSG-1',
+        retryable: false
+      })
+    };
     const useCases = createNotificationUseCases({
       db: ctx.db,
       logger,
-      dispatchMessage
+      provider
     });
     const outboxId = randomUUID();
 
