@@ -98,6 +98,28 @@ const envSchema = z.object({
 
 type EnvSchema = z.infer<typeof envSchema>;
 
+const validateFeatureConfig = (env: EnvSchema): string[] => {
+  const errors: string[] = [];
+
+  if (env.PAYMENT_DEFAULT_PROVIDER === 'flutterwave' && env.NODE_ENV !== 'test') {
+    if (env.FLW_SECRET_KEY === undefined || env.FLW_SECRET_KEY.length === 0) {
+      errors.push('- FLW_SECRET_KEY: Required when PAYMENT_DEFAULT_PROVIDER=flutterwave');
+    }
+
+    if (env.FLW_WEBHOOK_SECRET_HASH === undefined || env.FLW_WEBHOOK_SECRET_HASH.length === 0) {
+      errors.push('- FLW_WEBHOOK_SECRET_HASH: Required when PAYMENT_DEFAULT_PROVIDER=flutterwave');
+    }
+  }
+
+  if (env.NOT_DEFAULT_PROVIDER === 'twilio_sms' && env.NODE_ENV !== 'test') {
+    if (env.TWILIO_SMS_FROM === undefined || env.TWILIO_SMS_FROM.length === 0) {
+      errors.push('- TWILIO_SMS_FROM: Required when NOT_DEFAULT_PROVIDER=twilio_sms');
+    }
+  }
+
+  return errors;
+};
+
 const formatEnvErrors = (errors: z.ZodError<EnvSchema>): string => {
   const lines = errors.issues.map((issue) => {
     const path = issue.path.join('.') || 'value';
@@ -142,6 +164,11 @@ export const loadEnv = (): AppConfig => {
   const result = envSchema.safeParse(process.env);
   if (result.success === false) {
     throw new Error(formatEnvErrors(result.error));
+  }
+
+  const featureErrors = validateFeatureConfig(result.data);
+  if (featureErrors.length > 0) {
+    throw new Error(`Invalid environment configuration:\n${featureErrors.join('\n')}`);
   }
 
   const logLevel =

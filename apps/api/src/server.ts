@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -6,7 +7,7 @@ import { config as loadDotenv } from 'dotenv';
 import Fastify from 'fastify';
 
 import { loadEnv, type AppConfig } from '@hypermarket/core/config/loadEnv';
-import { createDbClient } from '@hypermarket/core/db';
+import { createDbClient, sql } from '@hypermarket/core/db';
 import { createLogger, withRequestContext } from '@hypermarket/core/observability/logger';
 import type { RequestContext } from '@hypermarket/core/observability/requestContext';
 import { AppError, ErrorCode, errorToHttp } from '@hypermarket/contracts';
@@ -24,6 +25,44 @@ const createRequestContext = (requestId: string, traceId: string): RequestContex
     traceId
   };
 };
+
+const pingRedis = async (redisUrl: string): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const target = new URL(redisUrl);
+    const socket = net.createConnection({
+      host: target.hostname,
+      port: Number(target.port || 6379)
+    });
+
+    const cleanup = () => {
+      socket.removeAllListeners();
+      socket.end();
+      socket.destroy();
+    };
+
+    socket.setTimeout(1000);
+    socket.on('connect', () => {
+      socket.write('*1\r\n$4\r\nPING\r\n');
+    });
+    socket.on('data', (buffer) => {
+      const response = buffer.toString('utf8');
+      cleanup();
+      if (response.startsWith('+PONG')) {
+        resolve();
+        return;
+      }
+
+      reject(new Error(`Unexpected Redis response: ${response}`));
+    });
+    socket.on('timeout', () => {
+      cleanup();
+      reject(new Error('Redis readiness timeout'));
+    });
+    socket.on('error', (error) => {
+      cleanup();
+      reject(error);
+    });
+  });
 
 export const buildServer = ({ config, devRoutesMode = 'auto' }: ServerOptions) => {
   const logger = createLogger({ config, base: { service: 'api' } });
@@ -43,6 +82,8 @@ export const buildServer = ({ config, devRoutesMode = 'auto' }: ServerOptions) =
     }
   });
 
+  const db = createDbClient(config.databaseUrl);
+
   app.addHook('onRequest', async (request, reply) => {
     const traceHeader = request.headers['x-trace-id'];
     const traceId =
@@ -61,7 +102,43 @@ export const buildServer = ({ config, devRoutesMode = 'auto' }: ServerOptions) =
     };
   });
 
-  const db = createDbClient(config.databaseUrl);
+  app.get('/health/live', async (request) => ({
+    status: 'ok',
+    request_id: request.id
+  }));
+
+  app.get('/health/ready', async (request, reply) => {
+    const checks = {
+      database: false,
+      redis: false
+    };
+
+    try {
+      await sql`select 1 as ok`.execute(db);
+      checks.database = true;
+    } catch {
+      checks.database = false;
+    }
+
+    try {
+      await pingRedis(config.redisUrl);
+      checks.redis = true;
+    } catch {
+      checks.redis = false;
+    }
+
+    const ready = checks.database && checks.redis;
+    if (!ready) {
+      reply.status(503);
+    }
+
+    return {
+      status: ready ? 'ready' : 'degraded',
+      request_id: request.id,
+      checks
+    };
+  });
+
   void registerModules(app as unknown as Parameters<typeof registerModules>[0], {
     db,
     logger,
@@ -88,6 +165,10 @@ export const buildServer = ({ config, devRoutesMode = 'auto' }: ServerOptions) =
 
     request.log.error({ err: error, error_code: appError.code }, 'Request failed');
     reply.status(status).send(body);
+  });
+
+  app.addHook('onClose', async () => {
+    await db.destroy();
   });
 
   return app;
