@@ -19,6 +19,8 @@ type ServerOptions = {
   devRoutesMode?: 'auto' | 'enabled' | 'disabled';
 };
 
+type ShutdownSignal = 'SIGINT' | 'SIGTERM';
+
 const createRequestContext = (requestId: string, traceId: string): RequestContext => {
   return {
     requestId,
@@ -197,11 +199,43 @@ const loadConfig = (): AppConfig => {
 const start = async (): Promise<void> => {
   const config = loadConfig();
   const server = buildServer({ config });
+  let shutdownPromise: Promise<void> | null = null;
+
+  const shutdown = async (signal: ShutdownSignal): Promise<void> => {
+    if (shutdownPromise !== null) {
+      return shutdownPromise;
+    }
+
+    shutdownPromise = (async () => {
+      server.log.info({ signal }, 'API server shutting down');
+      await server.close();
+      server.log.info({ signal }, 'API server stopped');
+    })();
+
+    return shutdownPromise;
+  };
+
+  const onSignal = (signal: ShutdownSignal) => {
+    void shutdown(signal).then(
+      () => {
+        process.exit(0);
+      },
+      (error) => {
+        server.log.error({ err: error, signal }, 'API shutdown failed');
+        process.exit(1);
+      }
+    );
+  };
+
+  process.once('SIGINT', onSignal);
+  process.once('SIGTERM', onSignal);
 
   try {
     await server.listen({ port: config.port, host: '0.0.0.0' });
     server.log.info({ port: config.port }, 'API server started');
   } catch (error) {
+    process.removeListener('SIGINT', onSignal);
+    process.removeListener('SIGTERM', onSignal);
     server.log.error({ err: error }, 'API server failed to start');
     process.exit(1);
   }

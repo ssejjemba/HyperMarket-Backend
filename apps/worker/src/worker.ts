@@ -76,9 +76,31 @@ const loadStorefrontRevalidationConfig = (): {
   };
 };
 
-const sleep = async (ms: number): Promise<void> =>
+type ShutdownSignal = 'SIGINT' | 'SIGTERM';
+
+const sleep = async (
+  ms: number,
+  deps: {
+    isStopping: () => boolean;
+    registerWakeup: (wakeup: (() => void) | null) => void;
+  }
+): Promise<void> =>
   new Promise((resolve) => {
-    setTimeout(resolve, ms);
+    if (deps.isStopping()) {
+      resolve();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      deps.registerWakeup(null);
+      resolve();
+    }, ms);
+
+    deps.registerWakeup(() => {
+      clearTimeout(timer);
+      deps.registerWakeup(null);
+      resolve();
+    });
   });
 
 const startWorker = async (): Promise<void> => {
@@ -149,6 +171,56 @@ const startWorker = async (): Promise<void> => {
       connection: bullmqConnection
     }
   );
+  let stopRequested = false;
+  let wakeupPoller: (() => void) | null = null;
+  let shutdownPromise: Promise<void> | null = null;
+
+  const registerWakeup = (wakeup: (() => void) | null) => {
+    wakeupPoller = wakeup;
+  };
+
+  const requestShutdown = async (signal: string): Promise<void> => {
+    if (shutdownPromise !== null) {
+      return shutdownPromise;
+    }
+
+    stopRequested = true;
+    wakeupPoller?.();
+    logger.info({ signal }, 'Worker shutting down');
+
+    shutdownPromise = Promise.allSettled([
+      storefrontRevalidationWorker.close(),
+      notificationDispatchWorker.close(),
+      storefrontRevalidationQueue.close(),
+      storefrontRevalidationDlq.close(),
+      notificationDispatchQueue.close(),
+      notificationDispatchDlq.close(),
+      db.destroy()
+    ]).then((results) => {
+      const rejected = results.find((result) => result.status === 'rejected');
+      if (rejected !== undefined && rejected.status === 'rejected') {
+        throw rejected.reason;
+      }
+      logger.info({ signal }, 'Worker stopped');
+    });
+
+    return shutdownPromise;
+  };
+
+  const onSignal = (signal: ShutdownSignal) => {
+    void requestShutdown(signal).then(
+      () => {
+        process.exit(0);
+      },
+      (error) => {
+        logger.error({ err: error, signal }, 'Worker shutdown failed');
+        process.exit(1);
+      }
+    );
+  };
+
+  process.once('SIGINT', onSignal);
+  process.once('SIGTERM', onSignal);
 
   storefrontRevalidationWorker.on('failed', async (job, error) => {
     if (job === undefined) {
@@ -180,15 +252,22 @@ const startWorker = async (): Promise<void> => {
   logger.info('Worker started');
 
   const pollOutbox = async (): Promise<void> => {
-    while (true) {
+    while (!stopRequested) {
       try {
         const pending = await outboxDispatcher.fetchPending(db);
         if (pending.length === 0) {
-          await sleep(1000);
+          await sleep(1000, {
+            isStopping: () => stopRequested,
+            registerWakeup
+          });
           continue;
         }
 
         for (const event of pending) {
+          if (stopRequested) {
+            break;
+          }
+
           const eventLogger = withRequestContext(logger, {
             requestId: event.id,
             traceId: event.correlationId ?? event.id,
@@ -216,21 +295,34 @@ const startWorker = async (): Promise<void> => {
           }
         }
       } catch (error) {
+        if (stopRequested) {
+          break;
+        }
+
         logger.error({ err: error }, 'Outbox poll failed');
-        await sleep(1000);
+        await sleep(1000, {
+          isStopping: () => stopRequested,
+          registerWakeup
+        });
       }
     }
   };
 
-  await Promise.all([
-    storefrontRevalidationQueue.waitUntilReady(),
-    storefrontRevalidationDlq.waitUntilReady(),
-    storefrontRevalidationWorker.waitUntilReady(),
-    notificationDispatchQueue.waitUntilReady(),
-    notificationDispatchDlq.waitUntilReady(),
-    notificationDispatchWorker.waitUntilReady(),
-    pollOutbox()
-  ]);
+  try {
+    await Promise.all([
+      storefrontRevalidationQueue.waitUntilReady(),
+      storefrontRevalidationDlq.waitUntilReady(),
+      storefrontRevalidationWorker.waitUntilReady(),
+      notificationDispatchQueue.waitUntilReady(),
+      notificationDispatchDlq.waitUntilReady(),
+      notificationDispatchWorker.waitUntilReady()
+    ]);
+    await pollOutbox();
+  } finally {
+    process.removeListener('SIGINT', onSignal);
+    process.removeListener('SIGTERM', onSignal);
+    await requestShutdown('shutdown');
+  }
 };
 
 startWorker().catch((error) => {
