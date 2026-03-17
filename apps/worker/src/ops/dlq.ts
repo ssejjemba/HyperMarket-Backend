@@ -61,10 +61,7 @@ const main = async (): Promise<void> => {
     }
 
     if (command === 'replay') {
-      if (arg === undefined) {
-        usage();
-      }
-      const jobId = arg;
+      const jobId = arg ?? usage();
 
       const result = await replayDlqJob(
         {

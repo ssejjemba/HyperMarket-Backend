@@ -17,6 +17,12 @@ Current behavior:
 - `notifications.dispatch`
 - `notifications.dispatch.dlq`
 
+## Operator Commands
+
+- `corepack pnpm ops:status`
+- `corepack pnpm ops:dlq:list notifications`
+- `corepack pnpm ops:dlq:replay notifications <jobId>`
+
 ## Current Triggers
 
 - `Order.Created`

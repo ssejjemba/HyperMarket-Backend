@@ -40,14 +40,20 @@ The codebase uses:
 
 When storefront changes do not appear:
 
-1. Check `outbox_events` for undispatched records.
-2. Check worker logs for dispatch failures.
-3. Check BullMQ queue and DLQ state.
-4. Confirm `STOREFRONT_REVALIDATION_URL` and `STOREFRONT_REVALIDATION_TOKEN`.
+1. Run `corepack pnpm ops:status` to see whether backlog is in outbox, the primary queue, or the DLQ.
+2. Check `outbox_events` for undispatched records.
+3. Inspect the revalidation DLQ with `corepack pnpm ops:dlq:list revalidation`.
+4. Replay recovered jobs with `corepack pnpm ops:dlq:replay revalidation <jobId>`.
+5. Confirm `STOREFRONT_REVALIDATION_URL` and `STOREFRONT_REVALIDATION_TOKEN`.
 
 When notifications do not send:
 
-1. Check `outbox_events` for ORD, PAY, or PUB events that should have produced notifications.
-2. Check `notification_jobs` and `notification_delivery_attempts`.
-3. Check worker logs for notification scheduling or provider failures.
-4. Check Redis queues for `notifications.dispatch` and its DLQ.
+1. Run `corepack pnpm ops:status` to see whether backlog is in outbox or `notifications.dispatch.dlq`.
+2. Check `outbox_events` for ORD, PAY, or PUB events that should have produced notifications.
+3. Check `notification_jobs` and `notification_delivery_attempts`.
+4. Inspect the notification DLQ with `corepack pnpm ops:dlq:list notifications`.
+5. Replay recovered jobs with `corepack pnpm ops:dlq:replay notifications <jobId>`.
+
+## Related Runbook
+
+- [Recovery Tooling](./recovery-tooling.md)
