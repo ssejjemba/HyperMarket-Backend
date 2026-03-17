@@ -125,6 +125,19 @@ const codeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.PaymentTransactionVerificationFailed]: 502,
   [ErrorCode.PaymentTransactionMismatch]: 409,
 
+  // NOT codes
+  [ErrorCode.NotTemplateNotFound]: 404,
+  [ErrorCode.NotTemplatePayloadInvalid]: 400,
+  [ErrorCode.NotRecipientInvalid]: 400,
+  [ErrorCode.NotProviderUnavailable]: 502,
+  [ErrorCode.NotProviderAuthFailed]: 502,
+  [ErrorCode.NotProviderRateLimited]: 429,
+  [ErrorCode.NotSendFailedRetryable]: 502,
+  [ErrorCode.NotSendFailedNonRetryable]: 409,
+  [ErrorCode.NotJobNotFound]: 404,
+  [ErrorCode.NotJobDedupeConflict]: 409,
+  [ErrorCode.NotDbFailure]: 500,
+
   // IAA codes
   [ErrorCode.AuthInvalidPhoneFormat]: 400,
   [ErrorCode.AuthPhoneCountryNotSupported]: 400,

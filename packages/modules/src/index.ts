@@ -55,3 +55,6 @@ export const registerModules = async (server: FastifyInstance, deps: ModuleDeps)
     logger: moduleLogger
   });
 };
+
+export { NotificationError } from './notifications/index';
+export type { NotificationErrorCode } from './notifications/index';

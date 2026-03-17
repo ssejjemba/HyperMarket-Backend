@@ -110,6 +110,19 @@ export enum ErrorCode {
   PaymentTransactionVerificationFailed = 'payment_transaction_verification_failed',
   PaymentTransactionMismatch = 'payment_transaction_mismatch',
 
+  // NOT (Notifications) module codes
+  NotTemplateNotFound = 'not_template_not_found',
+  NotTemplatePayloadInvalid = 'not_template_payload_invalid',
+  NotRecipientInvalid = 'not_recipient_invalid',
+  NotProviderUnavailable = 'not_provider_unavailable',
+  NotProviderAuthFailed = 'not_provider_auth_failed',
+  NotProviderRateLimited = 'not_provider_rate_limited',
+  NotSendFailedRetryable = 'not_send_failed_retryable',
+  NotSendFailedNonRetryable = 'not_send_failed_non_retryable',
+  NotJobNotFound = 'not_job_not_found',
+  NotJobDedupeConflict = 'not_job_dedupe_conflict',
+  NotDbFailure = 'not_db_failure',
+
   // IAA (Identity and Access) module codes
   AuthInvalidPhoneFormat = 'auth_invalid_phone_format',
   AuthPhoneCountryNotSupported = 'auth_phone_country_not_supported',

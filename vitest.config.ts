@@ -46,6 +46,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, 'packages/modules/src/payments/index.ts')
       },
       {
+        find: /^@hypermarket\/modules\/notifications$/,
+        replacement: path.resolve(__dirname, 'packages/modules/src/notifications/index.ts')
+      },
+      {
         find: /^@hypermarket\/modules\/media$/,
         replacement: path.resolve(__dirname, 'packages/modules/src/media/index.ts')
       },
