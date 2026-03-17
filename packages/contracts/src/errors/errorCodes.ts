@@ -123,6 +123,20 @@ export enum ErrorCode {
   NotJobDedupeConflict = 'not_job_dedupe_conflict',
   NotDbFailure = 'not_db_failure',
 
+  // FUL (Fulfillment) module codes
+  FulNoFulfillmentModeEnabled = 'ful_no_fulfillment_mode_enabled',
+  FulDeliveryEnabledWithoutZones = 'ful_delivery_enabled_without_zones',
+  FulSettingsInvalid = 'ful_settings_invalid',
+  FulZoneNotFound = 'ful_zone_not_found',
+  FulZoneInactive = 'ful_zone_inactive',
+  FulZoneNameTaken = 'ful_zone_name_taken',
+  FulZoneInvalid = 'ful_zone_invalid',
+  FulStoreClosed = 'ful_store_closed',
+  FulFulfillmentSelectionInvalid = 'ful_fulfillment_selection_invalid',
+  FulDeliveryMinOrderNotMet = 'ful_delivery_min_order_not_met',
+  FulDeliveryNotAvailable = 'ful_delivery_not_available',
+  FulPickupNotAvailable = 'ful_pickup_not_available',
+
   // IAA (Identity and Access) module codes
   AuthInvalidPhoneFormat = 'auth_invalid_phone_format',
   AuthPhoneCountryNotSupported = 'auth_phone_country_not_supported',

@@ -23,6 +23,7 @@
     ".": "./src/index.ts",
     "./tenancy": "./src/tenancy/index.ts",
     "./catalog": "./src/catalog/index.ts",
+    "./fulfillment": "./src/fulfillment/index.ts",
     "./orders": "./src/orders/index.ts",
     "./payments": "./src/payments/index.ts",
     "./notifications": "./src/notifications/index.ts",

@@ -138,6 +138,20 @@ const codeToStatus: Record<ErrorCode, number> = {
   [ErrorCode.NotJobDedupeConflict]: 409,
   [ErrorCode.NotDbFailure]: 500,
 
+  // FUL codes
+  [ErrorCode.FulNoFulfillmentModeEnabled]: 400,
+  [ErrorCode.FulDeliveryEnabledWithoutZones]: 409,
+  [ErrorCode.FulSettingsInvalid]: 400,
+  [ErrorCode.FulZoneNotFound]: 404,
+  [ErrorCode.FulZoneInactive]: 409,
+  [ErrorCode.FulZoneNameTaken]: 409,
+  [ErrorCode.FulZoneInvalid]: 400,
+  [ErrorCode.FulStoreClosed]: 409,
+  [ErrorCode.FulFulfillmentSelectionInvalid]: 400,
+  [ErrorCode.FulDeliveryMinOrderNotMet]: 409,
+  [ErrorCode.FulDeliveryNotAvailable]: 409,
+  [ErrorCode.FulPickupNotAvailable]: 409,
+
   // IAA codes
   [ErrorCode.AuthInvalidPhoneFormat]: 400,
   [ErrorCode.AuthPhoneCountryNotSupported]: 400,
