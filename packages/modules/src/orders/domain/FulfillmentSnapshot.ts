@@ -68,8 +68,15 @@ const requireText = (value: string | null | undefined, field: string): string =>
 
 export const buildFulfillmentSnapshot = (
   input: FulfillmentInput,
-  deliveryFeeAmount: number
+  resolved: {
+    deliveryFeeAmount: number;
+    zone?: {
+      id: string;
+      name: string;
+    } | null;
+  }
 ): FulfillmentSnapshot => {
+  const deliveryFeeAmount = resolved.deliveryFeeAmount;
   if (!Number.isInteger(deliveryFeeAmount) || deliveryFeeAmount < 0) {
     throw new OrderError({
       code: ErrorCode.OrderFulfillmentInvalid,
@@ -96,8 +103,8 @@ export const buildFulfillmentSnapshot = (
 
   return {
     type: 'delivery',
-    zone_id: zoneId,
-    zone_name: zoneName,
+    zone_id: resolved.zone?.id ?? zoneId,
+    zone_name: resolved.zone?.name ?? zoneName,
     delivery_fee_amount: deliveryFeeAmount,
     address_label: requireText(input.address_label, 'address_label'),
     location_hint: normalizeOptionalText(input.location_hint),

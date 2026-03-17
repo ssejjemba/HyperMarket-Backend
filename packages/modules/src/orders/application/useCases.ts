@@ -10,6 +10,12 @@ import type { Kysely } from 'kysely';
 
 import { createCatalogRepoPg } from '../../catalog/persistence/CatalogRepoPg';
 import {
+  createFulfillmentPolicyReaderPg,
+  FulfillmentError,
+  isStoreOpen,
+  validateFulfillmentSelection
+} from '../../fulfillment';
+import {
   buildFulfillmentSnapshot,
   computeOrderLine,
   computeOrderTotals,
@@ -157,6 +163,7 @@ export const createOrderUseCases = (deps: { db: Kysely<DatabaseSchema> }) => {
   const auditWriter = createAuditWriter();
   const outboxWriter = createOutboxWriter();
   const idempotency = createIdempotencyService();
+  const fulfillmentPolicyReader = createFulfillmentPolicyReaderPg(deps.db);
 
   return {
     async createOrder(input: {
@@ -281,6 +288,37 @@ export const createOrderUseCases = (deps: { db: Kysely<DatabaseSchema> }) => {
             });
           }
 
+          const preliminaryTotals = computeOrderTotals(resolvedItems, 0);
+          const fulfillmentPolicy = await fulfillmentPolicyReader.getPolicy(input.tenantId);
+          const openStatus = isStoreOpen(fulfillmentPolicy.settings.businessHours, new Date());
+          if (!openStatus.open) {
+            throw new FulfillmentError({
+              code: ErrorCode.FulStoreClosed,
+              message: 'Store is currently closed',
+              details: {
+                reason: openStatus.reason
+              }
+            });
+          }
+
+          const fulfillmentResult = validateFulfillmentSelection(
+            fulfillmentPolicy,
+            input.fulfillment,
+            preliminaryTotals.subtotalAmount
+          );
+          const deliveryFeeAmount = fulfillmentResult.deliveryFeeAmount;
+          const fulfillmentSnapshot = buildFulfillmentSnapshot(input.fulfillment, {
+            deliveryFeeAmount,
+            zone:
+              fulfillmentResult.zone === null
+                ? null
+                : {
+                    id: fulfillmentResult.zone.id,
+                    name: fulfillmentResult.zone.name
+                  }
+          });
+          const totals = computeOrderTotals(resolvedItems, deliveryFeeAmount);
+
           for (const item of resolvedItems) {
             if (item.trackInventory !== true) {
               continue;
@@ -310,13 +348,6 @@ export const createOrderUseCases = (deps: { db: Kysely<DatabaseSchema> }) => {
               });
             }
           }
-
-          const deliveryFeeAmount = input.fulfillment.type === 'delivery' ? 0 : 0;
-          const fulfillmentSnapshot = buildFulfillmentSnapshot(
-            input.fulfillment,
-            deliveryFeeAmount
-          );
-          const totals = computeOrderTotals(resolvedItems, deliveryFeeAmount);
           const customerSnapshot = normalizeCustomerSnapshot(input.customer);
           const customer =
             hasCustomerIdentity(customerSnapshot) === false

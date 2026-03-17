@@ -59,7 +59,9 @@ describe('ORD domain rules', () => {
           type: 'pickup',
           pickup_location_label: 'Acacia Mall'
         },
-        0
+        {
+          deliveryFeeAmount: 0
+        }
       )
     ).toEqual({
       type: 'pickup',
@@ -76,7 +78,9 @@ describe('ORD domain rules', () => {
           recipient_name: 'Amina',
           recipient_phone: '+256700000001'
         },
-        5000
+        {
+          deliveryFeeAmount: 5000
+        }
       )
     ).toEqual({
       type: 'delivery',
@@ -98,7 +102,9 @@ describe('ORD domain rules', () => {
           recipient_name: 'Amina',
           recipient_phone: '+256700000001'
         } as never,
-        5000
+        {
+          deliveryFeeAmount: 5000
+        }
       )
     ).toThrowError(
       expect.objectContaining({

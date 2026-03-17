@@ -121,10 +121,21 @@ export const isStoreOpen = (
   now: Date
 ): { open: true } | { open: false; reason: BusinessOpenReason } => {
   const validHours = assertBusinessHours(hours);
+  if (Object.keys(validHours).length === 0) {
+    return {
+      open: true
+    };
+  }
   const local = getKampalaDayAndMinutes(now);
   const dayHours = validHours[local.day];
 
-  if (dayHours === undefined || dayHours.is_closed) {
+  if (dayHours === undefined) {
+    return {
+      open: true
+    };
+  }
+
+  if (dayHours.is_closed) {
     return {
       open: false,
       reason: 'CLOSED_TODAY'

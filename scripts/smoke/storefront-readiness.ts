@@ -207,6 +207,38 @@ const seedStorefrontData = async (
   };
 };
 
+const ensureFulfillmentTables = async (db: ReturnType<typeof createDbClient>): Promise<void> => {
+  await db.schema
+    .createTable('fulfillment_settings')
+    .ifNotExists()
+    .addColumn('tenant_id', 'uuid', (column) => column.primaryKey())
+    .addColumn('pickup_enabled', 'boolean', (column) => column.notNull().defaultTo(true))
+    .addColumn('delivery_enabled', 'boolean', (column) => column.notNull().defaultTo(false))
+    .addColumn('pickup_instructions', 'text')
+    .addColumn('delivery_instructions', 'text')
+    .addColumn('business_hours', 'jsonb', (column) =>
+      column.notNull().defaultTo('{}' as unknown as never)
+    )
+    .addColumn('cutoff_rules', 'jsonb', (column) =>
+      column.notNull().defaultTo('{}' as unknown as never)
+    )
+    .addColumn('updated_at', 'timestamptz', (column) => column.notNull().defaultToNow())
+    .execute();
+
+  await db.schema
+    .createTable('delivery_zones')
+    .ifNotExists()
+    .addColumn('id', 'uuid', (column) => column.primaryKey().defaultTo(randomUUID()))
+    .addColumn('tenant_id', 'uuid', (column) => column.notNull())
+    .addColumn('name', 'text', (column) => column.notNull())
+    .addColumn('fee_amount', 'integer', (column) => column.notNull())
+    .addColumn('min_order_amount', 'integer')
+    .addColumn('is_active', 'boolean', (column) => column.notNull().defaultTo(true))
+    .addColumn('sort_order', 'integer', (column) => column.notNull().defaultTo(0))
+    .addColumn('created_at', 'timestamptz', (column) => column.notNull().defaultToNow())
+    .execute();
+};
+
 const issueAccessToken = async (
   db: ReturnType<typeof createDbClient>,
   config: AppConfig,
@@ -240,6 +272,7 @@ const issueAccessToken = async (
 const main = async (): Promise<void> => {
   const config = createSmokeConfig();
   const db = createDbClient(config.databaseUrl);
+  await ensureFulfillmentTables(db);
   const seeded = await seedStorefrontData(db);
   const server = buildServer({ config, devRoutesMode: 'disabled' });
   let baseUrl = '';

@@ -82,6 +82,33 @@ const ensureOrdersTables = async (db: ReturnType<typeof createDbClient>): Promis
   `.execute(db);
 };
 
+const ensureFulfillmentTables = async (db: ReturnType<typeof createDbClient>): Promise<void> => {
+  await sql`
+    create table if not exists fulfillment_settings (
+      tenant_id uuid primary key references tenants(id) on delete cascade,
+      pickup_enabled boolean not null default true,
+      delivery_enabled boolean not null default false,
+      pickup_instructions text null,
+      delivery_instructions text null,
+      business_hours jsonb not null default '{}'::jsonb,
+      cutoff_rules jsonb not null default '{}'::jsonb,
+      updated_at timestamptz not null default now()
+    )
+  `.execute(db);
+  await sql`
+    create table if not exists delivery_zones (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references tenants(id) on delete cascade,
+      name text not null,
+      fee_amount integer not null,
+      min_order_amount integer null,
+      is_active boolean not null default true,
+      sort_order integer not null default 0,
+      created_at timestamptz not null default now()
+    )
+  `.execute(db);
+};
+
 const run = async (): Promise<void> => {
   const config = loadEnv();
   const db = createDbClient(config.databaseUrl);
@@ -91,6 +118,7 @@ const run = async (): Promise<void> => {
   const userId = `50000000-0000-0000-0000-${suffix}`;
 
   await ensureOrdersTables(db);
+  await ensureFulfillmentTables(db);
 
   await db
     .insertInto('tenants')
@@ -139,6 +167,29 @@ const run = async (): Promise<void> => {
       updated_at: new Date(),
       deleted_at: null
     })
+    .execute();
+
+  await db
+    .insertInto('fulfillment_settings')
+    .values({
+      tenant_id: tenantId,
+      pickup_enabled: true,
+      delivery_enabled: false,
+      pickup_instructions: null,
+      delivery_instructions: null,
+      business_hours: {},
+      cutoff_rules: {},
+      updated_at: new Date()
+    })
+    .onConflict((oc) =>
+      oc.column('tenant_id').doUpdateSet({
+        pickup_enabled: true,
+        delivery_enabled: false,
+        business_hours: {},
+        cutoff_rules: {},
+        updated_at: new Date()
+      })
+    )
     .execute();
 
   const useCases = createOrderUseCases({ db });
