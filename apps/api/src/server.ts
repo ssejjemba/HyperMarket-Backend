@@ -9,6 +9,7 @@ import Fastify from 'fastify';
 import { loadEnv, type AppConfig } from '@hypermarket/core/config/loadEnv';
 import { createDbClient, sql } from '@hypermarket/core/db';
 import { createLogger, withRequestContext } from '@hypermarket/core/observability/logger';
+import { createMetricsRegistry } from '@hypermarket/core';
 import type { RequestContext } from '@hypermarket/core/observability/requestContext';
 import { AppError, ErrorCode, errorToHttp } from '@hypermarket/contracts';
 import { registerModules } from '@hypermarket/modules';
@@ -85,6 +86,7 @@ export const buildServer = ({ config, devRoutesMode = 'auto' }: ServerOptions) =
   });
 
   const db = createDbClient(config.databaseUrl);
+  const metricsRegistry = createMetricsRegistry();
 
   app.addHook('onRequest', async (request, reply) => {
     const traceHeader = request.headers['x-trace-id'];
@@ -141,10 +143,16 @@ export const buildServer = ({ config, devRoutesMode = 'auto' }: ServerOptions) =
     };
   });
 
+  app.get('/metrics', async (_request, reply) => {
+    reply.header('content-type', 'text/plain; version=0.0.4; charset=utf-8');
+    return metricsRegistry.render();
+  });
+
   void registerModules(app as unknown as Parameters<typeof registerModules>[0], {
     db,
     logger,
-    config
+    config,
+    metricsRegistry
   });
 
   if (devRoutesEnabled) {

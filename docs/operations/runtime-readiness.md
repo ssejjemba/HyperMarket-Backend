@@ -31,6 +31,25 @@ Response shape:
 }
 ```
 
+## Metrics Endpoints
+
+The API now exposes:
+
+- `GET /metrics`
+
+The worker exposes:
+
+- `GET /metrics` on `WORKER_METRICS_HOST:WORKER_METRICS_PORT`
+- `GET /health/live` on the same worker metrics server
+
+Current metrics coverage includes:
+
+- IAA OTP/session counters
+- MED upload/confirm/delete counters
+- storefront revalidation DLQ counters
+- worker queue depth by queue/state
+- outbox backlog gauges
+
 ## Public Abuse Controls
 
 Storefront write endpoints are Redis-rate-limited:

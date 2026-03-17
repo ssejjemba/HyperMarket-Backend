@@ -9,3 +9,4 @@ export type {
   SessionValidateLabels
 } from './iaaMetrics';
 export { createNoopIaaMetrics, createInMemoryIaaMetrics } from './iaaMetrics';
+export { createPrometheusIaaMetrics } from './promMetrics';

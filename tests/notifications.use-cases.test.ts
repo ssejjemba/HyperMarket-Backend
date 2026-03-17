@@ -189,4 +189,39 @@ suite('NOT use cases', () => {
       provider_message_id: 'MSG-1'
     });
   });
+
+  it('skips scheduling when the outbox tenant no longer exists', async () => {
+    ctx = await createTestContext();
+    const logger = createLogger({ config: ctx.config, base: { service: 'test' } });
+    const useCases = createNotificationUseCases({
+      db: ctx.db,
+      logger
+    });
+
+    const result = await useCases.scheduleFromOutboxEvent({
+      id: randomUUID(),
+      eventType: 'Order.Created',
+      tenantId: randomUUID(),
+      correlationId: null,
+      actorUserId: null,
+      payload: {
+        order_number: 10,
+        total_amount: 5000,
+        currency: 'UGX',
+        customer_phone_e164: '+256712345678'
+      },
+      occurredAt: new Date(),
+      availableAt: new Date(),
+      dispatchedAt: null,
+      attempts: 0,
+      lastError: null,
+      createdAt: new Date()
+    });
+
+    expect(result).toEqual({
+      createdCount: 0,
+      dedupedCount: 0,
+      createdJobIds: []
+    });
+  });
 });

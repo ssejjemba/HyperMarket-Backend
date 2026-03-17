@@ -4,6 +4,7 @@ import type { ModuleDeps } from '../types';
 import { registerIaaApiRoutes } from './api/routes';
 import { createTenancyMembershipAdapter } from './membership/TenancyMembershipAdapter';
 import { createNoopIaaMetrics } from './observability/iaaMetrics';
+import { createPrometheusIaaMetrics } from './observability/promMetrics';
 import { OtpChallengePolicy } from './otp/domain/OtpChallengePolicy';
 import { createLocalOtpVerificationProvider } from './otp/integrations/LocalOtpVerificationProvider';
 import { createRedisOtpRequestRateLimiter } from './otp/integrations/RedisOtpRequestRateLimiter';
@@ -41,7 +42,10 @@ export const registerIaaRoutes = async (
   const userRepo = createUserRepoPg(deps.db);
   const sessionRepo = createSessionRepoPg(deps.db);
   const membershipReader = createTenancyMembershipAdapter(deps.db);
-  const metrics = createNoopIaaMetrics();
+  const metrics =
+    deps.metricsRegistry !== undefined
+      ? createPrometheusIaaMetrics(deps.metricsRegistry)
+      : createNoopIaaMetrics();
 
   const verificationProvider =
     deps.config.nodeEnv === 'development'

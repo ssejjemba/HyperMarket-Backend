@@ -84,6 +84,14 @@ const envSchema = z.object({
     .refine((value) => Number.isFinite(value) && value > 0, {
       message: 'PUBLIC_PAYMENT_RATE_LIMIT_MAX must be a positive number'
     }),
+  WORKER_METRICS_HOST: z.string().min(1).optional().default('0.0.0.0'),
+  WORKER_METRICS_PORT: z
+    .string()
+    .optional()
+    .transform((value) => (value === undefined ? 9464 : Number(value)))
+    .refine((value) => Number.isFinite(value) && value > 0, {
+      message: 'WORKER_METRICS_PORT must be a positive number'
+    }),
   OTP_SECRET: z.string().min(1).optional(),
   OTP_TTL_SECONDS: z
     .string()
@@ -186,6 +194,8 @@ export type AppConfig = {
   publicOrderRateLimitMax?: number;
   publicPaymentRateLimitWindowSeconds?: number;
   publicPaymentRateLimitMax?: number;
+  workerMetricsHost?: string;
+  workerMetricsPort?: number;
   otpSecret: string;
   otpTtlSeconds: number;
   sessionTtlSeconds: number;
@@ -236,6 +246,8 @@ export const loadEnv = (): AppConfig => {
     publicOrderRateLimitMax: result.data.PUBLIC_ORDER_RATE_LIMIT_MAX,
     publicPaymentRateLimitWindowSeconds: result.data.PUBLIC_PAYMENT_RATE_LIMIT_WINDOW_SECONDS,
     publicPaymentRateLimitMax: result.data.PUBLIC_PAYMENT_RATE_LIMIT_MAX,
+    workerMetricsHost: result.data.WORKER_METRICS_HOST,
+    workerMetricsPort: result.data.WORKER_METRICS_PORT,
     otpSecret,
     otpTtlSeconds: result.data.OTP_TTL_SECONDS,
     sessionTtlSeconds: result.data.SESSION_TTL_SECONDS,

@@ -8,6 +8,7 @@ import { createMembershipReaderPg } from '../tenancy/persistence/TenancyMembersh
 import { registerMediaApiRoutes } from './api/routes';
 import { createMediaUseCases } from './application/useCases';
 import { createNoopMediaMetrics } from './observability/mediaMetrics';
+import { createPrometheusMediaMetrics } from './observability/promMetrics';
 import { createSignedUploadUrlSigner } from './storage/UploadUrlSigner';
 
 export const registerMediaRoutes = async (
@@ -29,7 +30,10 @@ export const registerMediaRoutes = async (
   const useCases = createMediaUseCases({
     db: deps.db,
     logger: deps.logger,
-    metrics: createNoopMediaMetrics(),
+    metrics:
+      'metricsRegistry' in deps && deps.metricsRegistry !== undefined
+        ? createPrometheusMediaMetrics(deps.metricsRegistry)
+        : createNoopMediaMetrics(),
     uploadUrlSigner: createSignedUploadUrlSigner({
       baseUrl: deps.config.mediaUploadBaseUrl,
       secret: deps.config.jwtSecret,
@@ -62,6 +66,7 @@ export { MediaError } from './errors/MediaError';
 export type { MediaErrorCode } from './errors/MediaError';
 export { createNoopMediaMetrics, createInMemoryMediaMetrics } from './observability/mediaMetrics';
 export type { InMemoryMediaMetrics, MediaMetrics } from './observability/mediaMetrics';
+export { createPrometheusMediaMetrics } from './observability/promMetrics';
 export { createMediaAssetRepoPg } from './persistence/MediaAssetRepoPg';
 export type { MediaAssetRecord, MediaAssetStatus } from './persistence/MediaAssetRepoPg';
 export { createSignedUploadUrlSigner } from './storage/UploadUrlSigner';

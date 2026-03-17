@@ -6,5 +6,6 @@ export {
 } from './storefrontRevalidationQueue';
 export { createStorefrontRevalidationClient } from './storefrontRevalidationClient';
 export { createNoopStorefrontRevalidationMetrics } from './storefrontRevalidationMetrics';
+export { createPrometheusStorefrontRevalidationMetrics } from './promMetrics';
 export type { StorefrontRevalidationMetrics } from './storefrontRevalidationMetrics';
 export type { StorefrontRevalidationJobPayload } from './storefrontRevalidationTypes';

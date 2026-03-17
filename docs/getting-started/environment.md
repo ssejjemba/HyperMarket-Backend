@@ -67,6 +67,8 @@ Source of truth:
 | ------------------------------- | ----------------------------------------------------- |
 | `STOREFRONT_REVALIDATION_URL`   | Worker callback target for storefront revalidation    |
 | `STOREFRONT_REVALIDATION_TOKEN` | Bearer token sent to storefront revalidation endpoint |
+| `WORKER_METRICS_HOST`           | Bind host for the worker metrics HTTP server          |
+| `WORKER_METRICS_PORT`           | Port for the worker metrics HTTP server               |
 
 ## Notes
 

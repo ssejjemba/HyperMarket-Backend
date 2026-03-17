@@ -7,6 +7,7 @@ import { config as loadDotenv } from 'dotenv';
 import {
   createDbClient,
   createLogger,
+  createMetricsRegistry,
   createOutboxDispatcher,
   loadEnv,
   withRequestContext
@@ -19,7 +20,7 @@ import {
 import {
   STOREFRONT_REVALIDATION_DLQ,
   STOREFRONT_REVALIDATION_QUEUE,
-  createNoopStorefrontRevalidationMetrics,
+  createPrometheusStorefrontRevalidationMetrics,
   createStorefrontRevalidationClient,
   enqueueStorefrontRevalidationJob,
   handleStorefrontRevalidationFailure
@@ -30,6 +31,12 @@ import {
   enqueueNotificationDispatchJobs,
   handleNotificationDispatchFailure
 } from './notifications';
+import { createMetricsHttpServer } from './metricsServer';
+import {
+  createOutboxStatusReporter,
+  createQueueClients,
+  summarizeQueueCounts
+} from './ops/runtimeOps';
 
 const resolveRootDir = (): string => {
   const currentFile = fileURLToPath(import.meta.url);
@@ -108,6 +115,7 @@ const startWorker = async (): Promise<void> => {
   const storefrontRevalidationConfig = loadStorefrontRevalidationConfig();
   const logger = createLogger({ config, base: { service: 'worker' } });
   const db = createDbClient(config.databaseUrl);
+  const metricsRegistry = createMetricsRegistry();
   const bullmqConnection = {
     host: new URL(config.redisUrl).hostname,
     port: Number(new URL(config.redisUrl).port || 6379),
@@ -115,7 +123,7 @@ const startWorker = async (): Promise<void> => {
   };
 
   const outboxDispatcher = createOutboxDispatcher({ batchSize: 50 });
-  const revalidationMetrics = createNoopStorefrontRevalidationMetrics();
+  const revalidationMetrics = createPrometheusStorefrontRevalidationMetrics(metricsRegistry);
   const storefrontRevalidationQueue = new Queue(STOREFRONT_REVALIDATION_QUEUE, {
     connection: bullmqConnection
   });
@@ -171,6 +179,83 @@ const startWorker = async (): Promise<void> => {
       connection: bullmqConnection
     }
   );
+  const outboxStatusReporter = createOutboxStatusReporter(config.databaseUrl);
+  const queueClients = {
+    notifications: createQueueClients(config.redisUrl, {
+      label: 'notifications',
+      primary: NOTIFICATION_DISPATCH_QUEUE,
+      dlq: NOTIFICATION_DISPATCH_DLQ
+    }),
+    revalidation: createQueueClients(config.redisUrl, {
+      label: 'revalidation',
+      primary: STOREFRONT_REVALIDATION_QUEUE,
+      dlq: STOREFRONT_REVALIDATION_DLQ
+    })
+  };
+  metricsRegistry.registerCollector(async () => {
+    const [notifications, revalidation, outbox] = await Promise.all([
+      summarizeQueueCounts(queueClients.notifications.primary, queueClients.notifications.dlq),
+      summarizeQueueCounts(queueClients.revalidation.primary, queueClients.revalidation.dlq),
+      outboxStatusReporter.fetch()
+    ]);
+
+    const queueLines = [
+      '# HELP worker_queue_jobs Queue jobs grouped by queue, kind, and state',
+      '# TYPE worker_queue_jobs gauge'
+    ];
+
+    const appendQueueMetrics = (
+      queue: 'notifications' | 'revalidation',
+      kind: 'primary' | 'dlq',
+      counts: Record<string, number>
+    ) => {
+      for (const [state, value] of Object.entries(counts)) {
+        queueLines.push(
+          `worker_queue_jobs{queue="${queue}",kind="${kind}",state="${state}"} ${value}`
+        );
+      }
+    };
+
+    appendQueueMetrics('notifications', 'primary', notifications.primary);
+    appendQueueMetrics('notifications', 'dlq', notifications.dlq);
+    appendQueueMetrics('revalidation', 'primary', revalidation.primary);
+    appendQueueMetrics('revalidation', 'dlq', revalidation.dlq);
+
+    const outboxLines = [
+      '# HELP worker_outbox_pending_total Pending outbox events grouped by event type',
+      '# TYPE worker_outbox_pending_total gauge'
+    ];
+
+    for (const item of outbox.pendingByType) {
+      outboxLines.push(`worker_outbox_pending_total{event_type="${item.eventType}"} ${item.count}`);
+    }
+
+    outboxLines.push('# HELP worker_outbox_failed_total Pending outbox events with retry attempts');
+    outboxLines.push('# TYPE worker_outbox_failed_total gauge');
+    outboxLines.push(`worker_outbox_failed_total ${outbox.failedCount}`);
+    outboxLines.push(
+      '# HELP worker_outbox_oldest_pending_age_seconds Age of the oldest pending outbox event'
+    );
+    outboxLines.push('# TYPE worker_outbox_oldest_pending_age_seconds gauge');
+    outboxLines.push(
+      `worker_outbox_oldest_pending_age_seconds ${
+        outbox.oldestPending === null
+          ? 0
+          : Math.max(
+              0,
+              Math.floor((Date.now() - new Date(outbox.oldestPending.createdAt).getTime()) / 1000)
+            )
+      }`
+    );
+
+    return [...queueLines, ...outboxLines].join('\n');
+  });
+  const metricsServer = createMetricsHttpServer({
+    host: config.workerMetricsHost ?? '0.0.0.0',
+    port: config.workerMetricsPort ?? 9464,
+    registry: metricsRegistry,
+    logger
+  });
   let stopRequested = false;
   let wakeupPoller: (() => void) | null = null;
   let shutdownPromise: Promise<void> | null = null;
@@ -195,6 +280,12 @@ const startWorker = async (): Promise<void> => {
       storefrontRevalidationDlq.close(),
       notificationDispatchQueue.close(),
       notificationDispatchDlq.close(),
+      queueClients.notifications.primary.close(),
+      queueClients.notifications.dlq.close(),
+      queueClients.revalidation.primary.close(),
+      queueClients.revalidation.dlq.close(),
+      outboxStatusReporter.close(),
+      metricsServer.close(),
       db.destroy()
     ]).then((results) => {
       const rejected = results.find((result) => result.status === 'rejected');
@@ -310,6 +401,7 @@ const startWorker = async (): Promise<void> => {
 
   try {
     await Promise.all([
+      metricsServer.start(),
       storefrontRevalidationQueue.waitUntilReady(),
       storefrontRevalidationDlq.waitUntilReady(),
       storefrontRevalidationWorker.waitUntilReady(),

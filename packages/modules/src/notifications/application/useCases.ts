@@ -3,6 +3,7 @@ import { ErrorCode } from '@hypermarket/contracts';
 import type { Kysely } from 'kysely';
 import type { BaseLogger } from 'pino';
 
+import { createTenantRepoPg } from '../../tenancy/persistence/TenantRepoPg';
 import {
   assertNotificationJobTransition,
   createNotificationDedupeKey,
@@ -20,6 +21,40 @@ export const createNotificationUseCases = (deps: {
   provider?: NotificationProvider | undefined;
 }) => ({
   async scheduleFromOutboxEvent(event: OutboxRecord) {
+    const tenantId = event.tenantId ?? null;
+
+    if (tenantId === null) {
+      deps.logger.warn(
+        {
+          eventId: event.id,
+          eventType: event.eventType
+        },
+        'notification.job.skipped_missing_tenant'
+      );
+      return {
+        createdCount: 0,
+        dedupedCount: 0,
+        createdJobIds: []
+      };
+    }
+
+    const tenant = await createTenantRepoPg(deps.db).findById(tenantId);
+    if (tenant === null) {
+      deps.logger.warn(
+        {
+          eventId: event.id,
+          eventType: event.eventType,
+          tenantId
+        },
+        'notification.job.skipped_missing_tenant'
+      );
+      return {
+        createdCount: 0,
+        dedupedCount: 0,
+        createdJobIds: []
+      };
+    }
+
     return runInTransaction(deps.db, async (trx) => {
       const repo = createNotificationRepoPg(trx);
       const plan = buildNotificationPlan(event);
@@ -29,7 +64,7 @@ export const createNotificationUseCases = (deps: {
 
       for (const notification of plan) {
         const dedupeKey = createNotificationDedupeKey({
-          tenantId: event.tenantId ?? '',
+          tenantId,
           channel: notification.channel,
           templateId: notification.templateId,
           templateVersion: notification.templateVersion,
@@ -37,7 +72,7 @@ export const createNotificationUseCases = (deps: {
           eventId: event.id
         });
         const result = await repo.insertJob({
-          tenantId: event.tenantId ?? '',
+          tenantId,
           eventId: event.id,
           eventType: event.eventType,
           channel: notification.channel,

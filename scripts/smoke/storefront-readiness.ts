@@ -184,6 +184,14 @@ const main = async (): Promise<void> => {
     const ready = await assertResponse(await fetch(`${baseUrl}/health/ready`), {
       label: 'health ready'
     });
+    const metricsResponse = await fetch(`${baseUrl}/metrics`);
+    const metricsBody = await metricsResponse.text();
+    if (metricsResponse.status !== 200) {
+      throw new Error(`api metrics failed with ${metricsResponse.status}: ${metricsBody}`);
+    }
+    if (!metricsBody.includes('iaa_otp_request_total')) {
+      throw new Error('api metrics output is missing iaa_otp_request_total');
+    }
     const categories = await assertResponse(
       await fetch(`${baseUrl}/storefront/${seeded.tenantSlug}/categories`),
       { label: 'storefront categories' }
@@ -231,7 +239,10 @@ const main = async (): Promise<void> => {
           tenant_slug: seeded.tenantSlug,
           checks: {
             live,
-            ready
+            ready,
+            metrics: {
+              status: metricsResponse.status
+            }
           },
           seeded,
           categories_count: Array.isArray((categories as { categories?: unknown[] }).categories)

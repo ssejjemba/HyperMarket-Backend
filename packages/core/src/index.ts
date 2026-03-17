@@ -1,6 +1,13 @@
 export { loadEnv } from './config/loadEnv';
 export type { AppConfig as AppConfigShape } from './config/loadEnv';
 export { createLogger, withRequestContext } from './observability/logger';
+export { createMetricsRegistry } from './observability/metrics';
+export type {
+  CounterHandle,
+  GaugeHandle,
+  LabelValues,
+  MetricsRegistry
+} from './observability/metrics';
 export type { RequestContext } from './observability/requestContext';
 export { createDbClient, runInTransaction, withTx } from './db';
 export type { DatabaseSchema } from './db';
