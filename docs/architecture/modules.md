@@ -52,6 +52,23 @@ Key routes:
 - Merchant routes under `/tenants/:tenantId/categories` and `/tenants/:tenantId/products`
 - Public routes under `/storefront/:tenantSlug/...`
 
+### FUL
+
+Owns:
+
+- tenant fulfillment settings
+- delivery zones and fee rules
+- business-hours gating
+- storefront fulfillment options
+- deterministic policy reads used by ORD checkout validation
+
+Key routes:
+
+- `GET/PATCH /tenants/:tenantId/fulfillment/settings`
+- `GET/POST /tenants/:tenantId/fulfillment/zones`
+- `PATCH/DELETE /tenants/:tenantId/fulfillment/zones/:zoneId`
+- `GET /storefront/:tenantSlug/fulfillment/options`
+
 ### MED
 
 Owns:
@@ -160,6 +177,7 @@ Owns:
 - Side effects must be emitted through the outbox, not inline-only.
 - Worker delivery must tolerate retries and duplicates.
 - PAY does not mutate orders directly; it uses the ORD payment port.
+- ORD delegates fulfillment availability and delivery-fee rules to FUL.
 - NOT does not decide business timing; it reacts to outbox events from other modules.
 - OPS is read-mostly and must stay tenant-scoped; replay-style mutations are owner-only.
 - Public storefront reads must never expose internal soft-delete fields.

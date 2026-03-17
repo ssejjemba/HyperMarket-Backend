@@ -37,6 +37,11 @@ Migrations:
 
 - `media_assets`
 
+## Fulfillment Tables
+
+- `fulfillment_settings`
+- `delivery_zones`
+
 ## Orders Tables
 
 - `customers`
@@ -70,6 +75,7 @@ Catalog migration:
 ## Other Schema Notes
 
 - Media assets use tenant-scoped `storage_key` uniqueness.
+- Fulfillment rules are split between one tenant settings row and relational delivery zones.
 - Orders store immutable customer and fulfillment snapshots on the order record.
 - Payments keep intent state separate from order state.
 - Notification jobs use a DB-level unique `dedupe_key` for duplicate scheduling protection.

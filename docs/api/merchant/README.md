@@ -2,6 +2,7 @@
 
 - [Tenancy API](./tenancy.md)
 - [Catalog API](./catalog.md)
+- [Fulfillment API](./fulfillment.md)
 - [Media API](./media.md)
 - [Orders API](./orders.md)
 - [Operations API](./operations.md)

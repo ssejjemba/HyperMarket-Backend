@@ -70,6 +70,21 @@ Canonical enum:
 - `media_delete_failed`
 - `media_validation_failed`
 
+## FUL
+
+- `ful_no_fulfillment_mode_enabled`
+- `ful_delivery_enabled_without_zones`
+- `ful_settings_invalid`
+- `ful_zone_not_found`
+- `ful_zone_inactive`
+- `ful_zone_name_taken`
+- `ful_zone_invalid`
+- `ful_store_closed`
+- `ful_fulfillment_selection_invalid`
+- `ful_delivery_min_order_not_met`
+- `ful_delivery_not_available`
+- `ful_pickup_not_available`
+
 ## ORD
 
 - `order_idempotency_conflict`

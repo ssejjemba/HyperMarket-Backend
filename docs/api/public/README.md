@@ -1,6 +1,7 @@
 # Public Storefront API
 
 - [Storefront Catalog API](./storefront-catalog.md)
+- [Storefront Fulfillment API](./storefront-fulfillment.md)
 - [Storefront Orders API](./storefront-orders.md)
 - [Storefront Payments API](./storefront-payments.md)
 
