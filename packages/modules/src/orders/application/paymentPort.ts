@@ -58,6 +58,30 @@ const mapOrderForPayment = (order: {
   currency: order.currency
 });
 
+const loadNotificationContext = async (
+  db: Kysely<DatabaseSchema>,
+  tenantId: string
+): Promise<{
+  storeName: string;
+  merchantPhoneE164: string | null;
+}> => {
+  const tenant = await db
+    .selectFrom('tenants')
+    .select(['business_name'])
+    .where('id', '=', tenantId)
+    .executeTakeFirst();
+  const settings = await db
+    .selectFrom('tenant_settings')
+    .select(['contact_phone_e164', 'contact_whatsapp_e164'])
+    .where('tenant_id', '=', tenantId)
+    .executeTakeFirst();
+
+  return {
+    storeName: tenant?.business_name ?? tenantId,
+    merchantPhoneE164: settings?.contact_whatsapp_e164 ?? settings?.contact_phone_e164 ?? null
+  };
+};
+
 const assertAllowedTarget = (fromStatus: OrderStatus, toStatus: 'PAID' | 'FAILED'): void => {
   if (toStatus === 'PAID' && ['PENDING', 'CONFIRMED'].includes(fromStatus)) {
     return;
@@ -133,6 +157,7 @@ export const createOrderPaymentPort = (deps: { db: Kysely<DatabaseSchema> }): Or
         },
         requestId: toAuditRequestId(input.requestId)
       });
+      const notificationContext = await loadNotificationContext(trx, input.tenantId);
 
       await outboxWriter.write(trx, {
         eventType: 'Order.StateChanged',
@@ -146,6 +171,12 @@ export const createOrderPaymentPort = (deps: { db: Kysely<DatabaseSchema> }): Or
           to_status: updated.status,
           reason: input.reason ?? null,
           payment_intent_id: input.paymentIntentId ?? null,
+          total_amount: updated.totalAmount,
+          currency: updated.currency,
+          store_name: notificationContext.storeName,
+          customer_phone_e164:
+            (existing.order.customerSnapshot.phone_e164 as string | null | undefined) ?? null,
+          merchant_phone_e164: notificationContext.merchantPhoneE164,
           action:
             input.toStatus === 'PAID'
               ? 'payment_succeeded'

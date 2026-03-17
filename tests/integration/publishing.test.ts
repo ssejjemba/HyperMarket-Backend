@@ -13,6 +13,7 @@ import {
   createRollbackConfigUseCase,
   createStoreConfigRepoPg
 } from '../../packages/modules/src/publishing';
+import { buildNotificationPlan } from '../../packages/modules/src/notifications';
 import { createTemplateRegistry } from '../../packages/modules/src/templates';
 import { ErrorCode } from '../../packages/contracts/src/errors/errorCodes';
 
@@ -84,6 +85,21 @@ const run = async (): Promise<void> => {
       status: 'active',
       default_currency: 'UGX',
       active_config_id: null,
+      created_at: new Date(),
+      updated_at: new Date()
+    })
+    .execute();
+
+  await db
+    .insertInto('tenant_settings')
+    .values({
+      tenant_id: otherTenantId,
+      contact_name: 'Publishing Owner',
+      contact_email: 'owner@example.com',
+      contact_phone_e164: '+256700000020',
+      contact_whatsapp_e164: '+256700000021',
+      social_links: {},
+      business_hours: {},
       created_at: new Date(),
       updated_at: new Date()
     })
@@ -352,7 +368,18 @@ const run = async (): Promise<void> => {
 
   const outboxEvent = await db
     .selectFrom('outbox_events')
-    .select(['event_type', 'tenant_id', 'actor_user_id', 'payload'])
+    .select([
+      'id',
+      'event_type',
+      'tenant_id',
+      'actor_user_id',
+      'payload',
+      'occurred_at',
+      'available_at',
+      'attempts',
+      'last_error',
+      'created_at'
+    ])
     .where('tenant_id', '=', otherTenantId)
     .where('event_type', '=', 'Publish.Completed')
     .executeTakeFirst();
@@ -364,8 +391,28 @@ const run = async (): Promise<void> => {
     tenant_id: otherTenantId,
     config_id: publishDraft.id,
     previous_config_id: draftTwo.id,
-    targets: ['/', '/sitemap.xml', '/robots.txt']
+    targets: ['/', '/sitemap.xml', '/robots.txt'],
+    store_name: 'Other Publishing Test Tenant',
+    merchant_phone_e164: '+256700000021'
   });
+
+  const publishPlan = buildNotificationPlan({
+    id: outboxEvent.id,
+    eventType: outboxEvent.event_type,
+    tenantId: outboxEvent.tenant_id,
+    correlationId: null,
+    actorUserId: outboxEvent.actor_user_id,
+    payload: outboxEvent.payload,
+    occurredAt: outboxEvent.occurred_at,
+    availableAt: outboxEvent.available_at,
+    dispatchedAt: null,
+    attempts: outboxEvent.attempts,
+    lastError: outboxEvent.last_error,
+    createdAt: outboxEvent.created_at
+  });
+  assert.equal(publishPlan.length, 1);
+  assert.equal(publishPlan[0]?.templateId, 'publish.completed.merchant');
+  assert.equal(publishPlan[0]?.recipient, '+256700000021');
 
   const invalidPublishConfigId = `60000000-0000-0000-0000-${suffix}`;
   await db
@@ -433,7 +480,18 @@ const run = async (): Promise<void> => {
 
   const rollbackOutboxEvent = await db
     .selectFrom('outbox_events')
-    .select(['event_type', 'tenant_id', 'actor_user_id', 'payload'])
+    .select([
+      'id',
+      'event_type',
+      'tenant_id',
+      'actor_user_id',
+      'payload',
+      'occurred_at',
+      'available_at',
+      'attempts',
+      'last_error',
+      'created_at'
+    ])
     .where('tenant_id', '=', otherTenantId)
     .where('event_type', '=', 'Rollback.Completed')
     .executeTakeFirst();
@@ -445,7 +503,9 @@ const run = async (): Promise<void> => {
     tenant_id: otherTenantId,
     config_id: draftTwo.id,
     previous_config_id: publishDraft.id,
-    targets: ['/', '/sitemap.xml', '/robots.txt']
+    targets: ['/', '/sitemap.xml', '/robots.txt'],
+    store_name: 'Other Publishing Test Tenant',
+    merchant_phone_e164: '+256700000021'
   });
 
   let invalidRollbackError: unknown;

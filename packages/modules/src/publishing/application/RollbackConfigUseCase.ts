@@ -57,6 +57,30 @@ const toAuditPayload = (config: {
   config_payload: config.configPayload
 });
 
+const loadNotificationContext = async (
+  db: Kysely<DatabaseSchema>,
+  tenantId: string
+): Promise<{
+  storeName: string;
+  merchantPhoneE164: string | null;
+}> => {
+  const tenant = await db
+    .selectFrom('tenants')
+    .select(['business_name'])
+    .where('id', '=', tenantId)
+    .executeTakeFirst();
+  const settings = await db
+    .selectFrom('tenant_settings')
+    .select(['contact_phone_e164', 'contact_whatsapp_e164'])
+    .where('tenant_id', '=', tenantId)
+    .executeTakeFirst();
+
+  return {
+    storeName: tenant?.business_name ?? tenantId,
+    merchantPhoneE164: settings?.contact_whatsapp_e164 ?? settings?.contact_phone_e164 ?? null
+  };
+};
+
 export const createRollbackConfigUseCase = (
   deps: RollbackConfigUseCaseDeps
 ): RollbackConfigUseCase => {
@@ -162,6 +186,7 @@ export const createRollbackConfigUseCase = (
           },
           requestId: toAuditRequestId(input.requestId)
         });
+        const notificationContext = await loadNotificationContext(trx, input.tenantId);
 
         await outboxWriter.write(trx, {
           eventType: 'Rollback.Completed',
@@ -172,7 +197,9 @@ export const createRollbackConfigUseCase = (
             tenant_id: input.tenantId,
             config_id: targetConfig.id,
             previous_config_id: activeConfig?.id ?? null,
-            targets: revalidationPlan.targets
+            targets: revalidationPlan.targets,
+            store_name: notificationContext.storeName,
+            merchant_phone_e164: notificationContext.merchantPhoneE164
           }
         });
 

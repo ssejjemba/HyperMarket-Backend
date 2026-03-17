@@ -73,6 +73,30 @@ const mapOrderAudit = (order: OrderRecord): Record<string, unknown> => ({
   updated_at: order.updatedAt.toISOString()
 });
 
+const loadNotificationContext = async (
+  db: Kysely<DatabaseSchema>,
+  tenantId: string
+): Promise<{
+  storeName: string;
+  merchantPhoneE164: string | null;
+}> => {
+  const tenant = await db
+    .selectFrom('tenants')
+    .select(['business_name'])
+    .where('id', '=', tenantId)
+    .executeTakeFirst();
+  const settings = await db
+    .selectFrom('tenant_settings')
+    .select(['contact_phone_e164', 'contact_whatsapp_e164'])
+    .where('tenant_id', '=', tenantId)
+    .executeTakeFirst();
+
+  return {
+    storeName: tenant?.business_name ?? tenantId,
+    merchantPhoneE164: settings?.contact_whatsapp_e164 ?? settings?.contact_phone_e164 ?? null
+  };
+};
+
 const mapAppError = (error: unknown): never => {
   if (error instanceof AppError && error.code === ErrorCode.IdempotencyConflict) {
     throw new OrderError({
@@ -319,6 +343,7 @@ export const createOrderUseCases = (deps: { db: Kysely<DatabaseSchema> }) => {
             after: mapOrderAudit(finalizedOrder.order),
             requestId: toAuditRequestId(input.requestId)
           });
+          const notificationContext = await loadNotificationContext(trx, input.tenantId);
 
           await outboxWriter.write(trx, {
             eventType: 'Order.Created',
@@ -329,7 +354,17 @@ export const createOrderUseCases = (deps: { db: Kysely<DatabaseSchema> }) => {
               order_id: finalizedOrder.order.id,
               order_number: finalizedOrder.order.orderNumber,
               status: finalizedOrder.order.status,
-              total_amount: finalizedOrder.order.totalAmount
+              total_amount: finalizedOrder.order.totalAmount,
+              currency: finalizedOrder.order.currency,
+              store_name: notificationContext.storeName,
+              customer_phone_e164:
+                (finalizedOrder.order.customerSnapshot.phone_e164 as string | null | undefined) ??
+                null,
+              merchant_phone_e164: notificationContext.merchantPhoneE164,
+              fulfillment_type:
+                (finalizedOrder.order.fulfillmentSnapshot.type as string | null | undefined) ??
+                'pickup',
+              created_at: finalizedOrder.order.createdAt.toISOString()
             }
           });
 
@@ -425,6 +460,7 @@ export const createOrderUseCases = (deps: { db: Kysely<DatabaseSchema> }) => {
           after: mapOrderAudit(updated),
           requestId: toAuditRequestId(input.requestId)
         });
+        const notificationContext = await loadNotificationContext(trx, input.tenantId);
 
         await outboxWriter.write(trx, {
           eventType: 'Order.StateChanged',
@@ -437,7 +473,14 @@ export const createOrderUseCases = (deps: { db: Kysely<DatabaseSchema> }) => {
             order_number: updated.orderNumber,
             from_status: existing.order.status,
             to_status: updated.status,
-            action: input.action
+            action: input.action,
+            total_amount: updated.totalAmount,
+            currency: updated.currency,
+            store_name: notificationContext.storeName,
+            customer_phone_e164:
+              (existing.order.customerSnapshot.phone_e164 as string | null | undefined) ?? null,
+            merchant_phone_e164: notificationContext.merchantPhoneE164,
+            updated_at: updated.updatedAt.toISOString()
           }
         });
 

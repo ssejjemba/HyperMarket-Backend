@@ -426,7 +426,9 @@ flowSuite('PUB routes scaffold - membership guarded placeholders', () => {
         tenant_id: ctx.seed.tenantId,
         config_id: configId,
         previous_config_id: null,
-        targets: ['/', '/sitemap.xml', '/robots.txt']
+        targets: ['/', '/sitemap.xml', '/robots.txt'],
+        store_name: ctx.seed.businessName,
+        merchant_phone_e164: null
       }
     });
 
@@ -743,7 +745,9 @@ flowSuite('PUB routes scaffold - membership guarded placeholders', () => {
         tenant_id: ctx.seed.tenantId,
         config_id: firstConfigId,
         previous_config_id: secondConfigId,
-        targets: ['/', '/sitemap.xml', '/robots.txt']
+        targets: ['/', '/sitemap.xml', '/robots.txt'],
+        store_name: ctx.seed.businessName,
+        merchant_phone_e164: null
       }
     });
 

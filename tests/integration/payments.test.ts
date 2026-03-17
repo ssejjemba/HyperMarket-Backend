@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { config as loadDotenv } from 'dotenv';
 import { createDbClient, sql } from '../../packages/core/src/db/index';
 import { loadEnv } from '../../packages/core/src/config/loadEnv';
+import { buildNotificationPlan } from '../../packages/modules/src/notifications';
 import { createOrderPaymentPort } from '../../packages/modules/src/orders';
 import { createPaymentUseCases } from '../../packages/modules/src/payments';
 
@@ -157,6 +158,21 @@ const run = async (): Promise<void> => {
     .execute();
 
   await db
+    .insertInto('tenant_settings')
+    .values({
+      tenant_id: tenantId,
+      contact_name: 'Payments Owner',
+      contact_email: 'owner@example.com',
+      contact_phone_e164: '+256700000010',
+      contact_whatsapp_e164: '+256700000011',
+      social_links: {},
+      business_hours: {},
+      created_at: new Date(),
+      updated_at: new Date()
+    })
+    .execute();
+
+  await db
     .insertInto('orders')
     .values([
       {
@@ -171,7 +187,9 @@ const run = async (): Promise<void> => {
         discount_amount: 0,
         total_amount: 4500,
         customer_id: null,
-        customer_snapshot: {},
+        customer_snapshot: {
+          phone_e164: '+256712345678'
+        },
         fulfillment_snapshot: {
           type: 'pickup'
         },
@@ -191,7 +209,9 @@ const run = async (): Promise<void> => {
         discount_amount: 0,
         total_amount: 5200,
         customer_id: null,
-        customer_snapshot: {},
+        customer_snapshot: {
+          phone_e164: '+256712345678'
+        },
         fulfillment_snapshot: {
           type: 'pickup'
         },
@@ -353,6 +373,63 @@ const run = async (): Promise<void> => {
   });
   assert.equal(reconciled.checked >= 1, true);
   assert.equal(reconciled.updatedIntentIds.length >= 1, true);
+
+  const outboxEvents = await db
+    .selectFrom('outbox_events')
+    .select([
+      'id',
+      'event_type',
+      'tenant_id',
+      'payload',
+      'occurred_at',
+      'available_at',
+      'attempts',
+      'last_error',
+      'created_at'
+    ])
+    .where('tenant_id', '=', tenantId)
+    .where('event_type', 'in', ['Payment.Succeeded', 'Order.StateChanged'])
+    .orderBy('created_at', 'asc')
+    .execute();
+
+  const paymentSucceededEvent = outboxEvents.find(
+    (event) => event.event_type === 'Payment.Succeeded'
+  );
+  assert.ok(paymentSucceededEvent);
+  assert.deepEqual(paymentSucceededEvent.payload, {
+    tenant_id: tenantId,
+    order_id: orderId,
+    intent_id: intent.id,
+    order_number: '1',
+    total_amount: 4500,
+    currency: 'UGX',
+    customer_phone_e164: '+256712345678',
+    merchant_phone_e164: '+256700000011',
+    store_name: 'Payments A',
+    provider: 'flutterwave',
+    provider_reference: intent.txRef,
+    tx_ref: intent.txRef,
+    provider_transaction_id: '9988',
+    status: 'SUCCEEDED'
+  });
+
+  const paymentPlan = buildNotificationPlan({
+    id: paymentSucceededEvent.id,
+    eventType: paymentSucceededEvent.event_type,
+    tenantId: paymentSucceededEvent.tenant_id,
+    correlationId: null,
+    actorUserId: null,
+    payload: paymentSucceededEvent.payload,
+    occurredAt: paymentSucceededEvent.occurred_at,
+    availableAt: paymentSucceededEvent.available_at,
+    dispatchedAt: null,
+    attempts: paymentSucceededEvent.attempts,
+    lastError: paymentSucceededEvent.last_error,
+    createdAt: paymentSucceededEvent.created_at
+  });
+  assert.equal(paymentPlan.length, 2);
+  assert.equal(paymentPlan[0]?.templateId, 'payment.succeeded.customer');
+  assert.equal(paymentPlan[1]?.templateId, 'payment.succeeded.merchant');
 
   const staleOrder = await db
     .selectFrom('orders')

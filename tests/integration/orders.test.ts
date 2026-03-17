@@ -6,6 +6,7 @@ import { config as loadDotenv } from 'dotenv';
 
 import { createDbClient, sql } from '../../packages/core/src/db/index';
 import { loadEnv } from '../../packages/core/src/config/loadEnv';
+import { buildNotificationPlan } from '../../packages/modules/src/notifications';
 import { createOrderUseCases } from '../../packages/modules/src/orders/application/useCases';
 
 const currentFile = fileURLToPath(import.meta.url);
@@ -202,7 +203,17 @@ const run = async (): Promise<void> => {
 
   const outboxEvents = await db
     .selectFrom('outbox_events')
-    .select('event_type')
+    .select([
+      'id',
+      'event_type',
+      'tenant_id',
+      'payload',
+      'occurred_at',
+      'available_at',
+      'attempts',
+      'last_error',
+      'created_at'
+    ])
     .where('tenant_id', '=', tenantId)
     .orderBy('created_at', 'asc')
     .execute();
@@ -211,6 +222,71 @@ const run = async (): Promise<void> => {
     outboxEvents.map((event) => event.event_type),
     ['Order.Created', 'Order.StateChanged']
   );
+
+  const createdEvent = outboxEvents[0];
+  assert.deepEqual(createdEvent?.payload, {
+    tenant_id: tenantId,
+    order_id: created.order.id,
+    order_number: 1,
+    status: 'PENDING',
+    total_amount: 5000,
+    currency: 'UGX',
+    store_name: 'Orders A',
+    customer_phone_e164: '+256700000001',
+    merchant_phone_e164: null,
+    fulfillment_type: 'pickup',
+    created_at: created.order.createdAt.toISOString()
+  });
+
+  const createdPlan = buildNotificationPlan({
+    id: createdEvent.id,
+    eventType: createdEvent.event_type,
+    tenantId: createdEvent.tenant_id,
+    correlationId: null,
+    actorUserId: null,
+    payload: createdEvent.payload,
+    occurredAt: createdEvent.occurred_at,
+    availableAt: createdEvent.available_at,
+    dispatchedAt: null,
+    attempts: createdEvent.attempts,
+    lastError: createdEvent.last_error,
+    createdAt: createdEvent.created_at
+  });
+  assert.equal(createdPlan.length, 1);
+  assert.equal(createdPlan[0]?.templateId, 'order.created.customer');
+
+  const stateChangedEvent = outboxEvents[1];
+  assert.deepEqual(stateChangedEvent?.payload, {
+    tenant_id: tenantId,
+    order_id: created.order.id,
+    order_number: 1,
+    from_status: 'PENDING',
+    to_status: 'CONFIRMED',
+    action: 'confirm',
+    total_amount: 5000,
+    currency: 'UGX',
+    store_name: 'Orders A',
+    customer_phone_e164: '+256700000001',
+    merchant_phone_e164: null,
+    updated_at: transitioned.order.updatedAt.toISOString()
+  });
+
+  const stateChangedPlan = buildNotificationPlan({
+    id: stateChangedEvent.id,
+    eventType: stateChangedEvent.event_type,
+    tenantId: stateChangedEvent.tenant_id,
+    correlationId: null,
+    actorUserId: null,
+    payload: stateChangedEvent.payload,
+    occurredAt: stateChangedEvent.occurred_at,
+    availableAt: stateChangedEvent.available_at,
+    dispatchedAt: null,
+    attempts: stateChangedEvent.attempts,
+    lastError: stateChangedEvent.last_error,
+    createdAt: stateChangedEvent.created_at
+  });
+  assert.equal(stateChangedPlan.length, 1);
+  assert.equal(stateChangedPlan[0]?.recipient, '+256700000001');
 
   await db.destroy();
 };

@@ -87,6 +87,9 @@ const isOrderPayable = (status: string, checkoutMode: string): boolean =>
 const isFinalIntentStatus = (status: PaymentIntentStatus): boolean =>
   ['SUCCEEDED', 'FAILED', 'EXPIRED', 'CANCELLED', 'REFUNDED'].includes(status);
 
+const asRecord = (value: unknown): Record<string, unknown> =>
+  typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+
 export const createPaymentUseCases = (deps: {
   db: Kysely<DatabaseSchema>;
   config: AppConfigShape;
@@ -96,6 +99,39 @@ export const createPaymentUseCases = (deps: {
   const outboxWriter = createOutboxWriter();
   const idempotency = createIdempotencyService();
   const providers = createPaymentProviderRegistry(deps.config);
+  const loadNotificationPayloadContext = async (
+    trx: Parameters<typeof auditWriter.write>[0],
+    input: {
+      tenantId: string;
+      orderId: string;
+    }
+  ) => {
+    const tenant = await trx
+      .selectFrom('tenants')
+      .select(['business_name'])
+      .where('id', '=', input.tenantId)
+      .executeTakeFirst();
+    const settings = await trx
+      .selectFrom('tenant_settings')
+      .select(['contact_phone_e164', 'contact_whatsapp_e164'])
+      .where('tenant_id', '=', input.tenantId)
+      .executeTakeFirst();
+    const order = await trx
+      .selectFrom('orders')
+      .select(['order_number', 'total_amount', 'currency', 'customer_snapshot'])
+      .where('id', '=', input.orderId)
+      .executeTakeFirst();
+    const customerSnapshot = asRecord(order?.customer_snapshot);
+
+    return {
+      orderNumber: order?.order_number ?? input.orderId,
+      totalAmount: order?.total_amount ?? 0,
+      currency: order?.currency ?? 'UGX',
+      customerPhoneE164: (customerSnapshot.phone_e164 as string | null | undefined) ?? null,
+      storeName: tenant?.business_name ?? input.tenantId,
+      merchantPhoneE164: settings?.contact_whatsapp_e164 ?? settings?.contact_phone_e164 ?? null
+    };
+  };
 
   const transitionOrderForIntent = async (input: {
     tenantId: string;
@@ -178,6 +214,10 @@ export const createPaymentUseCases = (deps: {
       },
       ...(input.requestId !== undefined ? { requestId: input.requestId } : {})
     });
+    const notificationContext = await loadNotificationPayloadContext(input.trx, {
+      tenantId: input.intent.tenantId,
+      orderId: input.intent.orderId
+    });
 
     if (updatedIntent.status !== input.intent.status) {
       await outboxWriter.write(input.trx, {
@@ -188,6 +228,12 @@ export const createPaymentUseCases = (deps: {
           tenant_id: input.intent.tenantId,
           order_id: input.intent.orderId,
           intent_id: updatedIntent.id,
+          order_number: notificationContext.orderNumber,
+          total_amount: notificationContext.totalAmount,
+          currency: notificationContext.currency,
+          customer_phone_e164: notificationContext.customerPhoneE164,
+          merchant_phone_e164: notificationContext.merchantPhoneE164,
+          store_name: notificationContext.storeName,
           provider: updatedIntent.provider,
           provider_reference: updatedIntent.providerReference,
           tx_ref: updatedIntent.txRef,
