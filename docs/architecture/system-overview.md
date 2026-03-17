@@ -8,7 +8,7 @@ Core properties:
 - Fastify HTTP API
 - Kysely repositories
 - Transactional outbox for side effects
-- BullMQ worker for storefront revalidation delivery
+- BullMQ worker for storefront revalidation and notification delivery
 - JWT-based merchant authentication
 
 ## Main Runtime Pieces
@@ -22,6 +22,10 @@ Core properties:
 
 - Authentication via OTP request and verification
 - Tenant creation, tenant settings, and tenant membership management
+- Merchant media upload and asset management
+- Authoritative storefront checkout and merchant order management
+- Flutterwave-backed payment intents and webhook processing
+- Event-driven notification scheduling and SMS dispatch
 - Template-backed publishing flows
 - Tenant-scoped catalog CRUD and public storefront reads
 

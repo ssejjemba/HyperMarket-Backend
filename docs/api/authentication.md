@@ -78,3 +78,9 @@ Response:
 - `POST /auth/logout-all`
 
 Both require `Authorization: Bearer <access_token>`.
+
+## Notes
+
+- OTP auth is Uganda-first and uses the phone validation rules enforced by the IAA module.
+- In development, OTP verification uses the local provider and the API may expose local-only debug routes when `ENABLE_DEV_ROUTES=true`.
+- In production, OTP verification uses Twilio Verify.

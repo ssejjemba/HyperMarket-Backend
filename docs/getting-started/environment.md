@@ -29,6 +29,29 @@ Source of truth:
 | `SESSION_TTL_SECONDS` | `604800`                                         |
 | `ENABLE_DEV_ROUTES`   | `false`                                          |
 
+## Media and Asset Delivery
+
+| Variable                       | Default                         |
+| ------------------------------ | ------------------------------- |
+| `MEDIA_CDN_BASE_URL`           | `http://localhost:3002/cdn`     |
+| `MEDIA_UPLOAD_BASE_URL`        | `http://localhost:3002/uploads` |
+| `MEDIA_UPLOAD_URL_TTL_SECONDS` | `900`                           |
+| `MEDIA_MAX_FILE_BYTES`         | `5242880`                       |
+
+## Payments and Notifications
+
+| Variable                               | Default                       |
+| -------------------------------------- | ----------------------------- |
+| `PAYMENT_DEFAULT_PROVIDER`             | `flutterwave`                 |
+| `PAYMENT_RECONCILIATION_STALE_MINUTES` | `10`                          |
+| `FLW_SECRET_KEY`                       | unset in local example        |
+| `FLW_WEBHOOK_SECRET_HASH`              | unset in local example        |
+| `FLW_BASE_URL`                         | `https://api.flutterwave.com` |
+| `FLW_DEFAULT_NETWORK`                  | `MTN`                         |
+| `NOT_DEFAULT_PROVIDER`                 | `twilio_sms`                  |
+| `NOT_DEFAULT_CHANNEL`                  | `sms`                         |
+| `TWILIO_SMS_FROM`                      | `+256700000000`               |
+
 ## Worker-Specific
 
 | Variable                        | Purpose                                               |
@@ -41,3 +64,5 @@ Source of truth:
 - `ENABLE_DEV_ROUTES=true` exposes local-only OTP inspection routes in development-oriented environments.
 - The worker needs both the shared env values and the storefront revalidation values.
 - The current MVP is Uganda-first, so catalog currency is locked to `UGX`.
+- PAY is currently configured around Flutterwave Uganda MoMo.
+- NOT currently sends SMS via Twilio and uses worker-side job dispatch only.

@@ -111,6 +111,15 @@ Request:
 - `tenant_slug_invalid`
 - `tenant_slug_taken`
 - `tenant_not_found`
+- `tenant_domain_not_found`
+- `tenant_membership_exists`
 - `tenant_membership_not_found`
+- `tenant_membership_revoked`
 - `tenant_membership_role_invalid`
+- `tenant_member_self_revoke_forbidden`
+- `tenant_last_owner_revoke_forbidden`
+- `tenant_last_owner_role_change_forbidden`
+- `tenant_member_target_not_found`
+- `tenant_member_already_revoked`
+- `tenant_access_forbidden`
 - `tenant_settings_invalid`

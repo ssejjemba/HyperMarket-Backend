@@ -157,3 +157,9 @@ The mapping is replaced transactionally.
 - `catalog_currency_not_supported`
 - `catalog_inventory_rule_violation`
 - `catalog_validation_failed`
+
+## Notes
+
+- Product `primary_image_asset_id` is a MED asset reference.
+- Public catalog DTOs intentionally differ from merchant DTOs and do not expose internal soft-delete fields.
+- Catalog writes emit outbox events used by storefront revalidation and notifications.

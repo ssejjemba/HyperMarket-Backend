@@ -60,3 +60,9 @@ corepack pnpm db:down
 - Worker: [apps/worker/src/worker.ts](../../apps/worker/src/worker.ts)
 - Migrations: [packages/core/db/migrations](../../packages/core/db/migrations)
 - Module composition: [packages/modules/src/index.ts](../../packages/modules/src/index.ts)
+
+## Current Runtime Responsibilities
+
+- API server handles auth, merchant APIs, storefront reads, storefront checkout, and payment intent creation.
+- Worker handles storefront revalidation and notification dispatch.
+- Redis is required for BullMQ and OTP rate limiting.

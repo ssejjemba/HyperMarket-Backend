@@ -16,6 +16,7 @@ The codebase uses:
 - Outbox dispatcher: [packages/core/src/outbox/outboxDispatcher.ts](../../packages/core/src/outbox/outboxDispatcher.ts)
 - Worker loop: [apps/worker/src/worker.ts](../../apps/worker/src/worker.ts)
 - Revalidation queue translation: [apps/worker/src/revalidation/storefrontRevalidationQueue.ts](../../apps/worker/src/revalidation/storefrontRevalidationQueue.ts)
+- Notification queue translation: [apps/worker/src/notifications/notificationQueue.ts](../../apps/worker/src/notifications/notificationQueue.ts)
 
 ## Supported Revalidation Event Types
 
@@ -32,6 +33,8 @@ The codebase uses:
 - Failed dispatch attempts increment outbox attempt count.
 - Revalidation jobs use retries with exponential backoff.
 - Permanently failed jobs are moved to the DLQ.
+- Notification jobs use retryable vs non-retryable failure classification.
+- Notification dispatch jobs move to a notification DLQ when retries are exhausted.
 
 ## Operational Checks
 
@@ -41,3 +44,10 @@ When storefront changes do not appear:
 2. Check worker logs for dispatch failures.
 3. Check BullMQ queue and DLQ state.
 4. Confirm `STOREFRONT_REVALIDATION_URL` and `STOREFRONT_REVALIDATION_TOKEN`.
+
+When notifications do not send:
+
+1. Check `outbox_events` for ORD, PAY, or PUB events that should have produced notifications.
+2. Check `notification_jobs` and `notification_delivery_attempts`.
+3. Check worker logs for notification scheduling or provider failures.
+4. Check Redis queues for `notifications.dispatch` and its DLQ.

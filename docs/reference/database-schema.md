@@ -33,6 +33,27 @@ Migrations:
 - `product_variants`
 - `product_categories`
 
+## Media Tables
+
+- `media_assets`
+
+## Orders Tables
+
+- `customers`
+- `orders`
+- `order_items`
+- `order_state_history`
+
+## Payments Tables
+
+- `payment_intents`
+- `payment_provider_events`
+
+## Notifications Tables
+
+- `notification_jobs`
+- `notification_delivery_attempts`
+
 Catalog migration:
 
 - [packages/core/db/migrations/202603160001_create_catalog_tables.ts](../../packages/core/db/migrations/202603160001_create_catalog_tables.ts)
@@ -45,3 +66,10 @@ Catalog migration:
 - Variants stored separately from products
 - Product-category mapping stored in `product_categories`
 - Soft delete implemented with `deleted_at` on categories and products
+
+## Other Schema Notes
+
+- Media assets use tenant-scoped `storage_key` uniqueness.
+- Orders store immutable customer and fulfillment snapshots on the order record.
+- Payments keep intent state separate from order state.
+- Notification jobs use a DB-level unique `dedupe_key` for duplicate scheduling protection.

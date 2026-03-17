@@ -9,6 +9,7 @@ Owns:
 - OTP request and verification
 - Session issuance and validation
 - Logout and logout-all
+- Membership-aware session reads for authenticated merchants
 
 Key routes:
 
@@ -44,11 +45,76 @@ Owns:
 - Product variants
 - Product-category mapping
 - Storefront catalog read models
+- Catalog outbox events for revalidation and notifications
 
 Key routes:
 
 - Merchant routes under `/tenants/:tenantId/categories` and `/tenants/:tenantId/products`
 - Public routes under `/storefront/:tenantSlug/...`
+
+### MED
+
+Owns:
+
+- Media asset metadata
+- Upload token issuance
+- Upload confirmation
+- CDN public URL construction
+- Tenant-scoped media listing and soft delete
+
+Key routes:
+
+- `POST /tenants/:tenantId/media/upload-token`
+- `POST /tenants/:tenantId/media/confirm`
+- `GET /tenants/:tenantId/media`
+- `DELETE /tenants/:tenantId/media/:assetId`
+
+### ORD
+
+Owns:
+
+- Authoritative checkout using catalog data
+- Order totals and snapshots
+- Merchant order listing and detail reads
+- Merchant order transitions
+- Order outbox events
+
+Key routes:
+
+- `POST /storefront/:tenantSlug/orders`
+- `GET /tenants/:tenantId/orders`
+- `GET /tenants/:tenantId/orders/:orderId`
+- `POST /tenants/:tenantId/orders/:orderId/transition`
+
+### PAY
+
+Owns:
+
+- Payment intent lifecycle
+- Flutterwave provider integration
+- Webhook verification and reconciliation
+- Payment outbox events
+- Order payment transitions through the ORD payment port
+
+Key routes:
+
+- `POST /storefront/:tenantSlug/payments/intents`
+- `POST /payments/webhooks/:provider`
+
+### NOT
+
+Owns:
+
+- Notification job persistence
+- Template registry for notifications
+- Event-to-notification planning
+- SMS dispatch and retry/DLQ behavior
+
+Runtime location:
+
+- API does not expose NOT routes in MVP
+- Worker consumes outbox events and dispatches notification jobs
+- Core files live under `packages/modules/src/notifications` and `apps/worker/src/notifications`
 
 ### PUB
 
@@ -75,4 +141,6 @@ Owns:
 - Tenant scope must be applied in repositories and mutations.
 - Side effects must be emitted through the outbox, not inline-only.
 - Worker delivery must tolerate retries and duplicates.
+- PAY does not mutate orders directly; it uses the ORD payment port.
+- NOT does not decide business timing; it reacts to outbox events from other modules.
 - Public storefront reads must never expose internal soft-delete fields.
